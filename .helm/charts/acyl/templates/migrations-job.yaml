@@ -1,0 +1,56 @@
+{{ if .Values.run_migrations }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{.Release.Name}}"
+  labels:
+    heritage: {{.Release.Service | quote }}
+    release: {{.Release.Name | quote }}
+    chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+  annotations:
+    "helm.sh/hook": 'pre-install,pre-upgrade'
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      name: "{{.Release.Name}}"
+      labels:
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+    spec:
+      serviceAccountName: {{ .Values.serviceaccount }}
+      imagePullSecrets:
+        - name: "{{ .Values.image.pullSecret }}"
+      restartPolicy: Never
+      containers:
+      - name: {{ .Chart.Name }}-migrations
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+          - name: VAULT_ADDR
+            value: {{ .Values.vault.addr }}
+        command:
+          - /go/bin/acyl
+        args:
+          - "--secrets-backend"
+          - "{{ .Values.app.secrets_backend }}"
+          - "--secrets-mapping"
+          - "{{ .Values.app.secrets_mapping }}"
+        {{ if .Values.vault.use_k8s_auth }}
+          - "--vault-k8s-auth"
+          - "--vault-k8s-role"
+          - "{{ .Values.vault.role }}"
+          - "--vault-k8s-auth-path"
+          - "{{ .Values.vault.auth_path }}"
+        {{ end }}
+          - "pg-migrate"
+          - "--postgres-migrations-dir"
+          - "/opt/migrations"
+        {{ if .Values.is_dqa }}
+          - "--postgres-uri"
+          - "postgresql://postgres:root@postgresql-postgresql:5432/acyl?sslmode=disable"
+        {{ else }}
+          - "--db-uri-from-vault"
+        {{ end }}
+{{ end }}

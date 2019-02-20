@@ -1,0 +1,111 @@
+---
+version: 2   # required; values < 2 cause acyl to expect old file format
+
+# Which PR base branches will trigger DQA build
+target_branches:
+  - release
+# Tracking environment branches
+track_branch:
+  - master
+
+notifications:
+  github:
+    # add a new PR comment for each notification
+    pr_comments: false
+  slack:
+    # don't do direct messages to the GitHub user who opened the triggering PR (requires a GitHub user to Slack user mapping, see server settings)
+    disable_github_user_dm: false
+    # send notifications to these users/channels in addition to the primary broadcast channel (see server settings)
+    # NOTE: The Slack token used in server settings must have permissions to post messages in all these channels
+    channels:
+      - "technology"
+    users:
+      - "joe.smith"
+  templates:
+    create:
+      title: '🛠 Creating Environment'
+      sections:
+        - title: "{{ .EnvName }}"
+          text: "{{ .Repo }}\nPR #{{ .PullRequest }}: {{ .SourceBranch }} ➡️ {{ .BaseBranch }}"
+          style: 'good'
+    update:
+      title: "🚦 Updating Environment"
+      sections:
+        - title: "{{ .EnvName }}"
+          text: "{{ .Repo }}\nPR #{{ .PullRequest }}: {{ .SourceBranch }} ➡️ {{ .BaseBranch }}\nUpdating to commit:\nhttps://github.com/{{ .Repo }}/commit/{{ .SourceSHA }}\n\"{{ .CommitMessage }}\" - {{ .User }}"
+          style: 'warning'
+    destroy:
+      title: "💣 Destroying Environment"
+      sections:
+        - title: "{{ .EnvName }}"
+          text: "{{ .Repo }}\nPR #{{ .PullRequest }}: {{ .SourceBranch }} ➡️ {{ .BaseBranch }}"
+          style: 'warning'
+    success:
+      title: "🏁 Environment Ready"
+      sections:
+        - title: "{{ .EnvName }}"
+          text: "{{ .Repo }}\nPR #{{ .PullRequest }}: {{ .SourceBranch }} ➡️ {{ .BaseBranch }}"
+          style: 'good'
+        - text: "https://{{ .EnvName }}.dqa.shave.io ({{ .K8sNamespace }})"
+          style: 'good'
+    failure:
+      title: "❌☠️ Environment Error"
+      sections:
+        - title: "{{ .EnvName }}"
+          text: "{{ .Repo }}\nPR #{{ .PullRequest }}: {{ .SourceBranch }} ➡️ {{ .BaseBranch }}"
+          style: 'danger'
+        - text: "{{ .ErrorMessage }}"
+          style: 'danger'
+
+# Metadata about this application
+application:
+  # Relative path to the helm chart within the repo
+  chart_path: '.charts/my-chart'
+  # OPTIONAL: if not in this repo, the repo and path where it can be found (delimited by ":", optional ref [branch/sha] following "@")
+  chart_repo_path: 'acme/helm-charts@master:path/to/chart'
+  # Relative path to the chart vars file
+  chart_vars_path: '.charts/vars/qa.yml'
+  # OPTIONAL: similar to chart_repo_path, for vars files that exist in another repo
+  chart_vars_repo_path: 'acme/helm-charts@master:path/to/vars/file'
+  image: quay.io/acme/foo  # docker image repository
+  dockerfile_path: 'Dockerfile' # relative path to Dockerfile within the git repo. Defaults to "Dockerfile".
+  image_tag_value: 'image.tag'        # value within values.yml of the chart holding the application image tag (defaults to "image.tag")
+  namespace_value: 'namespace'  # value within chart for k8s namespace (defaults to "namespace")
+  env_name_value: # set this chart value to the current environment name (defaults to "env_name")
+    - "env_name"
+  value_overrides:  # literal chart value overrides, using Helm CLI --set syntax
+    - "foo.bar=baz"
+
+dependencies:
+
+  # "direct" dependencies are required for the application to run. For example, databases or other hard runtime requirements that must be present in any environment running the parent application.
+  # Direct dependencies will be transitively processed if this repo is declared as another repo's dependency
+  direct:
+        # dependencies have a name (which defaults to the chart name) which must be unique among all declared direct and environment dependencies
+    - name: something
+      repo: 'acme/something'  # repo containing acyl.yml (which will be processed and direct dependencies transitively added). A repo can only be refenced once in a list of dependencies (direct or environment, including those transitively added).
+      ## OR ##
+      chart_path: '.charts/some-dependency' # relative path to a helm chart
+      ## OR ##
+      chart_repo_path: 'kubernetes/charts@master:path/to/chart' # remote github repo, ref and path
+      # Relative path to the chart vars file (if using chart_path or chart_repo_path)
+      chart_vars_path: '.charts/vars/qa.yml'
+      # Similar to chart_repo_path, for vars files that exist in another repo (if using chart_path or chart_repo_path)
+      chart_vars_repo_path: 'acme/helm-charts@master:path/to/vars/file'
+      # branch matching & default branch are only available for dependencies declared with "repo" and containing an acyl.yml
+      branch_match: true
+    - name: anotherthing
+      repo: 'acme/something'
+      requires:
+        - something # requires references the 'name' field of other direct dependencies only
+  
+  # "environment" dependencies are required for the environment but are not transitively evaluated if this repo is included in 
+  # another environment's dependencies. This is used for applications and scaffolding for the triggering application's environments.
+  environment:
+    - name: thisotherthing
+      chart_path: ".charts/thisotherthing"
+      value_overrides: # chart value overrides. These take precendence over overrides specified in the "application" section of acyl.yml for this repo
+        - "foo.bar=somethingelse"
+      requires:
+        - anotherthing # requires references the 'name' field of either direct or environment dependencies
+  

@@ -1,0 +1,62 @@
+{
+    "create": {
+        "action": "opened",
+        "repository": {
+            "full_name": "dollarshaveclub/acyl-integration-test"
+        },
+        "pull_request": {
+            "number": 9999,
+            "user": {
+                "login": "john.doe"
+            },
+            "head": {
+                "ref": "testing-branch",
+                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2"
+            },
+            "base": {
+                "ref": "master",
+                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38"
+            }
+        }
+    },
+    "update": {
+        "action": "synchronize",
+        "repository": {
+            "full_name": "dollarshaveclub/acyl-integration-test"
+        },
+        "pull_request": {
+            "number": 9999,
+            "user": {
+                "login": "john.doe"
+            },
+            "head": {
+                "ref": "testing-branch",
+                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2"
+            },
+            "base": {
+                "ref": "master",
+                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38"
+            }
+        }
+    },
+    "delete": {
+        "action": "closed",
+        "repository": {
+            "full_name": "dollarshaveclub/acyl-integration-test"
+        },
+        "pull_request": {
+            "number": 9999,
+            "user": {
+                "login": "john.doe"
+            },
+            "head": {
+                "ref": "testing-branch",
+                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2"
+            },
+            "base": {
+                "ref": "master",
+                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38"
+            }
+        }
+    }
+}

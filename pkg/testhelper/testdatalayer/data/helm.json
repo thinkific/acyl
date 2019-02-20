@@ -1,0 +1,16 @@
+[
+  {
+    "env_name": "foo-bar",
+    "k8s_namespace": "foo-bar-4806",
+    "release": "some-random-name",
+    "repo": "dollarshaveclub/foo-bar",
+    "revision_sha": "asdf"
+  },
+  {
+    "env_name": "foo-bar",
+    "k8s_namespace": "foo-bar-4806",
+    "release": "some-random-name-2",
+    "repo": "dollarshaveclub/dependency",
+    "revision_sha": "1234"
+  }
+]

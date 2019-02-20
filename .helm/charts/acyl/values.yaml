@@ -1,0 +1,70 @@
+# Default values for acyl.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+replicaCount: 2
+maxSurge: 4
+namespace: default
+create_svc: true
+create_cluster_role_binding: false
+is_dqa: false
+run_migrations: false
+enable_cronjob: false
+image:
+  repository: quay.io/dollarshaveclub/acyl
+  tag: master
+  pullPolicy: Always
+  pullSecret: pull-secret
+app:
+  env_limit: '80'
+  newrelic_enabled: true
+  newrelic_app_name: acyl
+  disable_tls: true  # required for argo ingress
+  helm_chart_to_repo: ''
+  deployment_to_repo: ''
+  secrets_backend: "vault"
+  secrets_mapping: "{{ .ID }}"
+  secrets_from_env: false
+  debug_endpoints: true
+  consul_server_host: 1.2.3.4
+  dogstatsd_addr: 1.2.3.4:8125
+  metrics_tags: ''
+  amino_addr: foo.bar.com:3000
+  furan_addr: "furan"
+  nitro: true
+  k8s_group_bindings: ""
+  k8s_secret_injections: "image-pull-secret=k8s/image_pull_secret"
+  failure_reports:
+    s3:
+      region: ''
+      bucket: ''
+      keyprefix: 'acyl/'
+  cleanup:
+    legacy_reaper_interval_secs: 300
+    schedule: "@hourly"
+    k8s_max_age: 336h # 14 days
+    destroyed_envs_max_age: 720h # 30 days
+    event_logs_max_age: 720h
+vault:
+  addr: https://vault:8200
+  use_k8s_auth: true
+  role: acyl
+  auth_path: "kubernetes"
+serviceaccount: serviceaccount
+service:
+  name: acyl
+  type: ClusterIP
+  internalPort: 4000
+ingress:
+  argo: true
+  argo_host: foo.bar.com
+rbac:
+  cluster_role: cluster-admin
+  cluster_role_binding:
+    name: acyl
+resources:
+  limits:
+    cpu: 1
+    memory: 1Gi
+  requests:
+    cpu: 1
+    memory: 256Mi

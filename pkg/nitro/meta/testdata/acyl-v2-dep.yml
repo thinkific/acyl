@@ -1,0 +1,21 @@
+---
+version: 2
+
+target_branches:
+  - master
+
+# Metadata about this application
+application:
+  chart_path: '.charts/dependency'
+  chart_vars_path: '.charts/vars/qa.yml'
+  image: quay.io/dollarshaveclub/dependency
+
+dependencies:
+  direct:
+    - chart_path: '.charts/transitive-dependency'
+    - chart_path: '.charts/transitive-dependency-2'
+      requires:
+        - transitive
+  environment:
+    - chart_path: "./charts/something-else"
+  

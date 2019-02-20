@@ -1,0 +1,14 @@
+{{ if (not .Values.is_dqa) and .Values.create_cluster_role_binding }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.rbac.cluster_role_binding.name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.rbac.cluster_role }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.serviceaccount }}
+  namespace: {{ .Values.namespace }}
+{{ end }}

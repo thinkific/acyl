@@ -1,0 +1,25 @@
+---
+version: 2
+
+target_branches:
+  - master
+
+# Metadata about this application
+application:
+  chart_path: '.charts/my-chart'
+  chart_vars_path: '.charts/vars/qa.yml'
+  image: quay.io/dollarshaveclub/foo
+  value_overrides:
+    - "foo=bar"
+
+dependencies:
+  direct:
+    - repo: 'acme/widgets'
+      default_branch: master
+      value_overrides:
+        - "bar=asdf"
+    - name: 'postgres-database'
+      chart_repo_path: 'kubernetes/charts@master:/stable/postgresql'
+  environment:
+    - chart_path: '.charts/some-dependency'
+    - repo: 'acme/sprockets'

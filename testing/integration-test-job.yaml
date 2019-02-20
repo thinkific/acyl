@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{NAME}}
+spec:
+  template:
+    spec:
+      containers:
+      - name: acyl-integration
+        image: quay.io/dollarshaveclub/acyl:{{TAG}}
+        imagePullPolicy: Always
+        command:
+          - "/go/bin/acyl"
+        args:
+          - "integration"
+          - "--data-file"
+          - "/opt/integration/data.json"
+          - "--webhook-file"
+          - "/opt/integration/webhook.json"
+        env:
+          - name: "GITHUB_TOKEN"
+            valueFrom:
+              secretKeyRef:
+                name: acyl-integration
+                key: github_token
+      restartPolicy: Never
+  backoffLimit: 0

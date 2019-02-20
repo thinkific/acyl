@@ -1,0 +1,74 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.11
+    working_directory: /go/src/github.com/dollarshaveclub/acyl
+    steps:
+      - checkout
+      # - run: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+      # - run: dep status
+      # - run: go get -v
+      - run: go build
+  test:
+    docker:
+      - image: circleci/golang:1.11
+      - image: postgres:9.5.9-alpine
+        environment:
+        - POSTGRES_USER=acyl
+    working_directory: /go/src/github.com/dollarshaveclub/acyl
+    steps:
+      - checkout
+      - run:
+          name: Wait for Postgres
+          command: dockerize -wait tcp://localhost:5432 -timeout 1m
+      - run:
+          name: Compile Acyl binary
+          command: go install github.com/dollarshaveclub/acyl
+      - run:
+          name: Run Acyl migrations
+          command: acyl pg-migrate
+      - run:
+          name: Running tests
+          working_directory: /go/src/github.com/dollarshaveclub/acyl
+          command: go test -cover $(go list ./... |grep -v pkg/persistence |grep -v pkg/api)
+      - run:
+          name: Running DB tests
+          working_directory: /go/src/github.com/dollarshaveclub/acyl/pkg/persistence
+          command: go test -cover
+          environment:
+            POSTGRES_ALREADY_RUNNING: 1
+      - run:
+          name: Running API tests
+          working_directory: /go/src/github.com/dollarshaveclub/acyl/pkg/api
+          command: go test -cover
+          environment:
+            POSTGRES_ALREADY_RUNNING: 1
+  
+  nitro_integration:
+    docker:
+      - image: docker:stable-git
+    working_directory: /go/src/github.com/dollarshaveclub/acyl
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run: apk update && apk add bash
+      - run: docker login quay.io -u "$QUAY_IO_USER" -p "$QUAY_IO_PWD"
+      - run:
+          name: Building container image
+          command: docker build -t quay.io/dollarshaveclub/acyl:${CIRCLE_SHA1}-integration .
+      - run: 
+          name: Pushing container image
+          command: docker push quay.io/dollarshaveclub/acyl:${CIRCLE_SHA1}-integration
+      - run:
+          name: Running integration job (remote k8s)
+          command: ./testing/run_integration_job.sh
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - test
+      - nitro_integration

@@ -1,0 +1,176 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}
+      appsel: acyl
+  strategy:
+    rollingUpdate:
+      maxSurge: {{ .Values.maxSurge }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "fullname" . }}
+        appsel: acyl
+    spec:
+      serviceAccountName: {{ .Values.serviceaccount }}
+      terminationGracePeriodSeconds: 1830 # 30min + 30s
+      imagePullSecrets:
+        - name: "{{ .Values.image.pullSecret }}"
+      volumes:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+          - /go/bin/acyl
+        args:
+          - "server"
+        {{ if .Values.app.disable_tls }}
+          - "--disable-tls"
+        {{ end }}
+          - "--enable-newrelic={{ .Values.app.newrelic_enabled }}"
+        {{ if .Values.app.newrelic_enabled }}
+          - "--newrelic-app"
+        {{ if .Values.is_dqa }}
+          - "{{ .Values.app.newrelic_app_name }}-{{ .Values.env_name }}"
+        {{ else }}
+          - "{{ .Values.app.newrelic_app_name }}"
+        {{ end }}
+        {{ end }}
+          - "--global-environment-limit"
+          - "{{ .Values.app.env_limit }}"
+          - "--helm-chart-to-repo"
+          - '{{ .Values.app.helm_chart_to_repo }}'
+          - "--deployment-to-repo"
+          - '{{ .Values.app.deployment_to_repo }}'
+          - "--consul-addr"
+          - '{{ .Values.app.consul_server_host }}:8500'
+          - "--dogstatsd-addr"
+          - "{{ .Values.app.dogstatsd_addr }}"
+          - "--cleanup-interval"
+          - "{{ .Values.app.cleanup.legacy_reaper_interval_secs }}"
+        {{ if .Values.is_dqa }}
+          - "--dogstatsd-tags"
+          - "env:dqa,env_name:{{ .Values.env_name }}"
+        {{ else }}
+          - "--dogstatsd-tags"
+          - "{{ .Values.app.metrics_tags }}"
+        {{ end }}
+          - "--furan-addrs"
+          - "{{ .Values.app.furan_addr }}"
+          - "--secrets-backend"
+          - "{{ .Values.app.secrets_backend }}"
+          - "--secrets-mapping"
+          - "{{ .Values.app.secrets_mapping }}"
+        {{ if .Values.vault.use_k8s_auth }}
+          - "--vault-k8s-auth"
+          - "--vault-k8s-role"
+          - "{{ .Values.vault.role }}"
+          - "--vault-k8s-auth-path"
+          - "{{ .Values.vault.auth_path }}"
+        {{ end }}
+          - "--amino-addr"
+          - "{{ .Values.app.amino_addr }}"
+    {{ if eq .Values.app.debug_endpoints true }}
+          - "--debug-endpoints"
+    {{ end }}
+    {{ if .Values.app.nitro }}
+          - "--enable-nitro"
+          - "--k8s-secret-injections"
+          - "{{ .Values.app.k8s_secret_injections }}"
+          - "--failure-report-s3-region"
+          - "{{ .Values.app.failure_reports.s3.region }}"
+          - "--failure-report-s3-bucket"
+          - "{{ .Values.app.failure_reports.s3.bucket }}"
+          - "--failure-report-s3-key-prefix"
+          - "{{ .Values.app.failure_reports.s3.keyprefix }}"
+          - "--k8s-group-bindings"
+          - "{{ .Values.app.k8s_group_bindings }}"
+    {{ end }}
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.service.internalPort }}
+            {{ if .Values.app.disable_tls }}
+            scheme: HTTP
+            {{ else }}
+            scheme: HTTPS
+            {{ end }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.service.internalPort }}
+            {{ if .Values.app.disable_tls }}
+            scheme: HTTP
+            {{ else }}
+            scheme: HTTPS
+            {{ end }}
+        volumeMounts:
+        env:
+          {{ if .Values.app.secrets_from_env }}
+          - name: ACYL_AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: aws_access_key_id
+          - name: ACYL_AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: aws_secret_access_key
+          - name: ACYL_GITHUB_HOOK_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_hook_secret
+          - name: ACYL_GITHUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_token
+          - name: ACYL_NEWRELIC_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: newrelic_api_key
+          - name: ACYL_API_KEYS
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: api_keys
+          - name: ACYL_SLACK_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: slack_token
+          - name: ACYL_TLS_CERT
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: tls_cert
+          - name: ACYL_TLS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: tls_key
+          - name: ACYL_DB_URI
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: db_uri
+          {{ else }}
+          - name: VAULT_ADDR
+            value: {{ .Values.vault.addr }}
+          {{ end }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}

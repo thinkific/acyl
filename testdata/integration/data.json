@@ -1,0 +1,5 @@
+{
+    "qa_environments": [],
+    "kubernetes_environments": [],
+    "helm_releases": []
+}

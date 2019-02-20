@@ -1,0 +1,145 @@
+
+# Gopkg.toml example
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#  name = "github.com/x/y"
+#  version = "2.4.0"
+
+
+[[constraint]]
+  name = "github.com/DataDog/datadog-go"
+  version = "1.1.0"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/aws/aws-sdk-go"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/dollarshaveclub/furan"
+
+[[constraint]]
+  name = "github.com/dollarshaveclub/metahelm"
+  version = "=0.5.2"
+
+[[constraint]]
+  name = "github.com/golang/mock"
+  version = "1.0.0"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/google/go-github"
+
+[[constraint]]
+  name = "github.com/gorilla/mux"
+  version = "1.4.0"
+
+[[constraint]]
+  name = "github.com/hashicorp/consul"
+  version = "0.9.0"
+
+[[constraint]]
+  name = "github.com/newrelic/go-agent"
+  version = "1.9.0"
+
+[[constraint]]
+  name = "github.com/nlopes/slack"
+  version = "0.1.0"
+
+[[constraint]]
+  version = "0.0.3"
+  name = "github.com/spf13/cobra"
+
+[[override]]
+  version = "1.0.3"
+  name = "github.com/spf13/pflag"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/net"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/oauth2"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "1.11.3"
+
+[[constraint]]
+  branch = "v2"
+  name = "gopkg.in/yaml.v2"
+  
+# transitive dep of k8s 1.13
+[[override]]
+  name = "gopkg.in/square/go-jose.v2"
+  version = "2.1.9"
+
+[[constraint]]
+    name = "k8s.io/helm"
+    # version = "=2.9.1"
+    source = "github.com/bkeroackdsc/helm"
+    #branch = "client-accept-contexts"
+    revision = "a3132313dcf97b46dc3ff9a36234702aaa4ac090"
+
+[[override]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.13.0"
+
+[[override]]
+  name = "k8s.io/apiserver"
+  version = "kubernetes-1.13.0"
+
+[[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  version = "kubernetes-1.13.0"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.13.0"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "10.0.0"
+
+[[override]]
+  name = "github.com/docker/distribution"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/docker/cli"
+  version = "18.09"
+
+# transitive dependency of docker/go-metrics
+[[override]]
+  name = "github.com/prometheus/client_golang"
+  version = "0.9.2"
+
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  version = "1.2.0"
+
+[[constraint]]
+  name = "gopkg.in/src-d/go-billy.v4"
+  version = "4.3.0"
+
+[[constraint]]
+  name = "gopkg.in/jfontan/go-billy-desfacer.v0"
+  source = "github.com/bkeroackdsc/go-billy-desfacer"
+  # branch = "fix-unimplemented-file-lock"
+  revision = "e5f0f2cddac159d8ee95b2acb1b80a18e4a1299e"
