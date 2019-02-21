@@ -15,7 +15,6 @@ application:
   #   - "app.secrets_mapping=ACYL_{{ .ID }}"
   #   - "app.secrets_from_env=true"
   #   - "app.k8s_secret_injections="
-  #   - "app.newrelic_enabled=false"
 
 dependencies:
   direct:
@@ -37,4 +36,3 @@ notifications:
         - title: "{{ .EnvName }}"
           text: "{{ .Repo }} PR #{{ .PullRequest }} {{ .SourceBranch }}\nK8s Namespace: {{ .K8sNamespace }}\nhttps://{{ .EnvName }}-acyl.boogies.io"
           style: 'good'
-

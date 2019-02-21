@@ -26,6 +26,7 @@ import (
 	metahelmlib "github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/nlopes/slack"
 	"github.com/pkg/errors"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -34,7 +35,6 @@ func TestLockingOperation(t *testing.T) {
 	c := make(chan struct{})
 	close(c)
 	m := Manager{
-		NRApp: &FakeNewRelicApplication{},
 		LP: &locker.FakePreemptiveLockProvider{
 			ChannelFactory: func() chan struct{} { return c },
 		},
@@ -49,11 +49,13 @@ func TestLockingOperation(t *testing.T) {
 			return nil
 		}
 	}
-	if err := m.lockingOperation(context.Background(), "foo", "foo", "1", f); err != nil {
+	testSpan, _ := tracer.SpanFromContext(context.Background())
+	ctxWithSpan := NewSpanContext(context.Background(), testSpan)
+	if err := m.lockingOperation(ctxWithSpan, "foo", "1", f); err != nil {
 		t.Fatalf("should have been preempted")
 	}
 	c = make(chan struct{})
-	err := m.lockingOperation(context.Background(), "foo", "foo", "1", f)
+	err := m.lockingOperation(ctxWithSpan, "foo", "1", f)
 	if err == nil {
 		t.Fatalf("should have timed out")
 	}
@@ -114,7 +116,9 @@ func TestGenerateNewEnv(t *testing.T) {
 	}
 	dl := persistence.NewFakeDataLayer()
 	m := Manager{MG: fg, RC: frc, NG: &namegen.FakeNameGenerator{}, DL: dl}
-	env, err := m.generateNewEnv(context.Background(), &models.RepoRevisionData{Repo: "foo/bar", User: "foo", PullRequest: 1, BaseBranch: "master", SourceSHA: "asdf", SourceBranch: "foo"})
+	testSpan, _ := tracer.SpanFromContext(context.Background())
+	ctxWithSpan := NewSpanContext(context.Background(), testSpan)
+	env, err := m.generateNewEnv(ctxWithSpan, &models.RepoRevisionData{Repo: "foo/bar", User: "foo", PullRequest: 1, BaseBranch: "master", SourceSHA: "asdf", SourceBranch: "foo"})
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -132,7 +136,7 @@ func TestGenerateNewEnv(t *testing.T) {
 	}
 	oldname := env.Name
 	// test reuse of an existing environment record
-	env, err = m.generateNewEnv(context.Background(), &models.RepoRevisionData{Repo: "foo/bar", User: "foo", PullRequest: 1, BaseBranch: "master", SourceSHA: "1234", SourceBranch: "foo"})
+	env, err = m.generateNewEnv(ctxWithSpan, &models.RepoRevisionData{Repo: "foo/bar", User: "foo", PullRequest: 1, BaseBranch: "master", SourceSHA: "1234", SourceBranch: "foo"})
 	if err != nil {
 		t.Fatalf("reuse should have succeeded: %v", err)
 	}
@@ -169,7 +173,9 @@ func TestFetchCharts(t *testing.T) {
 		FS: memfs.New(),
 		MC: &metrics.FakeCollector{},
 	}
-	_, _, err := m.fetchCharts(context.Background(), "foo-bar", &models.RepoConfig{})
+	testSpan, _ := tracer.SpanFromContext(context.Background())
+	ctxWithSpan := NewSpanContext(context.Background(), testSpan)
+	_, _, err := m.fetchCharts(ctxWithSpan, "foo-bar", &models.RepoConfig{})
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -344,8 +350,7 @@ func TestCreate(t *testing.T) {
 				DL: dl,
 			}
 			m := Manager{
-				DL:    dl,
-				NRApp: &FakeNewRelicApplication{},
+				DL: dl,
 				LP: &locker.FakePreemptiveLockProvider{
 					ChannelFactory: func() chan struct{} {
 						lch := make(chan struct{})
@@ -361,7 +366,10 @@ func TestCreate(t *testing.T) {
 				RC: frc,
 				CI: ci,
 			}
-			name, err := m.Create(context.Background(), c.inputRRD)
+
+			testSpan, _ := tracer.SpanFromContext(context.Background())
+			ctx := NewSpanContext(context.Background(), testSpan)
+			name, err := m.Create(ctx, c.inputRRD)
 			c.verifyFunc(name, err, t)
 		})
 	}
@@ -587,8 +595,7 @@ func TestUpdate(t *testing.T) {
 				HelmReleases: releases,
 			}
 			m := Manager{
-				DL:    dl,
-				NRApp: &FakeNewRelicApplication{},
+				DL: dl,
 				LP: &locker.FakePreemptiveLockProvider{
 					ChannelFactory: func() chan struct{} {
 						lch := make(chan struct{})
@@ -604,7 +611,9 @@ func TestUpdate(t *testing.T) {
 				RC: frc,
 				CI: ci,
 			}
-			_, err := m.Update(context.Background(), c.inputRDD)
+			testSpan, _ := tracer.SpanFromContext(context.Background())
+			ctx := NewSpanContext(context.Background(), testSpan)
+			_, err := m.Update(ctx, c.inputRDD)
 			c.verifyFunc(err, dl, t)
 		})
 	}
@@ -747,8 +756,7 @@ func TestDelete(t *testing.T) {
 				HelmReleases: releases,
 			}
 			m := Manager{
-				DL:    dl,
-				NRApp: &FakeNewRelicApplication{},
+				DL: dl,
 				LP: &locker.FakePreemptiveLockProvider{
 					ChannelFactory: func() chan struct{} {
 						lch := make(chan struct{})
@@ -762,7 +770,9 @@ func TestDelete(t *testing.T) {
 				RC: frc,
 				CI: ci,
 			}
-			err := m.Delete(context.Background(), &c.inputRDD, models.DestroyApiRequest)
+			testSpan, _ := tracer.SpanFromContext(context.Background())
+			ctx := NewSpanContext(context.Background(), testSpan)
+			err := m.Delete(ctx, &c.inputRDD, models.DestroyApiRequest)
 			c.verifyFunc(err, t)
 		})
 	}
@@ -1096,6 +1106,7 @@ func TestProcessEnvConfig(t *testing.T) {
 			Ref:    "aaaa",
 		},
 	}
+	testSpan, _ := tracer.SpanFromContext(context.Background())
 	dl := persistence.NewFakeDataLayer()
 	dl.CreateQAEnvironment(&env)
 	tests := []struct {
@@ -1116,7 +1127,7 @@ func TestProcessEnvConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx: context.Background(),
+				ctx: NewSpanContext(context.Background(), testSpan),
 				env: &env,
 				rd: &models.RepoRevisionData{
 					Repo:         env.Repo,

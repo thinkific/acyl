@@ -26,8 +26,8 @@ import (
 	metahelmlib "github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/google/uuid"
 	"github.com/imdario/mergo"
-	newrelic "github.com/newrelic/go-agent"
 	"github.com/pkg/errors"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	billy "gopkg.in/src-d/go-billy.v4"
 	billyutil "gopkg.in/src-d/go-billy.v4/util"
 )
@@ -54,15 +54,13 @@ type Manager struct {
 	MC                   metrics.Collector
 	NG                   namegen.NameGenerator
 	LP                   locker.PreemptiveLockProvider
-	NRApp                newrelic.Application
 	FS                   billy.Filesystem
 	MG                   meta.Getter
 	CI                   metahelm.Installer
 	AWSCreds             config.AWSCreds
 	S3Config             config.S3Config
-
-	failureTemplate *template.Template
-	s3p             s3Pusher
+	failureTemplate      *template.Template
+	s3p                  s3Pusher
 }
 
 func (m *Manager) log(ctx context.Context, msg string, args ...interface{}) {
@@ -150,14 +148,16 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 	}
 }
 
-func (m *Manager) createPendingGithubStatus(ctx context.Context, rd *models.RepoRevisionData) error {
+func (m *Manager) createPendingGithubStatus(ctx context.Context, rd *models.RepoRevisionData) (err error) {
+	span := startChildSpan(ctx, "create_pending_github_status")
+	defer span.Finish(tracer.WithError(err))
 	cs := &ghclient.CommitStatus{
 		Context:     "Acyl",
 		Status:      "pending",
 		Description: "Environment is being created",
 		TargetURL:   "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
 	}
-	err := m.RC.SetStatus(ctx, rd.Repo, rd.SourceSHA, cs)
+	err = m.RC.SetStatus(ctx, rd.Repo, rd.SourceSHA, cs)
 	if err != nil {
 		m.log(ctx, "error setting pending github commit status: %v", err)
 	}
@@ -193,20 +193,11 @@ func (m *Manager) createSuccessGithubStatus(ctx context.Context, rd *models.Repo
 }
 
 // lockingOperation sets up the lock and if successful executes f, releasing the lock afterward
-func (m *Manager) lockingOperation(ctx context.Context, txnName, repo, pr string, f func(ctx context.Context) error) error {
-	var err error
-	txn := m.NRApp.StartTransaction(txnName, nil, nil)
-	defer txn.End()
-	defer func() {
-		if err != nil {
-			m.log(ctx, err.Error())
-			txn.NoticeError(err)
-		}
-	}()
-	ctx, cf := context.WithCancel(newNRTxnContext(ctx, txn))
+func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(ctx context.Context) error) (err error) {
+	ctx, cf := context.WithCancel(ctx)
 	defer cf()
 
-	end := m.MC.Timing(mpfx+"lock_wait", "triggering_repo:"+repo, "txn_name:"+txnName)
+	end := m.MC.Timing(mpfx+"lock_wait", "triggering_repo:"+repo)
 	lock := m.LP.NewPreemptiveLocker(repo, pr, locker.PreemptiveLockerOpts{})
 	preempt, err := lock.Lock(ctx)
 	if err != nil {
@@ -221,16 +212,16 @@ func (m *Manager) lockingOperation(ctx context.Context, txnName, repo, pr string
 	go func() {
 		select {
 		case <-preempt: // Lock got preempted, cancel action
-			m.MC.Increment(mpfx+"lock_preempt", "triggering_repo:"+repo, "txn_name:"+txnName)
-			m.log(ctx, "operation preempted: %v: %v: %v", txnName, repo, pr)
+			m.MC.Increment(mpfx+"lock_preempt", "triggering_repo:"+repo)
+			m.log(ctx, "operation preempted: %v: %v", repo, pr)
 		case <-stop:
 		}
 		cf()
 	}()
-	endop := m.MC.Timing(mpfx+"operation", "triggering_repo:"+repo, "txn_name:"+txnName)
+	endop := m.MC.Timing(mpfx+"operation", "triggering_repo:"+repo)
 	err = f(ctx)
 	if err != nil {
-		m.log(ctx, "operation error (user: %v, sys: %v): %v: %v: %v: %v", nitroerrors.IsUserError(err), nitroerrors.IsSystemError(err), txnName, repo, pr, err)
+		m.log(ctx, "operation error (user: %v, sys: %v): %v: %v: %v", nitroerrors.IsUserError(err), nitroerrors.IsSystemError(err), repo, pr, err)
 	}
 	endop(fmt.Sprintf("success:%v", err == nil), fmt.Sprintf("user_error:%v", nitroerrors.IsUserError(err)), fmt.Sprintf("system_error:%v", nitroerrors.IsSystemError(err)))
 	return err
@@ -240,7 +231,7 @@ func (m *Manager) lockingOperation(ctx context.Context, txnName, repo, pr string
 func (m *Manager) Create(ctx context.Context, rd models.RepoRevisionData) (string, error) {
 	var err error
 	var name string
-	err = m.lockingOperation(ctx, "NitroCreate", rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
+	err = m.lockingOperation(ctx, rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
 		name, err = m.create(ctx, &rd)
 		return err
 	})
@@ -280,6 +271,8 @@ func (m *Manager) generateNewEnv(ctx context.Context, rd *models.RepoRevisionDat
 			err = nitroerrors.SystemError(err)
 		}
 	}()
+	span := startChildSpan(ctx, "generate_new_env")
+	defer span.Finish(tracer.WithError(err))
 	envs, err := m.DL.GetQAEnvironmentsByRepoAndPR(rd.Repo, rd.PullRequest)
 	if err != nil {
 		return nil, errors.Wrap(err, "error checking for existing environment record")
@@ -338,6 +331,8 @@ func (m *Manager) processEnvConfig(ctx context.Context, env *models.QAEnvironmen
 			err = nitroerrors.SystemError(err)
 		}
 	}()
+	span := startChildSpan(ctx, "process_env_config")
+	defer span.Finish(tracer.WithError(err))
 	ne = &newEnv{env: env}
 	rc, err := m.getRepoConfig(ctx, rd)
 	if err != nil {
@@ -369,7 +364,9 @@ func (m *Manager) processEnvConfig(ctx context.Context, env *models.QAEnvironmen
 	return ne, nil
 }
 
-func (m *Manager) fetchCharts(ctx context.Context, name string, rc *models.RepoConfig) (string, meta.ChartLocations, error) {
+func (m *Manager) fetchCharts(ctx context.Context, name string, rc *models.RepoConfig) (_ string, _ meta.ChartLocations, err error) {
+	span := startChildSpan(ctx, "fetch_charts")
+	defer span.Finish(tracer.WithError(err))
 	td, err := tempDir(m.FS, "", name)
 	if err != nil {
 		return "", nil, errors.Wrap(err, "error generating temp dir")
@@ -390,6 +387,9 @@ func (m *Manager) fetchCharts(ctx context.Context, name string, rc *models.RepoC
 // create creates a new environment and returns the environment name, or error
 func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envname string, err error) {
 	end := m.MC.Timing(mpfx+"create", "triggering_repo:"+rd.Repo)
+	span := startChildSpan(ctx, "create")
+	defer span.Finish(tracer.WithError(err))
+	ctx = NewSpanContext(ctx, span)
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
 	}()
@@ -437,6 +437,8 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 			VarFilePath: v.VarFilePath,
 		}
 	}
+	chartSpan := startChildSpan(ctx, "build_and_install_chart")
+	defer chartSpan.Finish(tracer.WithError(err))
 	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: newenv.env, RC: newenv.rc}, mcloc); err != nil {
 		return "", m.handleMetahelmError(ctx, newenv, err, "error installing charts")
 	}
@@ -446,7 +448,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 // Delete destroys an environment in k8s and marks it as such in the DB
 func (m *Manager) Delete(ctx context.Context, rd *models.RepoRevisionData, reason models.QADestroyReason) error {
 	var err error
-	err = m.lockingOperation(ctx, "NitroDelete", rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
+	err = m.lockingOperation(ctx, rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
 		return m.delete(ctx, rd, reason)
 	})
 	return err
@@ -469,6 +471,9 @@ func (m *Manager) getenv(ctx context.Context, rd *models.RepoRevisionData) (*mod
 
 func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reason models.QADestroyReason) (err error) {
 	end := m.MC.Timing(mpfx+"delete", "triggering_repo:"+rd.Repo)
+	span := startChildSpan(ctx, "delete")
+	defer span.Finish(tracer.WithError(err))
+	ctx = NewSpanContext(ctx, span)
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
 	}()
@@ -535,7 +540,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 func (m *Manager) Update(ctx context.Context, rd models.RepoRevisionData) (string, error) {
 	var err error
 	var name string
-	err = m.lockingOperation(ctx, "NitroUpdate", rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
+	err = m.lockingOperation(ctx, rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
 		name, err = m.update(ctx, &rd)
 		return err
 	})
@@ -544,6 +549,9 @@ func (m *Manager) Update(ctx context.Context, rd models.RepoRevisionData) (strin
 
 func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envname string, err error) {
 	end := m.MC.Timing(mpfx+"update", "triggering_repo:"+rd.Repo)
+	span := startChildSpan(ctx, "update")
+	defer span.Finish(tracer.WithError(err))
+	ctx = NewSpanContext(ctx, span)
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
 	}()
