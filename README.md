@@ -15,26 +15,26 @@ Acyl has been used in various forms as part of the core Dollar Shave Club softwa
 
 ## Configuration
 
-Environments are defined by `acyl.yml`, which declaritively describes the required Helm Charts along with their release value configuration and the dependency relationships among them. The config file can be thought of as a "Helm compose", analagous to Docker Compose except using Helm Charts instead of individual containers. Acyl uses [Metahelm](https://github.com/dollarshaveclub/metahelm) to construct a dependency graph of the environment charts and installs them in optimal reverse-dependency order.
+Environments are defined by `acyl.yml`, which describes the required Helm Charts along with their release value configuration and the dependency relationships among them. The config file can be thought of as a "Helm compose", analagous to Docker Compose except using Helm Charts instead of individual containers. Acyl uses [Metahelm](https://github.com/dollarshaveclub/metahelm) to construct a dependency graph of the environment charts and installs them in optimal reverse-dependency order.
 
 An `acyl.yml` in one application repository can reference `acyl.yml` files in other repositories, and those applications (and their dependencies) will be transitively included in the environment. In this way complex application stacks maintained by different teams can share testing environment configuration.
 
 ## Architecture
-
-Acyl is a complex system with several components:
 
 ![Architecture](doc/acyl_architecture.png?raw=true)
 
 - Acyl: This is the server application which listens for GitHub webhook events and performs operations to create, update or destroy environments within your Kubernetes cluster. The server is intended to run within the same cluster, with ClusterAdmin permissions. The Acyl binary also can be used as a local CLI utility for local environment development and debugging.
 - Postgres: This is the primary datastore for Acyl.
 - Consul: This is used for event concurrency control/locking.
-- Furan: This is used to build and push application Docker images on demand.
+- [Furan](https://github.com/dollarshaveclub/furan): This is used to build and push application Docker images on demand.
+- (*OPTIONAL*) Notifications can be sent to Slack channels or individual users when environments are created or altered.
+- (*OPTIONAL*) [Vault](https://www.vaultproject.io/) can be used for Acyl secrets like GitHub tokens and database credentials.
 
 ## Quickstart
 
 TODO
 
 ## Further Reading
-- User Guide
-- acyl.yml v2 Specification
+- [User Guide](https://github.com/dollarshaveclub/acyl/wiki/User-Guide)
+- [acyl.yml v2 Specification](https://github.com/dollarshaveclub/acyl/wiki/Acyl.yml-V2-Specification)
 
