@@ -11,7 +11,7 @@
 
 Acyl is a server and CLI utility for creating dynamic testing environments on demand in Kubernetes, triggered by GitHub Pull Requests.
 
-Environments are defined by `acyl.yml` in your source code repository, and consist of one or more Helm Charts that are installed into a new Kubernetes namespace that is created on demand and torn down when you're finished. Environment lifecycles are tied to Pull Requests: a new environment is created when you open a PR, it is updated as you push additional commits to the PR, and finally it is destroyed when the PR is closed or merged, automatically.
+Environments are defined by `acyl.yml` in your source code repository, and consist of one or more Helm Charts that are installed into a new Kubernetes namespace that is created on demand and torn down when you're finished. Environment lifecycles are tied to Pull Requests: a new environment is created when you open a PR, it is updated as you push additional commits to the PR (including force pushes), and finally it is destroyed when the PR is closed or merged, automatically.
 
 Acyl includes features to make team collaboration and environment configuration easier for multiple teams working on complex application stacks, allowing teams to maintain separate isolated testing environments but share revisions of in-progress code when needed.
 
