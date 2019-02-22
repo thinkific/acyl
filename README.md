@@ -1,6 +1,7 @@
 [![CircleCI](https://circleci.com/gh/dollarshaveclub/acyl.svg?style=svg&circle-token=e02d60ca20107ad11a982978184233225c909541)](https://circleci.com/gh/dollarshaveclub/acyl)
 [![Docker Repository on Quay](https://quay.io/repository/dollarshaveclub/acyl/status?token=7750d7c3-5f1f-4d90-82c4-6b32dbd591a1 "Docker Repository on Quay")](https://quay.io/repository/dollarshaveclub/acyl)
 
+![Acyl Chloride](https://s3.amazonaws.com/dsc-misc/img/acyl.png)
 
 # Acyl
 *Testing Environments On Demand*
@@ -18,6 +19,16 @@ Acyl has been used in various forms as part of the core Dollar Shave Club softwa
 Environments are defined by `acyl.yml`, which describes the required Helm Charts along with their release value configuration and the dependency relationships among them. The config file can be thought of as a "Helm compose", analagous to Docker Compose except using Helm Charts instead of individual containers. Acyl uses [Metahelm](https://github.com/dollarshaveclub/metahelm) to construct a dependency graph of the environment charts and installs them in optimal reverse-dependency order.
 
 An `acyl.yml` in one application repository can reference `acyl.yml` files in other repositories, and those applications (and their dependencies) will be transitively included in the environment. In this way complex application stacks maintained by different teams can share testing environment configuration.
+
+## Local Development
+
+Acyl has CLI tools available to visualize, debug and test environment configurations locally.
+
+`acyl config info` will validate, analyze and show a visualization for the acyl.yml in the current directory (which must be a valid git repository with GitHub remotes).
+
+`acyl config test <create/update/delete>` will simulate PR open/push/close events and create, update or delete environments in a local Kubernetes cluster (Docker For Mac Kubernetes, MicroK8s, etc).
+
+For more details, see [Local Development](https://github.com/dollarshaveclub/acyl/wiki/Local-Development).
 
 ## Architecture
 
