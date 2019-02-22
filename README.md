@@ -1,7 +1,9 @@
+<p align="center">
+<img with="290" height="233" src="https://s3.amazonaws.com/dsc-misc/img/acyl.png" alt="Acyl chloride" />
+</p>
+
 [![CircleCI](https://circleci.com/gh/dollarshaveclub/acyl.svg?style=svg&circle-token=e02d60ca20107ad11a982978184233225c909541)](https://circleci.com/gh/dollarshaveclub/acyl)
 [![Docker Repository on Quay](https://quay.io/repository/dollarshaveclub/acyl/status?token=7750d7c3-5f1f-4d90-82c4-6b32dbd591a1 "Docker Repository on Quay")](https://quay.io/repository/dollarshaveclub/acyl)
-
-![Acyl Chloride](https://s3.amazonaws.com/dsc-misc/img/acyl.png)
 
 # Acyl
 *Testing Environments On Demand*
@@ -19,6 +21,11 @@ Acyl has been used in various forms as part of the core Dollar Shave Club softwa
 Environments are defined by `acyl.yml`, which describes the required Helm Charts along with their release value configuration and the dependency relationships among them. The config file can be thought of as a "Helm compose", analagous to Docker Compose except using Helm Charts instead of individual containers. Acyl uses [Metahelm](https://github.com/dollarshaveclub/metahelm) to construct a dependency graph of the environment charts and installs them in optimal reverse-dependency order.
 
 An `acyl.yml` in one application repository can reference `acyl.yml` files in other repositories, and those applications (and their dependencies) will be transitively included in the environment. In this way complex application stacks maintained by different teams can share testing environment configuration.
+
+### Examples
+
+- Acyl is self-hosting: we use it to create testing environments for Acyl development itself. See [acyl.yml](https://github.com/dollarshaveclub/acyl/blob/readme/acyl.yml) in this repository.
+- [Furan](https://github.com/dollarshaveclub/furan) also uses Acyl for [testing environments](https://github.com/dollarshaveclub/furan/blob/master/acyl.yml).
 
 ## Local Development
 
