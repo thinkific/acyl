@@ -24,10 +24,7 @@ import (
 const (
 	furanBuildTimeoutMins        = 30
 	githubStatusContext          = "Acyl"
-	qaDashboardURL               = "https://eng-tools.shave.io/dqa"
 	dnsTTL                       = 60
-	automationURL                = "https://jenkins.shave.io/automation/api/v1/test-runs.json"
-	automationTriggerTimeoutSecs = 30
 	TagBranchMatchFallbackBranch = "master"
 	nameGenMaxRetries            = 10
 )
@@ -552,7 +549,7 @@ func (qs *QASpawner) createSpawningGithubStatus(rd *RepoRevisionData) error {
 		Context:     githubStatusContext,
 		Status:      "pending",
 		Description: "Dynamic QA is being created",
-		TargetURL:   qaDashboardURL,
+		TargetURL:   "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
 	}
 	return qs.rc.SetStatus(context.Background(), rd.Repo, rd.SourceSHA, cs)
 }
@@ -562,7 +559,7 @@ func (qs *QASpawner) createBuildingContainersGithubStatus(rd *RepoRevisionData, 
 		Context:     githubStatusContext,
 		Status:      "pending",
 		Description: fmt.Sprintf("Container images building (%v)", len(rm)),
-		TargetURL:   qaDashboardURL,
+		TargetURL:   "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
 	}
 	return qs.rc.SetStatus(context.Background(), rd.Repo, rd.SourceSHA, cs)
 }
@@ -572,7 +569,7 @@ func (qs *QASpawner) createErrorGithubStatus(rd *RepoRevisionData, msg string) e
 		Context:     githubStatusContext,
 		Status:      "error",
 		Description: fmt.Sprintf("Error creating dynamic QA: %v", msg),
-		TargetURL:   qaDashboardURL,
+		TargetURL:   "https://media.giphy.com/media/pyFsc5uv5WPXN9Ocki/giphy.gif",
 	}
 	return qs.rc.SetStatus(context.Background(), rd.Repo, rd.SourceSHA, cs)
 }
