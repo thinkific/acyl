@@ -17,7 +17,7 @@ Acyl includes features to make team collaboration and environment configuration 
 
 Acyl has been used in various forms as part of the core Dollar Shave Club software delivery pipeline since 2016, as described in a recent [blog post](https://engineering.dollarshaveclub.com/qa-environments-on-demand-with-kubernetes-5a571b4e273c).
 
-## Configuration
+## Environment Configuration
 
 Environments are defined by `acyl.yml`, which describes the required Helm Charts along with their release value configuration and the dependency relationships among them. The config file can be thought of as a "Helm compose", analagous to Docker Compose except using Helm Charts instead of individual containers. Acyl uses [Metahelm](https://github.com/dollarshaveclub/metahelm) to construct a dependency graph of the environment charts and installs them in optimal reverse-dependency order.
 
@@ -25,7 +25,7 @@ An `acyl.yml` in one application repository can reference `acyl.yml` files in ot
 
 ### Examples
 
-- Acyl is self-hosting: we use it to create testing environments for Acyl development itself. See [acyl.yml](https://github.com/dollarshaveclub/acyl/blob/readme/acyl.yml) in this repository.
+- Acyl is self-hosting: we use it to create testing environments for Acyl development itself. See [acyl.yml](https://github.com/dollarshaveclub/acyl/blob/master/acyl.yml) in this repository.
 - [Furan](https://github.com/dollarshaveclub/furan) also uses Acyl for [testing environments](https://github.com/dollarshaveclub/furan/blob/master/acyl.yml).
 
 ## Local Development
@@ -48,10 +48,6 @@ For more details, see [Local Development](https://github.com/dollarshaveclub/acy
 - [Furan](https://github.com/dollarshaveclub/furan): This is used to build and push application Docker images on demand.
 - (*OPTIONAL*) Notifications can be sent to Slack channels or individual users when environments are created or altered.
 - (*OPTIONAL*) [Vault](https://www.vaultproject.io/) can be used for Acyl secrets like GitHub tokens and database credentials.
-
-## Quickstart
-
-TODO
 
 ## Further Reading
 - [User Guide](https://github.com/dollarshaveclub/acyl/wiki/User-Guide)
