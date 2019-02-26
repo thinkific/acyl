@@ -90,7 +90,7 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&backendConfig.AminoAddr, "amino-addr", "internal-qakube-amino-app-elb-1632933870.us-west-2.elb.amazonaws.com:3000", "the address to the Amino server")
 	serverCmd.PersistentFlags().UintVar(&serverConfig.ReaperIntervalSecs, "cleanup-interval", 600, "Approximate interval between cleanup runs in seconds (set to 0 to disable)")
 	serverCmd.PersistentFlags().UintVar(&serverConfig.EventRateLimitPerSecond, "event-rate-limit", 25, "Event rate limit in events per second (any in excess will be dropped)")
-	serverCmd.PersistentFlags().UintVar(&serverConfig.GlobalEnvironmentLimit, "global-environment-limit", 0, "Maximum number of running environments (0 means no limit)")
+	serverCmd.PersistentFlags().UintVar(&serverConfig.GlobalEnvironmentLimit, "global-environment-limit", 0, "Maximum number of running environments (set to zero for no limit)")
 	serverCmd.PersistentFlags().StringVar(&aminoConfig.HelmChartToRepoRaw, "helm-chart-to-repo", "{}", "Mapping of Helm chart to Github repo")
 	serverCmd.PersistentFlags().StringVar(&aminoConfig.AminoDeploymentToRepoRaw, "deployment-to-repo", "{}", "Mapping of Amino deployments to Github repo")
 	serverCmd.PersistentFlags().StringVar(&aminoConfig.AminoJobToRepoRaw, "job-to-repo", "{}", "Mapping of Amino jobs to Github repo")
@@ -254,6 +254,7 @@ func server(cmd *cobra.Command, args []string) {
 			CI:                   ci,
 			AWSCreds:             awsCreds,
 			S3Config:             s3config,
+			GlobalLimit:          serverConfig.GlobalEnvironmentLimit,
 		}
 		loadFailureTemplate(nitromgr)
 		envspawner = &nitroenv.CombinedSpawner{

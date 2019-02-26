@@ -249,7 +249,7 @@ func (m *Manager) Create(ctx context.Context, rd models.RepoRevisionData) (strin
 }
 
 // enforceGlobalLimit checks existing environments + new requests (n) against configured global limit
-// If necessary, kill oldest environments to avoid going over global limit
+// If necessary, kill oldest environments to avoid going over global limit.
 func (m *Manager) enforceGlobalLimit(ctx context.Context, n uint) error {
 	if m.GlobalLimit == 0 {
 		return nil
@@ -268,8 +268,8 @@ func (m *Manager) enforceGlobalLimit(ctx context.Context, n uint) error {
 		for _, e := range kenvs {
 			env := e
 			m.log(ctx, "destroying: %v (created %v)", env.Name, env.Created)
-			err := m.DestroyExplicitly(ctx, &env, models.EnvironmentLimitExceeded)
-			if err != nil {
+			// we lock around each destroyed environment to preempt any ongoing operations
+			if err := m.Delete(ctx, e.RepoRevisionDataFromQA(), models.EnvironmentLimitExceeded); err != nil {
 				m.log(ctx, "error destroying environment for exceeding limit: %v", err)
 			}
 			select {
