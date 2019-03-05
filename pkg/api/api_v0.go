@@ -14,7 +14,6 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/models"
-	nitroenv "github.com/dollarshaveclub/acyl/pkg/nitro/env"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/gorilla/mux"
@@ -182,7 +181,7 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setTagsForGithubWebhookHandler(rootSpan, out.RRD)
-	ctx = nitroenv.NewSpanContext(ctx, rootSpan)
+	ctx = tracer.ContextWithSpan(ctx, rootSpan)
 	log("starting async processing for %v", out.Action)
 
 	switch out.Action {

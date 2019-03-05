@@ -149,7 +149,7 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 }
 
 func (m *Manager) createPendingGithubStatus(ctx context.Context, rd *models.RepoRevisionData) (err error) {
-	span := startChildSpan(ctx, "create_pending_github_status")
+	span, _ := tracer.StartSpanFromContext(ctx, "create_pending_github_status")
 	defer span.Finish(tracer.WithError(err))
 	cs := &ghclient.CommitStatus{
 		Context:     "Acyl",
@@ -271,7 +271,7 @@ func (m *Manager) generateNewEnv(ctx context.Context, rd *models.RepoRevisionDat
 			err = nitroerrors.SystemError(err)
 		}
 	}()
-	span := startChildSpan(ctx, "generate_new_env")
+	span, _ := tracer.StartSpanFromContext(ctx, "generate_new_env")
 	defer span.Finish(tracer.WithError(err))
 	envs, err := m.DL.GetQAEnvironmentsByRepoAndPR(rd.Repo, rd.PullRequest)
 	if err != nil {
@@ -331,7 +331,7 @@ func (m *Manager) processEnvConfig(ctx context.Context, env *models.QAEnvironmen
 			err = nitroerrors.SystemError(err)
 		}
 	}()
-	span := startChildSpan(ctx, "process_env_config")
+	span, _ := tracer.StartSpanFromContext(ctx, "process_env_config")
 	defer span.Finish(tracer.WithError(err))
 	ne = &newEnv{env: env}
 	rc, err := m.getRepoConfig(ctx, rd)
@@ -365,7 +365,7 @@ func (m *Manager) processEnvConfig(ctx context.Context, env *models.QAEnvironmen
 }
 
 func (m *Manager) fetchCharts(ctx context.Context, name string, rc *models.RepoConfig) (_ string, _ meta.ChartLocations, err error) {
-	span := startChildSpan(ctx, "fetch_charts")
+	span, _ := tracer.StartSpanFromContext(ctx, "fetch_charts")
 	defer span.Finish(tracer.WithError(err))
 	td, err := tempDir(m.FS, "", name)
 	if err != nil {
@@ -387,9 +387,8 @@ func (m *Manager) fetchCharts(ctx context.Context, name string, rc *models.RepoC
 // create creates a new environment and returns the environment name, or error
 func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envname string, err error) {
 	end := m.MC.Timing(mpfx+"create", "triggering_repo:"+rd.Repo)
-	span := startChildSpan(ctx, "create")
+	span, ctx := tracer.StartSpanFromContext(ctx, "create")
 	defer span.Finish(tracer.WithError(err))
-	ctx = NewSpanContext(ctx, span)
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
 	}()
@@ -437,7 +436,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 			VarFilePath: v.VarFilePath,
 		}
 	}
-	chartSpan := startChildSpan(ctx, "build_and_install_chart")
+	chartSpan, _ := tracer.StartSpanFromContext(ctx, "build_and_install_chart")
 	defer chartSpan.Finish(tracer.WithError(err))
 	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: newenv.env, RC: newenv.rc}, mcloc); err != nil {
 		return "", m.handleMetahelmError(ctx, newenv, err, "error installing charts")
@@ -471,9 +470,8 @@ func (m *Manager) getenv(ctx context.Context, rd *models.RepoRevisionData) (*mod
 
 func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reason models.QADestroyReason) (err error) {
 	end := m.MC.Timing(mpfx+"delete", "triggering_repo:"+rd.Repo)
-	span := startChildSpan(ctx, "delete")
+	span, ctx := tracer.StartSpanFromContext(ctx, "delete")
 	defer span.Finish(tracer.WithError(err))
-	ctx = NewSpanContext(ctx, span)
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
 	}()
@@ -549,9 +547,8 @@ func (m *Manager) Update(ctx context.Context, rd models.RepoRevisionData) (strin
 
 func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envname string, err error) {
 	end := m.MC.Timing(mpfx+"update", "triggering_repo:"+rd.Repo)
-	span := startChildSpan(ctx, "update")
+	span, ctx := tracer.StartSpanFromContext(ctx, "update")
 	defer span.Finish(tracer.WithError(err))
-	ctx = NewSpanContext(ctx, span)
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
 	}()

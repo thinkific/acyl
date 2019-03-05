@@ -50,7 +50,7 @@ func TestLockingOperation(t *testing.T) {
 		}
 	}
 	testSpan, _ := tracer.SpanFromContext(context.Background())
-	ctxWithSpan := NewSpanContext(context.Background(), testSpan)
+	ctxWithSpan := tracer.ContextWithSpan(context.Background(), testSpan)
 	if err := m.lockingOperation(ctxWithSpan, "foo", "1", f); err != nil {
 		t.Fatalf("should have been preempted")
 	}
@@ -117,7 +117,7 @@ func TestGenerateNewEnv(t *testing.T) {
 	dl := persistence.NewFakeDataLayer()
 	m := Manager{MG: fg, RC: frc, NG: &namegen.FakeNameGenerator{}, DL: dl}
 	testSpan, _ := tracer.SpanFromContext(context.Background())
-	ctxWithSpan := NewSpanContext(context.Background(), testSpan)
+	ctxWithSpan := tracer.ContextWithSpan(context.Background(), testSpan)
 	env, err := m.generateNewEnv(ctxWithSpan, &models.RepoRevisionData{Repo: "foo/bar", User: "foo", PullRequest: 1, BaseBranch: "master", SourceSHA: "asdf", SourceBranch: "foo"})
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
@@ -174,7 +174,7 @@ func TestFetchCharts(t *testing.T) {
 		MC: &metrics.FakeCollector{},
 	}
 	testSpan, _ := tracer.SpanFromContext(context.Background())
-	ctxWithSpan := NewSpanContext(context.Background(), testSpan)
+	ctxWithSpan := tracer.ContextWithSpan(context.Background(), testSpan)
 	_, _, err := m.fetchCharts(ctxWithSpan, "foo-bar", &models.RepoConfig{})
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
@@ -368,7 +368,7 @@ func TestCreate(t *testing.T) {
 			}
 
 			testSpan, _ := tracer.SpanFromContext(context.Background())
-			ctx := NewSpanContext(context.Background(), testSpan)
+			ctx := tracer.ContextWithSpan(context.Background(), testSpan)
 			name, err := m.Create(ctx, c.inputRRD)
 			c.verifyFunc(name, err, t)
 		})
@@ -612,7 +612,7 @@ func TestUpdate(t *testing.T) {
 				CI: ci,
 			}
 			testSpan, _ := tracer.SpanFromContext(context.Background())
-			ctx := NewSpanContext(context.Background(), testSpan)
+			ctx := tracer.ContextWithSpan(context.Background(), testSpan)
 			_, err := m.Update(ctx, c.inputRDD)
 			c.verifyFunc(err, dl, t)
 		})
@@ -771,7 +771,7 @@ func TestDelete(t *testing.T) {
 				CI: ci,
 			}
 			testSpan, _ := tracer.SpanFromContext(context.Background())
-			ctx := NewSpanContext(context.Background(), testSpan)
+			ctx := tracer.ContextWithSpan(context.Background(), testSpan)
 			err := m.Delete(ctx, &c.inputRDD, models.DestroyApiRequest)
 			c.verifyFunc(err, t)
 		})
@@ -1127,7 +1127,7 @@ func TestProcessEnvConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx: NewSpanContext(context.Background(), testSpan),
+				ctx: tracer.ContextWithSpan(context.Background(), testSpan),
 				env: &env,
 				rd: &models.RepoRevisionData{
 					Repo:         env.Repo,
