@@ -36,7 +36,7 @@ spec:
         {{ if .Values.app.disable_tls }}
           - "--disable-tls"
         {{ end }}
-        {{ if .Values.app.service_name }}
+        {{ if .Values.app.datadog_service_name }}
           - "--datadog-service-name"
         {{ if .Values.is_dqa }}
           - "{{ .Values.app.datadog_service_name }}-{{ .Values.env_name }}"
