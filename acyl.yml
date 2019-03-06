@@ -8,8 +8,6 @@ application:
   chart_path: '.helm/charts/acyl'
   chart_vars_repo_path: 'dollarshaveclub/helm-charts@master:releases/kube-uw2-110/acyl/dqa.yml'
   image: quay.io/dollarshaveclub/acyl
-  value_overrides:
-    - "app.env_limit=1"
   # local:
   # value_overrides:
   #   - "app.dogstatsd_addr=1.2.3.4:8125"

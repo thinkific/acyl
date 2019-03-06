@@ -283,7 +283,7 @@ func (m *Manager) enforceGlobalLimit(ctx context.Context) error {
 		}
 		return nil
 	}
-	m.log(ctx, "global limit not exceeded: running: %v, limit: %v", len(qae)+1, limit)
+	m.log(ctx, "global limit not exceeded: running: %v, limit: %v", extant, limit)
 	return nil
 }
 
