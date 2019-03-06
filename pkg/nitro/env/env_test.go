@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestLockingOperation(t *testing.T) {
@@ -262,6 +263,21 @@ func TestCreate(t *testing.T) {
 		"foo-qwerty": nil,
 		"foo-mysql":  nil,
 	}
+	// extant environments for global limit testing
+	dl.CreateQAEnvironment(&models.QAEnvironment{
+		Created:     time.Now().UTC(),
+		Name:        "some-other-random-name",
+		Repo:        rdd.Repo,
+		PullRequest: rdd.PullRequest,
+		Status:      models.Success,
+	})
+	dl.CreateQAEnvironment(&models.QAEnvironment{
+		Created:     time.Now().UTC().Add(10 * time.Millisecond),
+		Name:        "some-other-random-name2",
+		Repo:        rdd.Repo,
+		PullRequest: rdd.PullRequest,
+		Status:      models.Success,
+	})
 	cases := []struct {
 		name               string
 		inputRRD           models.RepoRevisionData
@@ -269,10 +285,11 @@ func TestCreate(t *testing.T) {
 		inputCL            meta.ChartLocations
 		inputBranches      map[string][]ghclient.BranchInfo
 		chartInstallResult map[string]error
+		limit              uint
 		verifyFunc         func(string, error, *testing.T)
 	}{
 		{
-			"branch matching", rdd, rc, cl, bm, cir,
+			"branch matching", rdd, rc, cl, bm, cir, 0,
 			func(name string, err error, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
@@ -309,13 +326,32 @@ func TestCreate(t *testing.T) {
 				"foo-bar":    errors.New("install error"),
 				"foo-qwerty": nil,
 				"foo-mysql":  nil,
-			},
+			}, 0,
 			func(name string, err error, st *testing.T) {
 				if err == nil {
 					st.Fatalf("should have failed with install error")
 				}
 				if !strings.Contains(err.Error(), "install error") {
 					st.Fatalf("unexpected error: %v", err)
+				}
+			},
+		},
+		{
+			"global limit enforced", rdd, rc, cl, bm, cir, 1,
+			func(name string, err error, st *testing.T) {
+				if err != nil {
+					st.Fatalf("should have succeeded: %v", err)
+				}
+				env, _ := dl.GetQAEnvironment(name)
+				if env == nil {
+					st.Fatalf("env missing")
+				}
+				env, _ = dl.GetQAEnvironment("some-other-random-name")
+				if env == nil {
+					st.Fatalf("destroyed env not found")
+				}
+				if env.Status != models.Destroyed {
+					st.Fatalf("env should have been destroyed to enforce global limit")
 				}
 			},
 		},
@@ -342,6 +378,7 @@ func TestCreate(t *testing.T) {
 					return c.chartInstallResult[repo]
 				},
 				DL: dl,
+				KC: k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "nitro-1234-some-random-name"}}),
 			}
 			m := Manager{
 				DL:    dl,
@@ -353,13 +390,14 @@ func TestCreate(t *testing.T) {
 						return lch
 					},
 				},
-				NF: testNF,
-				MC: &metrics.FakeCollector{},
-				NG: &namegen.FakeNameGenerator{},
-				FS: memfs.New(),
-				MG: fg,
-				RC: frc,
-				CI: ci,
+				NF:          testNF,
+				MC:          &metrics.FakeCollector{},
+				NG:          &namegen.FakeNameGenerator{},
+				FS:          memfs.New(),
+				MG:          fg,
+				RC:          frc,
+				CI:          ci,
+				GlobalLimit: c.limit,
 			}
 			name, err := m.Create(context.Background(), c.inputRRD)
 			c.verifyFunc(name, err, t)

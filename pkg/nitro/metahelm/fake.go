@@ -19,6 +19,7 @@ type FakeInstaller struct {
 	ChartInstallFunc func(repo string, location ChartLocation) error
 	ChartUpgradeFunc func(repo string, k8senv *models.KubernetesEnvironment, location ChartLocation) error
 	DL               persistence.DataLayer
+	KC               kubernetes.Interface
 	HelmReleases     []string
 }
 
@@ -39,7 +40,7 @@ func (fi *FakeInstaller) BuildAndInstallCharts(ctx context.Context, newenv *EnvI
 		}
 	}
 	if fi.DL != nil {
-		ci := ChartInstaller{dl: fi.DL}
+		ci := ChartInstaller{dl: fi.DL, kc: fi.KC}
 		if err := ci.writeK8sEnvironment(ctx, newenv, "nitro-1234-"+newenv.Env.Name); err != nil {
 			return err
 		}
