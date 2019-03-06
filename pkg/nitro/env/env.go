@@ -248,23 +248,23 @@ func (m *Manager) Create(ctx context.Context, rd models.RepoRevisionData) (strin
 	return name, err
 }
 
-// enforceGlobalLimit checks existing environments + new requests (n) against configured global limit
-// If necessary, kill oldest environments to avoid going over global limit.
-func (m *Manager) enforceGlobalLimit(ctx context.Context, n uint) error {
+// enforceGlobalLimit checks existing environments against the configured global limit.
+// If necessary, kill oldest environments to bring the environment count into compliance with the limit.
+func (m *Manager) enforceGlobalLimit(ctx context.Context) error {
 	if m.GlobalLimit == 0 {
 		return nil
 	}
-	count := int(n)
 	limit := int(m.GlobalLimit)
 	qae, err := m.DL.GetRunningQAEnvironments()
 	if err != nil {
 		return fmt.Errorf("error getting running environments: %v", err)
 	}
-	if len(qae)+count > limit {
-		kill := (len(qae) + count) - limit
+	extant := len(qae)
+	if extant > limit {
+		kill := extant - limit
 		sort.Slice(qae, func(i int, j int) bool { return qae[i].Created.Before(qae[j].Created) })
 		kenvs := qae[0:kill]
-		m.log(ctx, "enforcing global limit: extant: %v, limit: %v, destroying: %v", len(qae), limit, kill)
+		m.log(ctx, "enforcing global limit: extant: %v, limit: %v, destroying: %v", extant, limit, kill)
 		for _, e := range kenvs {
 			env := e
 			m.log(ctx, "destroying: %v (created %v)", env.Name, env.Created)
@@ -477,7 +477,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 			VarFilePath: v.VarFilePath,
 		}
 	}
-	if err = m.enforceGlobalLimit(ctx, 1); err != nil {
+	if err = m.enforceGlobalLimit(ctx); err != nil {
 		return "", errors.Wrap(err, "error enforcing global limit")
 	}
 	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: newenv.env, RC: newenv.rc}, mcloc); err != nil {
