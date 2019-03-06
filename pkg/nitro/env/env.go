@@ -269,9 +269,12 @@ func (m *Manager) enforceGlobalLimit(ctx context.Context, n uint) error {
 			env := e
 			m.log(ctx, "destroying: %v (created %v)", env.Name, env.Created)
 			// we lock around each destroyed environment to preempt any ongoing operations
-			if err := m.Delete(ctx, e.RepoRevisionDataFromQA(), models.EnvironmentLimitExceeded); err != nil {
+			// create a new context as lockingOperation() always cancels the context when finished
+			ctx2, cf := context.WithCancel(ctx)
+			if err := m.Delete(ctx2, e.RepoRevisionDataFromQA(), models.EnvironmentLimitExceeded); err != nil {
 				m.log(ctx, "error destroying environment for exceeding limit: %v", err)
 			}
+			cf()
 			select {
 			case <-ctx.Done():
 				return errors.New("context was cancelled")
