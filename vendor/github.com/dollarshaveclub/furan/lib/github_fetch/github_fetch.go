@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/google/go-github/github"
-	newrelic "github.com/newrelic/go-agent"
 	"golang.org/x/oauth2"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -26,8 +26,8 @@ const (
 // CodeFetcher represents an object capable of fetching code and returning a
 // gzip-compressed tarball io.Reader
 type CodeFetcher interface {
-	GetCommitSHA(newrelic.Transaction, string, string, string) (string, error)
-	Get(newrelic.Transaction, string, string, string) (io.Reader, error)
+	GetCommitSHA(tracer.Span, string, string, string) (string, error)
+	Get(tracer.Span, string, string, string) (io.Reader, error)
 }
 
 // GitHubFetcher represents a github data fetcher
@@ -46,24 +46,24 @@ func NewGitHubFetcher(token string) *GitHubFetcher {
 }
 
 // GetCommitSHA returns the commit SHA for a reference
-func (gf *GitHubFetcher) GetCommitSHA(txn newrelic.Transaction, owner string, repo string, ref string) (string, error) {
-	defer newrelic.ExternalSegment{
-		StartTime: newrelic.StartSegmentNow(txn),
-		URL:       fmt.Sprintf("https://api.github.com/repo/%v/%v/%v/get_commit_sha?this-is-a-fake-url", owner, repo, ref),
-	}.End()
+func (gf *GitHubFetcher) GetCommitSHA(parentSpan tracer.Span, owner string, repo string, ref string) (csha string, err error) {
+	span := tracer.StartSpan("github_fetcher.get_commit_sha", tracer.ChildOf(parentSpan.Context()))
+	defer func() {
+		span.Finish(tracer.WithError(err))
+	}()
 	ctx, cf := context.WithTimeout(context.Background(), githubDownloadTimeoutSecs*time.Second)
 	defer cf()
-	csha, _, err := gf.c.Repositories.GetCommitSHA1(ctx, owner, repo, ref, "")
+	csha, _, err = gf.c.Repositories.GetCommitSHA1(ctx, owner, repo, ref, "")
 	return csha, err
 }
 
 // Get fetches contents of GitHub repo and returns the processed contents as
 // an in-memory io.Reader.
-func (gf *GitHubFetcher) Get(txn newrelic.Transaction, owner string, repo string, ref string) (tarball io.Reader, err error) {
-	defer newrelic.ExternalSegment{
-		StartTime: newrelic.StartSegmentNow(txn),
-		URL:       fmt.Sprintf("https://api.github.com/repo/%v/%v/%v/get_archive?this-is-a-fake-url", owner, repo, ref),
-	}.End()
+func (gf *GitHubFetcher) Get(parentSpan tracer.Span, owner string, repo string, ref string) (tarball io.Reader, err error) {
+	span := tracer.StartSpan("github_fetcher.get", tracer.ChildOf(parentSpan.Context()))
+	defer func() {
+		span.Finish(tracer.WithError(err))
+	}()
 	opt := &github.RepositoryContentGetOptions{
 		Ref: ref,
 	}

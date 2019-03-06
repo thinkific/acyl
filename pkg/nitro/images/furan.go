@@ -21,7 +21,7 @@ type FuranBuilderBackend struct {
 
 var _ BuilderBackend = &FuranBuilderBackend{}
 
-func NewFuranBuilderBackend(addrs []string, caddr string, dl persistence.DataLayer, mc metrics.Collector, logout io.Writer) (*FuranBuilderBackend, error) {
+func NewFuranBuilderBackend(addrs []string, caddr string, dl persistence.DataLayer, mc metrics.Collector, logout io.Writer, furanClientDDName string) (*FuranBuilderBackend, error) {
 	fcopts := &furan.DiscoveryOptions{}
 	if len(addrs) > 0 {
 		fcopts.NodeList = addrs
@@ -32,7 +32,7 @@ func NewFuranBuilderBackend(addrs []string, caddr string, dl persistence.DataLay
 		fcopts.ServiceName = "furan"
 	}
 	logger := log.New(logout, "", log.LstdFlags)
-	fc, err := furan.NewFuranClient(fcopts, logger)
+	fc, err := furan.NewFuranClient(fcopts, logger, furanClientDDName)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating Furan client")
 	}

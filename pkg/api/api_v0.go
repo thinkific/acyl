@@ -18,6 +18,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/gorilla/mux"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -132,10 +133,24 @@ func setTagsForGithubWebhookHandler(span tracer.Span, rd *models.RepoRevisionDat
 	span.SetTag("user", rd.User)
 }
 
+// We need to set this sampling priority tag in order to allow distributed tracing to work.
+// This only needs to be done for the root level span as the value is propagated down.
+// https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing
+func enableDistributedTracing(span tracer.Span) {
+	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
+}
+
 func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var err error
+
+	// As of 03/13/2019, Datadog seems to only allow monitors to be setup based
+	// off the root level span of a trace.
+	// While we could connect this with span found in r.Context(), this would
+	// prevent us from making usable monitors in Datadog, since we respond with
+	// 200 ok even though the async action may fail.
 	rootSpan := tracer.StartSpan("github_webhook_handler")
+	enableDistributedTracing(rootSpan)
 	defer func() {
 		if err != nil {
 			api.logger.Printf("webhook handler error: %v", err)

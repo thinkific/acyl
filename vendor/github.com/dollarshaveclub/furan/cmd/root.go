@@ -19,6 +19,7 @@ import (
 	"github.com/gocql/gocql"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/spf13/cobra"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 var vaultConfig config.Vaultconfig
@@ -35,6 +36,11 @@ var initializeDB bool
 var kafkaBrokerStr string
 var awscredsprefix string
 var dogstatsdAddr string
+var defaultMetricsTags string
+var datadogServiceName string
+var datadogGrpcServiceName string
+var datadogCassandaServiceName string
+var datadogTracingAgentAddr string
 
 var logger *log.Logger
 
@@ -63,10 +69,13 @@ func Execute() {
 	}
 }
 
-// shorthands in use: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 't', 'u', 'v', 'x', 'z']
+// shorthands in use: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&vaultConfig.Addr, "vault-addr", "a", os.Getenv("VAULT_ADDR"), "Vault URL")
 	RootCmd.PersistentFlags().StringVarP(&vaultConfig.Token, "vault-token", "t", os.Getenv("VAULT_TOKEN"), "Vault token (if using token auth)")
+	RootCmd.PersistentFlags().StringVar(&vaultConfig.K8sJWTPath, "vault-k8s-jwt-path", os.Getenv("VAULT_K8s_JWT_PATH"), "Path to file containing K8s service account JWT, for k8s Vault authentication")
+	RootCmd.PersistentFlags().StringVar(&vaultConfig.K8sRole, "vault-k8s-role", os.Getenv("VAULT_K8s_ROLE"), "Vault role name for use in k8s Vault authentication")
+	RootCmd.PersistentFlags().StringVar(&vaultConfig.K8sAuthPath, "vault-k8s-auth-path", "kubernetes", "Auth path for use in k8s Vault authentication")
 	RootCmd.PersistentFlags().BoolVarP(&vaultConfig.TokenAuth, "vault-token-auth", "k", false, "Use Vault token-based auth")
 	RootCmd.PersistentFlags().StringVarP(&vaultConfig.AppID, "vault-app-id", "p", os.Getenv("APP_ID"), "Vault App-ID")
 	RootCmd.PersistentFlags().StringVarP(&vaultConfig.UserIDPath, "vault-user-id-path", "u", os.Getenv("USER_ID_PATH"), "Path to file containing Vault User-ID")
@@ -85,6 +94,11 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&awscredsprefix, "aws-creds-vault-prefix", "c", "/aws", "Vault path prefix for AWS credentials (paths: {vault prefix}/{aws creds prefix}/access_key_id|secret_access_key)")
 	RootCmd.PersistentFlags().UintVarP(&awsConfig.Concurrency, "s3-concurrency", "o", 10, "Number of concurrent upload/download threads for S3 transfers")
 	RootCmd.PersistentFlags().StringVarP(&dogstatsdAddr, "dogstatsd-addr", "q", "127.0.0.1:8125", "Address of dogstatsd for metrics")
+	RootCmd.PersistentFlags().StringVarP(&defaultMetricsTags, "default-metrics-tags", "s", "env:qa", "Comma-delimited list of tag keys and values in the form key:value")
+	RootCmd.PersistentFlags().StringVarP(&datadogServiceName, "datadog-service-name", "w", "furan", "Datadog APM service name")
+	RootCmd.PersistentFlags().StringVarP(&datadogTracingAgentAddr, "datadog-tracing-agent-addr", "y", "127.0.0.1:8126", "Address of datadog tracing agent")
+	datadogGrpcServiceName = strings.Join([]string{datadogServiceName, "grpc"}, ".")
+	datadogCassandaServiceName = strings.Join([]string{datadogServiceName, "cassandra"}, ".")
 }
 
 func clierr(msg string, params ...interface{}) {
@@ -93,6 +107,7 @@ func clierr(msg string, params ...interface{}) {
 }
 
 func getDockercfg() error {
+	dockerConfig.Setup()
 	err := json.Unmarshal([]byte(dockerConfig.DockercfgRaw), &dockerConfig.DockercfgContents)
 	if err != nil {
 		return err
@@ -161,7 +176,7 @@ func setupDataLayer() {
 	if err != nil {
 		log.Fatalf("error creating DB session: %v", err)
 	}
-	dbConfig.Datalayer = datalayer.NewDBLayer(s)
+	dbConfig.Datalayer = datalayer.NewDBLayer(s, datadogCassandaServiceName)
 }
 
 func initDB() {
@@ -204,4 +219,23 @@ func setupKafka(mc metrics.MetricsCollector) {
 		log.Fatalf("Error creating Kafka producer: %v", err)
 	}
 	kafkaConfig.Manager = kp
+}
+
+func newDatadogCollector() (*metrics.DatadogCollector, error) {
+	defaultDogstatsdTags := strings.Split(defaultMetricsTags, ",")
+	return metrics.NewDatadogCollector(dogstatsdAddr, defaultDogstatsdTags)
+}
+
+func startDatadogTracer() {
+	opts := []tracer.StartOption{tracer.WithAgentAddr(datadogTracingAgentAddr)}
+	opts = append(opts, tracer.WithServiceName(datadogServiceName))
+	for _, tag := range strings.Split(defaultMetricsTags, ",") {
+		keyValPair := strings.Split(tag, ":")
+		if len(keyValPair) != 2 {
+			log.Fatalf("invalid default metrics tags: %v", defaultMetricsTags)
+		}
+		key, val := keyValPair[0], keyValPair[1]
+		opts = append(opts, tracer.WithGlobalTag(key, val))
+	}
+	tracer.Start(opts...)
 }

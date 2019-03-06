@@ -13,7 +13,7 @@ services:
     environment:
       ADVERTISED_HOST: kafka
   scylla:
-    image: scylladb/scylla
+    image: scylladb/scylla:1.4.3
     ports:
       - "9042:9042"
     healthcheck:
@@ -39,7 +39,7 @@ services:
       - VAULT_TOKEN=root
       - VAULT_ADDR=http://vault:8200
       - DOCKER_HOST=tcp://docker:2375
-    command: /go/bin/furan -k -i -n scylla -f kafka:9092 server --log-to-sumo=false --consul-addr consul:8500 --enable-newrelic=false --newrelic-app furan-local
+    command: /go/bin/furan -k -i -n scylla -f kafka:9092 server --log-to-sumo=false --consul-addr consul:8500
     restart: always
     ports:
       - "4000:4000"

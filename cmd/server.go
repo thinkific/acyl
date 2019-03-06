@@ -182,8 +182,8 @@ func server(cmd *cobra.Command, args []string) {
 	cn := slacknotifier.NewSlackNotifier(slackConfig.Channel, slackapi, mapper)
 
 	var envspawner spawner.EnvironmentSpawner
-
-	es, err := spawner.NewQASpawner(logger, dl, ng, rc, lp, serverConfig.FuranAddrs, consulConfig.Addr, cn, mc, mc, nrapp, &awsCreds, &awsConfig, &backendConfig, &aminoConfig, githubConfig.TypePath, serverConfig.GlobalEnvironmentLimit, serverConfig.HostnameTemplate)
+	furanClientDDName := strings.Join([]string{datadogServiceName, "furan-client"}, ".")
+	es, err := spawner.NewQASpawner(logger, dl, ng, rc, lp, serverConfig.FuranAddrs, consulConfig.Addr, cn, mc, mc, nrapp, &awsCreds, &awsConfig, &backendConfig, &aminoConfig, githubConfig.TypePath, serverConfig.GlobalEnvironmentLimit, serverConfig.HostnameTemplate, furanClientDDName)
 	if err != nil {
 		log.Fatalf("error creating spawner: %s", err)
 	}
@@ -194,7 +194,7 @@ func server(cmd *cobra.Command, args []string) {
 		if err != nil {
 			log.Fatalf("error setting up nitro metrics collector: %v", err)
 		}
-		fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, consulConfig.Addr, dl, mc, os.Stderr)
+		fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, consulConfig.Addr, dl, mc, os.Stderr, furanClientDDName)
 		if err != nil {
 			log.Fatalf("error getting Furan image builder backend: %v", err)
 		}

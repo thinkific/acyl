@@ -290,7 +290,7 @@ func getImageBackend(dl persistence.DataLayer, rc ghclient.RepoClient, auths map
 	case testEnvCfg.buildMode == "none":
 		return &images.NoneBackend{}, nil
 	case strings.HasPrefix(testEnvCfg.buildMode, "furan://"):
-		fb, err := images.NewFuranBuilderBackend([]string{testEnvCfg.buildMode[8:len(testEnvCfg.buildMode)]}, "", dl, &oldmetrics.FakeCollector{}, ioutil.Discard)
+		fb, err := images.NewFuranBuilderBackend([]string{testEnvCfg.buildMode[8:len(testEnvCfg.buildMode)]}, "", dl, &oldmetrics.FakeCollector{}, ioutil.Discard, "furan.test-client")
 		if err != nil {
 			return nil, errors.Wrap(err, "error getting furan backend")
 		}

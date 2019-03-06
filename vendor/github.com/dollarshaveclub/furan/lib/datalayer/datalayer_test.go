@@ -1,14 +1,14 @@
 package datalayer_test
 
 import (
+	"context"
 	"testing"
 
 	pb "github.com/dollarshaveclub/furan/generated/lib"
 	"github.com/dollarshaveclub/furan/lib/datalayer"
-	"github.com/dollarshaveclub/furan/lib/mocks"
 )
 
-var testTxn mocks.NullNewRelicTxn
+var sname = "test"
 
 var tbr = &pb.BuildRequest{
 	Build: &pb.BuildDefinition{
@@ -28,39 +28,39 @@ var tbr = &pb.BuildRequest{
 }
 
 func TestDBCreateBuild(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}
 }
 
 func TestDBGetBuildByID(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
-	bsr, err := dl.GetBuildByID(testTxn, id)
+	bsr, err := dl.GetBuildByID(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error getting build by ID: %v", err)
 	}
 	if bsr.BuildId != id.String() {
 		t.Fatalf("incorrect build id: %v (expected %v)", bsr.BuildId, id.String())
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}
 }
 
 func TestDBSetBuildFlags(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
@@ -69,89 +69,89 @@ func TestDBSetBuildFlags(t *testing.T) {
 		"failed":    true,
 		"cancelled": true,
 	}
-	err = dl.SetBuildFlags(testTxn, id, flags)
+	err = dl.SetBuildFlags(context.Background(), id, flags)
 	if err != nil {
 		t.Fatalf("error setting build flags: %v", err)
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}
 }
 
 func TestDBSetBuildCompletedTimestamp(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
-	err = dl.SetBuildCompletedTimestamp(testTxn, id)
+	err = dl.SetBuildCompletedTimestamp(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error setting build completed timestamp: %v", err)
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}
 }
 
 func TestDBSetBuildState(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
-	err = dl.SetBuildState(testTxn, id, pb.BuildStatusResponse_BUILDING)
+	err = dl.SetBuildState(context.Background(), id, pb.BuildStatusResponse_BUILDING)
 	if err != nil {
 		t.Fatalf("error setting build state: %v", err)
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}
 }
 
 func TestDBSetBuildTimeMetric(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
 	for _, m := range []string{"docker_build_completed", "push_completed", "clean_completed"} {
-		err = dl.SetBuildTimeMetric(testTxn, id, m)
+		err = dl.SetBuildTimeMetric(context.Background(), id, m)
 		if err != nil {
 			t.Fatalf("error setting build time metric: %v", err)
 		}
 	}
-	err = dl.SetBuildTimeMetric(testTxn, id, "invalid_metric_name")
+	err = dl.SetBuildTimeMetric(context.Background(), id, "invalid_metric_name")
 	if err == nil {
 		t.Fatalf("invalid build metric should have failed")
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}
 }
 
 func TestDBSetDockerImageSizesMetric(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
-	err = dl.SetDockerImageSizesMetric(testTxn, id, 10000, 999999)
+	err = dl.SetDockerImageSizesMetric(context.Background(), id, 10000, 999999)
 	if err != nil {
 		t.Fatalf("error setting docker image sizes metric: %v", err)
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}
 }
 
 func TestDBSaveBuildOutput(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
@@ -165,27 +165,27 @@ func TestDBSaveBuildOutput(t *testing.T) {
 			Message:   "something happened",
 		},
 	}
-	err = dl.SaveBuildOutput(testTxn, id, events, "build_output")
+	err = dl.SaveBuildOutput(context.Background(), id, events, "build_output")
 	if err != nil {
 		t.Fatalf("error setting build_output: %v", err)
 	}
-	err = dl.SaveBuildOutput(testTxn, id, events, "push_output")
+	err = dl.SaveBuildOutput(context.Background(), id, events, "push_output")
 	if err != nil {
 		t.Fatalf("error setting push_output: %v", err)
 	}
-	err = dl.SaveBuildOutput(testTxn, id, events, "invalid_column")
+	err = dl.SaveBuildOutput(context.Background(), id, events, "invalid_column")
 	if err == nil {
 		t.Fatalf("invalid column should have failed")
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}
 }
 
 func TestDBGetBuildOutput(t *testing.T) {
-	dl := datalayer.NewDBLayer(ts)
-	id, err := dl.CreateBuild(testTxn, tbr)
+	dl := datalayer.NewDBLayer(ts, sname)
+	id, err := dl.CreateBuild(context.Background(), tbr)
 	if err != nil {
 		t.Fatalf("error creating build: %v", err)
 	}
@@ -199,11 +199,11 @@ func TestDBGetBuildOutput(t *testing.T) {
 			Message:   "something happened",
 		},
 	}
-	err = dl.SaveBuildOutput(testTxn, id, events, "build_output")
+	err = dl.SaveBuildOutput(context.Background(), id, events, "build_output")
 	if err != nil {
 		t.Fatalf("error setting build_output: %v", err)
 	}
-	evl, err := dl.GetBuildOutput(testTxn, id, "build_output")
+	evl, err := dl.GetBuildOutput(context.Background(), id, "build_output")
 	if err != nil {
 		t.Fatalf("error getting build output: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestDBGetBuildOutput(t *testing.T) {
 	if evl[0].BuildId != id.String() {
 		t.Fatalf("bad build id: %v", evl[0].BuildId)
 	}
-	err = dl.DeleteBuild(testTxn, id)
+	err = dl.DeleteBuild(context.Background(), id)
 	if err != nil {
 		t.Fatalf("error deleting build: %v", err)
 	}

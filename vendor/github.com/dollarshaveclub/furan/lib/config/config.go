@@ -13,6 +13,9 @@ var description = "unknown"
 type Vaultconfig struct {
 	Addr            string
 	Token           string
+	K8sJWTPath      string
+	K8sRole         string
+	K8sAuthPath     string
 	TokenAuth       bool
 	AppID           string
 	UserIDPath      string
@@ -28,6 +31,10 @@ type Dockerconfig struct {
 	DockercfgVaultPath string
 	DockercfgRaw       string
 	DockercfgContents  map[string]dtypes.AuthConfig
+}
+
+func (dc *Dockerconfig) Setup() {
+	dc.DockercfgContents = make(map[string]dtypes.AuthConfig)
 }
 
 type Kafkaconfig struct {
@@ -55,32 +62,28 @@ type DBconfig struct {
 }
 
 type Serverconfig struct {
-	HTTPSPort               uint
-	GRPCPort                uint
-	PPROFPort               uint
-	HTTPSAddr               string
-	GRPCAddr                string
-	HealthcheckAddr         string
-	Concurrency             uint
-	Queuesize               uint
-	VaultTLSCertPath        string
-	VaultTLSKeyPath         string
-	TLSCert                 []byte
-	TLSKey                  []byte
-	LogToSumo               bool
-	SumoURL                 string
-	VaultSumoURLPath        string
-	HealthcheckHTTPport     uint
-	S3ErrorLogs             bool
-	S3ErrorLogBucket        string
-	S3ErrorLogRegion        string
-	S3PresignTTL            uint
-	GCIntervalSecs          uint
-	DockerDiskPath          string
-	NewRelicAPIKeyVaultPath string
-	NewRelicAPIKey          string
-	EnableNewRelic          bool
-	NewRelicApp             string
+	HTTPSPort           uint
+	GRPCPort            uint
+	PPROFPort           uint
+	HTTPSAddr           string
+	GRPCAddr            string
+	HealthcheckAddr     string
+	Concurrency         uint
+	Queuesize           uint
+	VaultTLSCertPath    string
+	VaultTLSKeyPath     string
+	TLSCert             []byte
+	TLSKey              []byte
+	LogToSumo           bool
+	SumoURL             string
+	VaultSumoURLPath    string
+	HealthcheckHTTPport uint
+	S3ErrorLogs         bool
+	S3ErrorLogBucket    string
+	S3ErrorLogRegion    string
+	S3PresignTTL        uint
+	GCIntervalSecs      uint
+	DockerDiskPath      string
 }
 
 type Consulconfig struct {
