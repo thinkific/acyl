@@ -231,7 +231,9 @@ func (fdl *FakeDataLayer) GetRunningQAEnvironments() ([]QAEnvironment, error) {
 	out1, _ := fdl.GetQAEnvironmentsByStatus("Success")
 	out2, _ := fdl.GetQAEnvironmentsByStatus("Spawned")
 	out3, _ := fdl.GetQAEnvironmentsByStatus("Updating")
-	return append(out1, append(out2, out3...)...), nil
+	out := append(out1, append(out2, out3...)...)
+	sort.Slice(out, func(i, j int) bool { return out[i].Created.Before(out[j].Created) })
+	return out, nil
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironmentsByRepoAndPR(repo string, pr uint) ([]QAEnvironment, error) {

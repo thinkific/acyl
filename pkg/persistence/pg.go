@@ -185,9 +185,9 @@ func (p *PGLayer) GetQAEnvironmentsByStatus(status string) ([]QAEnvironment, err
 	return p.collectRows(p.db.Query(`SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE status = $1;`, s))
 }
 
-// GetRunningQAEnvironments returns all environments with status "success", "updating" or "spawned".
+// GetRunningQAEnvironments returns all environments with status "success", "updating" or "spawned", in ascending order of creation time.
 func (p *PGLayer) GetRunningQAEnvironments() ([]QAEnvironment, error) {
-	return p.collectRows(p.db.Query(`SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE status = $1 OR status = $2 OR status = $3;`, models.Spawned, models.Success, models.Updating))
+	return p.collectRows(p.db.Query(`SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE status = $1 OR status = $2 OR status = $3 ORDER BY created ASC;`, models.Spawned, models.Success, models.Updating))
 }
 
 // GetQAEnvironmentsByRepoAndPR teturns all environments which have matching repo AND pull request.

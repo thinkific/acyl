@@ -163,6 +163,9 @@ func TestDataLayerGetRunningQAEnvironments(t *testing.T) {
 	if len(qs) != 5 {
 		t.Fatalf("wrong running count: %v", len(qs))
 	}
+	if !(qs[0].Created.Before(qs[1].Created) && qs[1].Created.Before(qs[2].Created) && qs[2].Created.Before(qs[3].Created) && qs[3].Created.Before(qs[4].Created)) {
+		t.Fatalf("list should be sorted in ascending order")
+	}
 }
 
 func TestDataLayerGetQAEnvironmentsByRepoAndPR(t *testing.T) {

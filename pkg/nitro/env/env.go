@@ -253,7 +253,7 @@ func (m *Manager) enforceGlobalLimit(ctx context.Context) error {
 	extant := len(qae)
 	if extant > limit {
 		kill := extant - limit
-		sort.Slice(qae, func(i int, j int) bool { return qae[i].Created.Before(qae[j].Created) })
+		// GetRunningQAEnvironments() returns a sorted list in ascending order of creation timestamp
 		kenvs := qae[0:kill]
 		m.log(ctx, "enforcing global limit: extant: %v, limit: %v, destroying: %v", extant, limit, kill)
 		for _, e := range kenvs {
@@ -476,11 +476,11 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 			VarFilePath: v.VarFilePath,
 		}
 	}
-	
+
 	if err = m.enforceGlobalLimit(ctx); err != nil {
 		return "", errors.Wrap(err, "error enforcing global limit")
 	}
-	
+
 	chartSpan, _ := tracer.StartSpanFromContext(ctx, "build_and_install_chart")
 	defer chartSpan.Finish(tracer.WithError(err))
 	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: newenv.env, RC: newenv.rc}, mcloc); err != nil {
