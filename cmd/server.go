@@ -59,6 +59,8 @@ var furanHostStr string
 var aminoAddr string
 var s3config config.S3Config
 var failureTemplatePath string
+var dogstatsdAddr, dogstatsdTags string
+var datadogServiceName, datadogTracingAgentAddr string
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
@@ -107,6 +109,10 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&s3config.Region, "failure-report-s3-region", "us-west-2", "AWS S3 region for environment failure reports")
 	serverCmd.PersistentFlags().StringVar(&s3config.Bucket, "failure-report-s3-bucket", "", "AWS S3 bucket for environment failure reports")
 	serverCmd.PersistentFlags().StringVar(&s3config.KeyPrefix, "failure-report-s3-key-prefix", "", "AWS S3 key prefix for environment failure reports (key format: <prefix>envfailures/<timestamp>/<env name>.html)")
+	serverCmd.PersistentFlags().StringVarP(&dogstatsdAddr, "dogstatsd-addr", "q", "127.0.0.1:8125", "Address of dogstatsd for metrics")
+	serverCmd.PersistentFlags().StringVar(&dogstatsdTags, "dogstatsd-tags", "", "Comma-separated list of tags to add to dogstatsd metrics (TAG:VALUE)")
+	serverCmd.PersistentFlags().StringVar(&datadogTracingAgentAddr, "datadog-tracing-agent-addr", "127.0.0.1:8126", "Address of datadog tracing agent")
+	serverCmd.PersistentFlags().StringVar(&datadogServiceName, "datadog-service-name", "acyl", "Default service name to be used for Datadog APM")
 	RootCmd.AddCommand(serverCmd)
 }
 

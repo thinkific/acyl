@@ -188,8 +188,9 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	case ghevent.CreateNew:
 		api.wg.Add(1)
 		go func() {
-			defer api.wg.Done()
+			var err error
 			defer rootSpan.Finish(tracer.WithError(err))
+			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			name, err := api.es.Create(ctx, *out.RRD)
@@ -202,8 +203,9 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	case ghevent.Update:
 		api.wg.Add(1)
 		go func() {
-			defer api.wg.Done()
+			var err error
 			defer rootSpan.Finish(tracer.WithError(err))
+			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			name, err := api.es.Update(ctx, *out.RRD)
@@ -216,8 +218,9 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	case ghevent.Destroy:
 		api.wg.Add(1)
 		go func() {
-			defer api.wg.Done()
+			var err error
 			defer rootSpan.Finish(tracer.WithError(err))
+			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			err = api.es.Destroy(ctx, *out.RRD, models.DestroyApiRequest)
@@ -229,7 +232,8 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		}()
 	default:
 		log("unknown action type: %v", out.Action)
-		api.internalError(w, fmt.Errorf("unknown action type: %v (event_log_id: %v)", out.Action, out.Logger.ID.String()), withSpan(validationSpan))
+		err = fmt.Errorf("unknown action type: %v (event_log_id: %v)", out.Action, out.Logger.ID.String())
+		api.internalError(w, err, withSpan(validationSpan))
 		rootSpan.Finish(tracer.WithError(err))
 		return
 	}
