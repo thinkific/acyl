@@ -1585,7 +1585,7 @@
   version = "v1.11.3"
 
 [[projects]]
-  digest = "1:8e7e862affe62ca299b3c4acfb6bfcbc156a28f16592eca50aa81e46f3f8816f"
+  digest = "1:dfa85ea7e0f402e82727c055cec1a7dfc95ffa7754ba417f672876e4baf497db"
   name = "gopkg.in/DataDog/dd-trace-go.v1"
   packages = [
     "contrib/gorilla/mux",
@@ -1597,8 +1597,8 @@
     "ddtrace/tracer",
   ]
   pruneopts = ""
-  revision = "823d51722f66a748804943f6fa6be18776073b82"
-  version = "v1.9.0"
+  revision = "fd9dc1465a7f279ce06639563428b56b01c3b146"
+  version = "v1.10.0"
 
 [[projects]]
   branch = "v1"
