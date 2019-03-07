@@ -189,45 +189,48 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		api.wg.Add(1)
 		go func() {
 			var err error
-			defer rootSpan.Finish(tracer.WithError(err))
 			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			name, err := api.es.Create(ctx, *out.RRD)
 			if err != nil {
 				log("finished processing create with error: %v", err)
+				rootSpan.Finish(tracer.WithError(err))
 				return
 			}
+			rootSpan.Finish()
 			log("success processing create event (env: %q); done", name)
 		}()
 	case ghevent.Update:
 		api.wg.Add(1)
 		go func() {
 			var err error
-			defer rootSpan.Finish(tracer.WithError(err))
 			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			name, err := api.es.Update(ctx, *out.RRD)
 			if err != nil {
 				log("finished processing update with error: %v", err)
+				rootSpan.Finish(tracer.WithError(err))
 				return
 			}
+			rootSpan.Finish()
 			log("success processing update event (env: %q); done", name)
 		}()
 	case ghevent.Destroy:
 		api.wg.Add(1)
 		go func() {
 			var err error
-			defer rootSpan.Finish(tracer.WithError(err))
 			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			err = api.es.Destroy(ctx, *out.RRD, models.DestroyApiRequest)
 			if err != nil {
 				log("finished processing destroy with error: %v", err)
+				rootSpan.Finish(tracer.WithError(err))
 				return
 			}
+			rootSpan.Finish()
 			log("success processing destroy event; done")
 		}()
 	default:
