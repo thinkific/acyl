@@ -72,6 +72,9 @@ func TestNotificationEventKey(t *testing.T) {
 			name: "failure", input: Failure,
 		},
 		{
+			name: "destroy", input: EnvironmentLimitExceeded,
+		},
+		{
 			name: "<unknown>", input: 99999,
 		},
 	}

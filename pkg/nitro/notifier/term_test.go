@@ -108,6 +108,22 @@ func TestTerminalSend(t *testing.T) {
 			errContains: "",
 		},
 		{
+			name: "default destroy (env limit exceeded)",
+			input: Notification{
+				Data: models.NotificationData{
+					EnvName:      "random-name",
+					Repo:         "acme/widgets",
+					PullRequest:  34,
+					SourceBranch: "spam-customers",
+					BaseBranch:   "master",
+					Event:        EnvironmentLimitExceeded.String(),
+				},
+				Template: models.DefaultNotificationTemplates["destroy"],
+			},
+			isErr:       false,
+			errContains: "",
+		},
+		{
 			name: "default success",
 			input: Notification{
 				Data: models.NotificationData{

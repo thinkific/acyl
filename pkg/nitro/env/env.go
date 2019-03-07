@@ -134,6 +134,7 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 			K8sNamespace:  k8sns,
 			CommitMessage: cmsg,
 			ErrorMessage:  errmsg,
+			Event:         event.String(),
 		},
 		Event:    event,
 		Template: env.rc.Notifications.Templates[event.Key()],
