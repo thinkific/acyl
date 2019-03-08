@@ -165,13 +165,13 @@ func TestTracerStartSpan(t *testing.T) {
 		assert.Contains([]float64{
 			ext.PriorityAutoReject,
 			ext.PriorityAutoKeep,
-		}, span.Metrics[samplingPriorityKey])
+		}, span.Metrics[keySamplingPriority])
 	})
 
 	t.Run("priority", func(t *testing.T) {
 		tracer := newTracer()
 		span := tracer.StartSpan("web.request", Tag(ext.SamplingPriority, ext.PriorityUserKeep)).(*span)
-		assert.Equal(t, float64(ext.PriorityUserKeep), span.Metrics[samplingPriorityKey])
+		assert.Equal(t, float64(ext.PriorityUserKeep), span.Metrics[keySamplingPriority])
 	})
 }
 
@@ -183,6 +183,7 @@ func TestTracerStartSpanOptions(t *testing.T) {
 		ServiceName("test.service"),
 		ResourceName("test.resource"),
 		StartTime(now),
+		WithSpanID(420),
 	}
 	span := tracer.StartSpan("web.request", opts...).(*span)
 	assert := assert.New(t)
@@ -190,6 +191,8 @@ func TestTracerStartSpanOptions(t *testing.T) {
 	assert.Equal("test.service", span.Service)
 	assert.Equal("test.resource", span.Resource)
 	assert.Equal(now.UnixNano(), span.Start)
+	assert.Equal(uint64(420), span.SpanID)
+	assert.Equal(uint64(420), span.TraceID)
 }
 
 func TestTracerStartChildSpan(t *testing.T) {
@@ -197,12 +200,17 @@ func TestTracerStartChildSpan(t *testing.T) {
 		assert := assert.New(t)
 		tracer := newTracer()
 		root := tracer.StartSpan("web.request", ServiceName("root-service")).(*span)
-		child := tracer.StartSpan("db.query", ChildOf(root.Context()), ServiceName("child-service")).(*span)
+		child := tracer.StartSpan("db.query",
+			ChildOf(root.Context()),
+			ServiceName("child-service"),
+			WithSpanID(69)).(*span)
 
 		assert.NotEqual(uint64(0), child.TraceID)
 		assert.NotEqual(uint64(0), child.SpanID)
 		assert.Equal(root.SpanID, child.ParentID)
 		assert.Equal(root.TraceID, child.ParentID)
+		assert.Equal(root.TraceID, child.TraceID)
+		assert.Equal(uint64(69), child.SpanID)
 		assert.Equal("child-service", child.Service)
 	})
 
@@ -225,6 +233,34 @@ func TestTracerBaggagePropagation(t *testing.T) {
 	context := child.Context().(*spanContext)
 
 	assert.Equal("value", context.baggage["key"])
+}
+
+func TestStartSpanOrigin(t *testing.T) {
+	assert := assert.New(t)
+
+	tracer := newTracer()
+
+	carrier := TextMapCarrier(map[string]string{
+		DefaultTraceIDHeader:  "1",
+		DefaultParentIDHeader: "1",
+		originHeader:          "synthetics",
+	})
+	ctx, err := tracer.Extract(carrier)
+	assert.Nil(err)
+
+	// first child contains tag
+	child := tracer.StartSpan("child", ChildOf(ctx))
+	assert.Equal("synthetics", child.(*span).Meta[keyOrigin])
+
+	// secondary child doesn't
+	child2 := tracer.StartSpan("child2", ChildOf(child.Context()))
+	assert.Empty(child2.(*span).Meta[keyOrigin])
+
+	// but injecting its context marks origin
+	carrier2 := TextMapCarrier(map[string]string{})
+	err = tracer.Inject(child2.Context(), carrier2)
+	assert.Nil(err)
+	assert.Equal("synthetics", carrier2[originHeader])
 }
 
 func TestPropagationDefaults(t *testing.T) {
@@ -278,8 +314,8 @@ func TestTracerSamplingPriorityPropagation(t *testing.T) {
 	tracer := newTracer()
 	root := tracer.StartSpan("web.request", Tag(ext.SamplingPriority, 2)).(*span)
 	child := tracer.StartSpan("db.query", ChildOf(root.Context())).(*span)
-	assert.EqualValues(2, root.Metrics[samplingPriorityKey])
-	assert.EqualValues(2, child.Metrics[samplingPriorityKey])
+	assert.EqualValues(2, root.Metrics[keySamplingPriority])
+	assert.EqualValues(2, child.Metrics[keySamplingPriority])
 	assert.EqualValues(2, root.context.priority)
 	assert.EqualValues(2, child.context.priority)
 	assert.True(root.context.hasPriority)
@@ -403,10 +439,10 @@ func TestTracerPrioritySampler(t *testing.T) {
 
 	// default rates (1.0)
 	s := tr.newEnvSpan("pylons", "")
-	assert.Equal(1., s.Metrics[samplingPriorityRateKey])
-	assert.Equal(1., s.Metrics[samplingPriorityKey])
+	assert.Equal(1., s.Metrics[keySamplingPriorityRate])
+	assert.Equal(1., s.Metrics[keySamplingPriority])
 	assert.True(s.context.hasSamplingPriority())
-	assert.EqualValues(s.context.samplingPriority(), s.Metrics[samplingPriorityKey])
+	assert.EqualValues(s.context.samplingPriority(), s.Metrics[keySamplingPriority])
 	s.Finish()
 
 	tr.forceFlush() // obtain new rates
@@ -435,8 +471,8 @@ func TestTracerPrioritySampler(t *testing.T) {
 		},
 	} {
 		s := tr.newEnvSpan(tt.service, tt.env)
-		assert.Equal(tt.rate, s.Metrics[samplingPriorityRateKey], strconv.Itoa(i))
-		prio, ok := s.Metrics[samplingPriorityKey]
+		assert.Equal(tt.rate, s.Metrics[keySamplingPriorityRate], strconv.Itoa(i))
+		prio, ok := s.Metrics[keySamplingPriority]
 		assert.True(ok)
 		assert.Contains([]float64{0, 1}, prio)
 		assert.True(s.context.hasSamplingPriority())

@@ -381,7 +381,7 @@ var DefaultNotificationTemplates = map[string]NotificationTemplate{
 		},
 	},
 	"destroy": NotificationTemplate{
-		Title: "💣 Destroying Environment",
+		Title: `💣 Destroying Environment{{ if eq .Event "EnvironmentLimitExceeded" }} (Environment Limit Exceeded){{ end }}`,
 		Sections: []NotificationTemplateSection{
 			NotificationTemplateSection{
 				Title: "{{ .EnvName }}",
@@ -429,8 +429,8 @@ type NotificationTemplate struct {
 
 // NotificationData models the data available to notification templates (all events)
 type NotificationData struct {
-	EnvName, Repo, SourceBranch, SourceSHA, BaseBranch, BaseSHA, CommitMessage, ErrorMessage, User, K8sNamespace string
-	PullRequest                                                                                                  uint
+	EnvName, Repo, SourceBranch, SourceSHA, BaseBranch, BaseSHA, CommitMessage, ErrorMessage, User, K8sNamespace, Event string
+	PullRequest                                                                                                         uint
 }
 
 func (nt NotificationTemplate) Render(d NotificationData) (*RenderedNotification, error) {

@@ -59,6 +59,7 @@ type Manager struct {
 	CI                   metahelm.Installer
 	AWSCreds             config.AWSCreds
 	S3Config             config.S3Config
+	GlobalLimit          uint
 	failureTemplate      *template.Template
 	s3p                  s3Pusher
 }
@@ -133,6 +134,7 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 			K8sNamespace:  k8sns,
 			CommitMessage: cmsg,
 			ErrorMessage:  errmsg,
+			Event:         event.String(),
 		},
 		Event:    event,
 		Template: env.rc.Notifications.Templates[event.Key()],
@@ -150,7 +152,9 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 
 func (m *Manager) createPendingGithubStatus(ctx context.Context, rd *models.RepoRevisionData) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "create_pending_github_status")
-	defer span.Finish(tracer.WithError(err))
+	defer func() {
+		span.Finish(tracer.WithError(err))
+	}()
 	cs := &ghclient.CommitStatus{
 		Context:     "Acyl",
 		Status:      "pending",
@@ -238,6 +242,45 @@ func (m *Manager) Create(ctx context.Context, rd models.RepoRevisionData) (strin
 	return name, err
 }
 
+// enforceGlobalLimit checks existing environments against the configured global limit.
+// If necessary, kill oldest environments to bring the environment count into compliance with the limit.
+func (m *Manager) enforceGlobalLimit(ctx context.Context) error {
+	if m.GlobalLimit == 0 {
+		return nil
+	}
+	limit := int(m.GlobalLimit)
+	qae, err := m.DL.GetRunningQAEnvironments()
+	if err != nil {
+		return fmt.Errorf("error getting running environments: %v", err)
+	}
+	extant := len(qae)
+	if extant > limit {
+		kill := extant - limit
+		// GetRunningQAEnvironments() returns a sorted list in ascending order of creation timestamp
+		kenvs := qae[0:kill]
+		m.log(ctx, "enforcing global limit: extant: %v, limit: %v, destroying: %v", extant, limit, kill)
+		for _, e := range kenvs {
+			env := e
+			m.log(ctx, "destroying: %v (created %v)", env.Name, env.Created)
+			// we lock around each destroyed environment to preempt any ongoing operations
+			// create a new context as lockingOperation() always cancels the context when finished
+			ctx2, cf := context.WithCancel(ctx)
+			if err := m.Delete(ctx2, e.RepoRevisionDataFromQA(), models.EnvironmentLimitExceeded); err != nil {
+				m.log(ctx, "error destroying environment for exceeding limit: %v", err)
+			}
+			cf()
+			select {
+			case <-ctx.Done():
+				return errors.New("context was cancelled")
+			default:
+			}
+		}
+		return nil
+	}
+	m.log(ctx, "global limit not exceeded: running: %v, limit: %v", extant, limit)
+	return nil
+}
+
 // newEnv contains all the information required for construction of a new environment
 type newEnv struct {
 	env *models.QAEnvironment
@@ -266,13 +309,13 @@ func (m *Manager) getRepoConfig(ctx context.Context, rd *models.RepoRevisionData
 
 // generateNewEnv calculates the metadata for a new environment and either creates a new environment DB record or modifies an existing one
 func (m *Manager) generateNewEnv(ctx context.Context, rd *models.RepoRevisionData) (env *models.QAEnvironment, err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "generate_new_env")
 	defer func() {
 		if err != nil {
 			err = nitroerrors.SystemError(err)
 		}
+		span.Finish(tracer.WithError(err))
 	}()
-	span, _ := tracer.StartSpanFromContext(ctx, "generate_new_env")
-	defer span.Finish(tracer.WithError(err))
 	envs, err := m.DL.GetQAEnvironmentsByRepoAndPR(rd.Repo, rd.PullRequest)
 	if err != nil {
 		return nil, errors.Wrap(err, "error checking for existing environment record")
@@ -326,13 +369,13 @@ func (m *Manager) generateNewEnv(ctx context.Context, rd *models.RepoRevisionDat
 
 // processEnvConfig fetches, parses and validates the top-level acyl.yml and all dependencies, calculates refs and writes them to the env db record. It always returns a valid *newEnv regardless of error.
 func (m *Manager) processEnvConfig(ctx context.Context, env *models.QAEnvironment, rd *models.RepoRevisionData) (ne *newEnv, err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "process_env_config")
 	defer func() {
 		if err != nil && !nitroerrors.IsUserError(err) {
 			err = nitroerrors.SystemError(err)
 		}
+		span.Finish(tracer.WithError(err))
 	}()
-	span, _ := tracer.StartSpanFromContext(ctx, "process_env_config")
-	defer span.Finish(tracer.WithError(err))
 	ne = &newEnv{env: env}
 	rc, err := m.getRepoConfig(ctx, rd)
 	if err != nil {
@@ -366,7 +409,9 @@ func (m *Manager) processEnvConfig(ctx context.Context, env *models.QAEnvironmen
 
 func (m *Manager) fetchCharts(ctx context.Context, name string, rc *models.RepoConfig) (_ string, _ meta.ChartLocations, err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "fetch_charts")
-	defer span.Finish(tracer.WithError(err))
+	defer func() {
+		span.Finish(tracer.WithError(err))
+	}()
 	td, err := tempDir(m.FS, "", name)
 	if err != nil {
 		return "", nil, errors.Wrap(err, "error generating temp dir")
@@ -388,9 +433,9 @@ func (m *Manager) fetchCharts(ctx context.Context, name string, rc *models.RepoC
 func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envname string, err error) {
 	end := m.MC.Timing(mpfx+"create", "triggering_repo:"+rd.Repo)
 	span, ctx := tracer.StartSpanFromContext(ctx, "create")
-	defer span.Finish(tracer.WithError(err))
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
+		span.Finish(tracer.WithError(err))
 	}()
 	env, err := m.generateNewEnv(ctx, rd)
 	if err != nil {
@@ -436,11 +481,17 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 			VarFilePath: v.VarFilePath,
 		}
 	}
-	chartSpan, _ := tracer.StartSpanFromContext(ctx, "build_and_install_chart")
-	defer chartSpan.Finish(tracer.WithError(err))
+
+	if err = m.enforceGlobalLimit(ctx); err != nil {
+		return "", errors.Wrap(err, "error enforcing global limit")
+	}
+
+	chartSpan, ctx := tracer.StartSpanFromContext(ctx, "build_and_install_chart")
 	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: newenv.env, RC: newenv.rc}, mcloc); err != nil {
+		chartSpan.Finish(tracer.WithError(err))
 		return "", m.handleMetahelmError(ctx, newenv, err, "error installing charts")
 	}
+	chartSpan.Finish()
 	return newenv.env.Name, nil
 }
 
@@ -471,9 +522,9 @@ func (m *Manager) getenv(ctx context.Context, rd *models.RepoRevisionData) (*mod
 func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reason models.QADestroyReason) (err error) {
 	end := m.MC.Timing(mpfx+"delete", "triggering_repo:"+rd.Repo)
 	span, ctx := tracer.StartSpanFromContext(ctx, "delete")
-	defer span.Finish(tracer.WithError(err))
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
+		span.Finish(tracer.WithError(err))
 	}()
 	env, err := m.getenv(ctx, rd)
 	if err != nil {
@@ -548,9 +599,9 @@ func (m *Manager) Update(ctx context.Context, rd models.RepoRevisionData) (strin
 func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envname string, err error) {
 	end := m.MC.Timing(mpfx+"update", "triggering_repo:"+rd.Repo)
 	span, ctx := tracer.StartSpanFromContext(ctx, "update")
-	defer span.Finish(tracer.WithError(err))
 	defer func() {
 		end(fmt.Sprintf("success:%v", err == nil))
+		span.Finish(tracer.WithError(err))
 	}()
 	// check config signatures, if match then we can do chart upgrades
 	// if mismatch, then tear down existing env and rebuild from scratch

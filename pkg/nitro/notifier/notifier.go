@@ -5,6 +5,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+//go:generate stringer -type=NotificationEvent
+
 // NotificationEvent models events that trigger notifications
 type NotificationEvent int
 
@@ -19,8 +21,11 @@ const (
 	Success
 	// Failure occurs when a create or update operation fails
 	Failure
+	// EnvironmentLimitExceeded occurs when an environment is destroyed due to the environment limit
+	EnvironmentLimitExceeded
 )
 
+// Key maps NotificationEvents to notification template names
 func (ne NotificationEvent) Key() string {
 	switch ne {
 	case CreateEnvironment:
@@ -33,6 +38,8 @@ func (ne NotificationEvent) Key() string {
 		return "success"
 	case Failure:
 		return "failure"
+	case EnvironmentLimitExceeded:
+		return "destroy"
 	default:
 		return "<unknown>"
 	}

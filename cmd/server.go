@@ -59,6 +59,8 @@ var furanHostStr string
 var aminoAddr string
 var s3config config.S3Config
 var failureTemplatePath string
+var dogstatsdAddr, dogstatsdTags string
+var datadogServiceName, datadogTracingAgentAddr string
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
@@ -91,7 +93,7 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&backendConfig.AminoAddr, "amino-addr", "internal-qakube-amino-app-elb-1632933870.us-west-2.elb.amazonaws.com:3000", "the address to the Amino server")
 	serverCmd.PersistentFlags().UintVar(&serverConfig.ReaperIntervalSecs, "cleanup-interval", 600, "Approximate interval between cleanup runs in seconds (set to 0 to disable)")
 	serverCmd.PersistentFlags().UintVar(&serverConfig.EventRateLimitPerSecond, "event-rate-limit", 25, "Event rate limit in events per second (any in excess will be dropped)")
-	serverCmd.PersistentFlags().UintVar(&serverConfig.GlobalEnvironmentLimit, "global-environment-limit", 0, "Maximum number of running environments (0 means no limit)")
+	serverCmd.PersistentFlags().UintVar(&serverConfig.GlobalEnvironmentLimit, "global-environment-limit", 0, "Maximum number of running environments (set to zero for no limit)")
 	serverCmd.PersistentFlags().StringVar(&aminoConfig.HelmChartToRepoRaw, "helm-chart-to-repo", "{}", "Mapping of Helm chart to Github repo")
 	serverCmd.PersistentFlags().StringVar(&aminoConfig.AminoDeploymentToRepoRaw, "deployment-to-repo", "{}", "Mapping of Amino deployments to Github repo")
 	serverCmd.PersistentFlags().StringVar(&aminoConfig.AminoJobToRepoRaw, "job-to-repo", "{}", "Mapping of Amino jobs to Github repo")
@@ -107,6 +109,10 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&s3config.Region, "failure-report-s3-region", "us-west-2", "AWS S3 region for environment failure reports")
 	serverCmd.PersistentFlags().StringVar(&s3config.Bucket, "failure-report-s3-bucket", "", "AWS S3 bucket for environment failure reports")
 	serverCmd.PersistentFlags().StringVar(&s3config.KeyPrefix, "failure-report-s3-key-prefix", "", "AWS S3 key prefix for environment failure reports (key format: <prefix>envfailures/<timestamp>/<env name>.html)")
+	serverCmd.PersistentFlags().StringVarP(&dogstatsdAddr, "dogstatsd-addr", "q", "127.0.0.1:8125", "Address of dogstatsd for metrics")
+	serverCmd.PersistentFlags().StringVar(&dogstatsdTags, "dogstatsd-tags", "", "Comma-separated list of tags to add to dogstatsd metrics (TAG:VALUE)")
+	serverCmd.PersistentFlags().StringVar(&datadogTracingAgentAddr, "datadog-tracing-agent-addr", "127.0.0.1:8126", "Address of datadog tracing agent")
+	serverCmd.PersistentFlags().StringVar(&datadogServiceName, "datadog-service-name", "acyl", "Default service name to be used for Datadog APM")
 	RootCmd.AddCommand(serverCmd)
 }
 
@@ -256,6 +262,7 @@ func server(cmd *cobra.Command, args []string) {
 			CI:                   ci,
 			AWSCreds:             awsCreds,
 			S3Config:             s3config,
+			GlobalLimit:          serverConfig.GlobalEnvironmentLimit,
 		}
 		loadFailureTemplate(nitromgr)
 		envspawner = &nitroenv.CombinedSpawner{
