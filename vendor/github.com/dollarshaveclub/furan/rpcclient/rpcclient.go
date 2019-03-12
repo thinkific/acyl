@@ -20,10 +20,13 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"google.golang.org/grpc"
-
-	"golang.org/x/net/context"
+	// Note (mk): while furan server uses grpc.v12, we have to use the grpc
+	// package here because Acyl is on a different version of gRPC that is not compatible
+	// with dd-trace-go/...grpc.v12
+	grpctrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/grpc"
 
 	consul "github.com/hashicorp/consul/api"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -52,6 +55,7 @@ type ImageBuildPusher interface {
 type FuranClient struct {
 	n      furanNode
 	logger *log.Logger
+	sname  string
 }
 
 // DiscoveryOptions describes the options for determining the Furan node to use
@@ -71,8 +75,9 @@ type furanNode struct {
 
 // NewFuranClient takes a Consul service name and returns a client which connects
 // to a randomly chosen Furan host and uses the optional logger
-func NewFuranClient(opts *DiscoveryOptions, logger *log.Logger) (*FuranClient, error) {
+func NewFuranClient(opts *DiscoveryOptions, logger *log.Logger, datadogServiceName string) (*FuranClient, error) {
 	fc := &FuranClient{}
+	fc.sname = datadogServiceName
 	if logger == nil {
 		fc.logger = log.New(os.Stderr, "", log.LstdFlags)
 	} else {
@@ -190,8 +195,9 @@ func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *Buil
 	remoteHost := fmt.Sprintf("%v:%v", fc.n.addr, fc.n.port)
 
 	fc.logger.Printf("connecting to %v", remoteHost)
+	i := grpctrace.UnaryClientInterceptor(grpctrace.WithServiceName(fc.sname))
 
-	conn, err := grpc.Dial(remoteHost, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(connTimeoutSecs*time.Second))
+	conn, err := grpc.Dial(remoteHost, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(connTimeoutSecs*time.Second), grpc.WithUnaryInterceptor(i))
 	if err != nil {
 		return "", fmt.Errorf("error connecting to remote host: %v", err)
 	}

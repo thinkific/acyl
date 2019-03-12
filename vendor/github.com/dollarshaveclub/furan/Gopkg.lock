@@ -639,6 +639,8 @@
   digest = "1:dfa85ea7e0f402e82727c055cec1a7dfc95ffa7754ba417f672876e4baf497db"
   name = "gopkg.in/DataDog/dd-trace-go.v1"
   packages = [
+    "contrib/gocql/gocql",
+    "contrib/google.golang.org/grpc",
     "contrib/google.golang.org/grpc.v12",
     "contrib/google.golang.org/internal/grpcutil",
     "ddtrace",
@@ -692,6 +694,8 @@
     "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/metadata",
+    "gopkg.in/DataDog/dd-trace-go.v1/contrib/gocql/gocql",
+    "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/grpc",
     "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/grpc.v12",
     "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer",
   ]

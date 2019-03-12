@@ -156,10 +156,11 @@ type QASpawner struct {
 	typepath         string
 	globalLimit      uint
 	hostnameTemplate string
+	furanSName       string
 }
 
 // NewQASpawner returns a new QASpawner instance with the specified logger and datalayer
-func NewQASpawner(logger *log.Logger, dl DataLayer, ng NameGenerator, rc RepoClient, lp PreemptiveLockProvider, furanAddrs []string, consulAddr string, cn ChatNotifier, omc MetricsCollector, pmc MetricsCollector, nrapp newrelic.Application, awsCreds *AWSCreds, awsConfig *AWSConfig, backendConfig *BackendConfig, ac *AminoConfig, typepath string, globalLimit uint, hostnameTemplate string) (*QASpawner, error) {
+func NewQASpawner(logger *log.Logger, dl DataLayer, ng NameGenerator, rc RepoClient, lp PreemptiveLockProvider, furanAddrs []string, consulAddr string, cn ChatNotifier, omc MetricsCollector, pmc MetricsCollector, nrapp newrelic.Application, awsCreds *AWSCreds, awsConfig *AWSConfig, backendConfig *BackendConfig, ac *AminoConfig, typepath string, globalLimit uint, hostnameTemplate string, furanDatadogServiceName string) (*QASpawner, error) {
 	qs := &QASpawner{
 		logger:           logger,
 		dl:               dl,
@@ -175,6 +176,7 @@ func NewQASpawner(logger *log.Logger, dl DataLayer, ng NameGenerator, rc RepoCli
 		typepath:         typepath,
 		globalLimit:      globalLimit,
 		hostnameTemplate: hostnameTemplate,
+		furanSName:       furanDatadogServiceName,
 	}
 	conn, err := grpc.Dial(backendConfig.AminoAddr, grpc.WithInsecure())
 	if err != nil {
@@ -374,7 +376,7 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 		fcopts.SelectionStrategy = furan.RandomNodeSelection
 		fcopts.ServiceName = "furan"
 	}
-	fc, err := furan.NewFuranClient(fcopts, qs.logger)
+	fc, err := furan.NewFuranClient(fcopts, qs.logger, qs.furanSName)
 	if err != nil {
 		done <- err
 	}
