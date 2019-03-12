@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"google.golang.org/grpc/codes"
 
 	"google.golang.org/grpc"
@@ -204,7 +206,9 @@ func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *Buil
 	fc.logger.Printf("triggering build")
 	// use a new context so StartBuild won't get cancelled if
 	// ctx is cancelled
-	resp, err := c.StartBuild(context.Background(), req)
+	parentSpan, _ := tracer.SpanFromContext(ctx)
+	buildContext := tracer.ContextWithSpan(context.Background(), parentSpan)
+	resp, err := c.StartBuild(buildContext, req)
 	if err != nil {
 		return "", fc.rpcerr(err, "StartBuild")
 	}

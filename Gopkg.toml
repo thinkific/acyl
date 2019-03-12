@@ -30,7 +30,7 @@
   name = "github.com/aws/aws-sdk-go"
 
 [[constraint]]
-  branch = "master"
+  branch = "span-structure-improvements"
   name = "github.com/dollarshaveclub/furan"
 
 [[constraint]]
