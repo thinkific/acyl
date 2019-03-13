@@ -18,12 +18,12 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 
 	"google.golang.org/grpc"
 	// Note (mk): while furan server uses grpc.v12, we have to use the grpc
 	// package here because Acyl is on a different version of gRPC that is not compatible
 	// with dd-trace-go/...grpc.v12
-
 	consul "github.com/hashicorp/consul/api"
 	"golang.org/x/net/context"
 )
@@ -194,7 +194,7 @@ func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *Buil
 	remoteHost := fmt.Sprintf("%v:%v", fc.n.addr, fc.n.port)
 
 	fc.logger.Printf("connecting to %v", remoteHost)
-	// i := grpctrace.UnaryClientInterceptor(grpctrace.WithServiceName(fc.sname))
+	//i := grpctrace.UnaryClientInterceptor(grpctrace.WithServiceName(fc.sname))
 
 	conn, err := grpc.Dial(remoteHost, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(connTimeoutSecs*time.Second))
 	if err != nil {
@@ -215,7 +215,10 @@ func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *Buil
 	defer func() {
 		parentSpan.Finish(tracer.WithError(err))
 	}()
+	md := metadata.MD{}
 	buildContext := tracer.ContextWithSpan(context.Background(), parentSpan)
+	_ = tracer.Inject(parentSpan.Context(), MDCarrier(md))
+	buildContext = metadata.NewOutgoingContext(buildContext, md)
 	resp, err := c.StartBuild(buildContext, req)
 	if err != nil {
 		return "", fc.rpcerr(err, "StartBuild")
@@ -266,4 +269,39 @@ func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *Buil
 	}
 
 	return resp.BuildId, nil
+}
+
+// MDCarrier implements tracer.TextMapWriter and tracer.TextMapReader on top
+// of gRPC's metadata, allowing it to be used as a span context carrier for
+// distributed tracing.
+type MDCarrier metadata.MD
+
+var _ tracer.TextMapWriter = (*MDCarrier)(nil)
+var _ tracer.TextMapReader = (*MDCarrier)(nil)
+
+// Get will return the first entry in the metadata at the given key.
+func (mdc MDCarrier) Get(key string) string {
+	if m := mdc[key]; len(m) > 0 {
+		return m[0]
+	}
+	return ""
+}
+
+// Set will add the given value to the values found at key. Key will be lowercased to match
+// the metadata implementation.
+func (mdc MDCarrier) Set(key, val string) {
+	k := strings.ToLower(key) // as per google.golang.org/grpc/metadata/metadata.go
+	mdc[k] = append(mdc[k], val)
+}
+
+// ForeachKey will iterate over all key/value pairs in the metadata.
+func (mdc MDCarrier) ForeachKey(handler func(key, val string) error) error {
+	for k, vs := range mdc {
+		for _, v := range vs {
+			if err := handler(k, v); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

@@ -419,11 +419,11 @@
 
 [[projects]]
   branch = "span-structure-improvements"
-  digest = "1:c8cadf36b1375dfe7e0d73e8080a2e8dcc788b2db4a0a773f853411e5d96db57"
+  digest = "1:20677d83edeb0c44b9c728a4dcafd09bd0527e8b03fe479ffa8adf0cbf5d6969"
   name = "github.com/dollarshaveclub/furan"
   packages = ["rpcclient"]
   pruneopts = ""
-  revision = "48d0cc0996cbc0f8db30fec531e6e5237f94c4be"
+  revision = "fb426f1ec8e1aa4318a5ec9e1d2d18fc7f332524"
 
 [[projects]]
   branch = "master"
