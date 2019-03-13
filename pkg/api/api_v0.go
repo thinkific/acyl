@@ -18,6 +18,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/gorilla/mux"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -136,6 +137,7 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var err error
 	rootSpan := tracer.StartSpan("github_webhook_handler")
+	rootSpan.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
 	defer func() {
 		if err != nil {
 			api.logger.Printf("webhook handler error: %v", err)

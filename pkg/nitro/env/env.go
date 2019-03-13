@@ -486,7 +486,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 		return "", errors.Wrap(err, "error enforcing global limit")
 	}
 
-	chartSpan, ctx := tracer.StartSpanFromContext(ctx, "build_and_install_chart")
+	chartSpan, ctx := tracer.StartSpanFromContext(ctx, "build_and_install_charts")
 	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: newenv.env, RC: newenv.rc}, mcloc); err != nil {
 		chartSpan.Finish(tracer.WithError(err))
 		return "", m.handleMetahelmError(ctx, newenv, err, "error installing charts")
