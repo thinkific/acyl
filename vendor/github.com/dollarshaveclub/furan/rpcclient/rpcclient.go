@@ -23,7 +23,6 @@ import (
 	// Note (mk): while furan server uses grpc.v12, we have to use the grpc
 	// package here because Acyl is on a different version of gRPC that is not compatible
 	// with dd-trace-go/...grpc.v12
-	grpctrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/grpc"
 
 	consul "github.com/hashicorp/consul/api"
 	"golang.org/x/net/context"
@@ -186,8 +185,8 @@ func (fc FuranClient) rpcerr(err error, msg string, params ...interface{}) error
 // Build starts and monitors a build synchronously, sending BuildEvents to out and returning the build ID when completed, or error.
 // Returns an error if there was an RPC error or if the build/push fails
 // You must read from out (or provide a sufficiently buffered channel) to prevent Build from blocking forever
-func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *BuildRequest) (string, error) {
-	err := fc.validateBuildRequest(req)
+func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *BuildRequest) (_ string, err error) {
+	err = fc.validateBuildRequest(req)
 	if err != nil {
 		return "", err
 	}
@@ -195,9 +194,9 @@ func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *Buil
 	remoteHost := fmt.Sprintf("%v:%v", fc.n.addr, fc.n.port)
 
 	fc.logger.Printf("connecting to %v", remoteHost)
-	i := grpctrace.UnaryClientInterceptor(grpctrace.WithServiceName(fc.sname))
+	// i := grpctrace.UnaryClientInterceptor(grpctrace.WithServiceName(fc.sname))
 
-	conn, err := grpc.Dial(remoteHost, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(connTimeoutSecs*time.Second), grpc.WithUnaryInterceptor(i))
+	conn, err := grpc.Dial(remoteHost, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(connTimeoutSecs*time.Second))
 	if err != nil {
 		return "", fmt.Errorf("error connecting to remote host: %v", err)
 	}
@@ -212,7 +211,10 @@ func (fc FuranClient) Build(ctx context.Context, out chan *BuildEvent, req *Buil
 	fc.logger.Printf("triggering build")
 	// use a new context so StartBuild won't get cancelled if
 	// ctx is cancelled
-	parentSpan, _ := tracer.SpanFromContext(ctx)
+	parentSpan, _ := tracer.StartSpanFromContext(ctx, "furan_client.build")
+	defer func() {
+		parentSpan.Finish(tracer.WithError(err))
+	}()
 	buildContext := tracer.ContextWithSpan(context.Background(), parentSpan)
 	resp, err := c.StartBuild(buildContext, req)
 	if err != nil {

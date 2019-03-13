@@ -5,8 +5,11 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc/metadata"
 
 	"github.com/dollarshaveclub/furan/generated/lib"
 	"github.com/dollarshaveclub/furan/lib/buildcontext"
@@ -16,10 +19,9 @@ import (
 	"github.com/dollarshaveclub/furan/lib/errors"
 	"github.com/dollarshaveclub/furan/lib/kafka"
 	"github.com/dollarshaveclub/furan/lib/metrics"
-	grpctrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/grpc.v12"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/gocql/gocql"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -206,9 +208,9 @@ func (gr *GrpcServer) ListenRPC(addr string, port uint) error {
 	}
 	// Note (mk): We should consider upgrading our go grpc package so that we
 	// can take advantage of stream interceptor
-	ui := grpctrace.UnaryServerInterceptor(grpctrace.WithServiceName(gr.serviceName))
-	s := grpc.NewServer(grpc.UnaryInterceptor(ui))
-	gr.s = s
+	// ui := grpctrace.UnaryServerInterceptor(grpctrace.WithServiceName(gr.serviceName))
+	s := grpc.NewServer()
+	// gr.s = s
 	lib.RegisterFuranExecutorServer(s, gr)
 	gr.logf("gRPC listening on: %v", addr)
 	return s.Serve(l)
@@ -425,10 +427,28 @@ func (gr *GrpcServer) syncBuild(ctx context.Context, req *lib.BuildRequest) (out
 // gRPC handlers
 func (gr *GrpcServer) StartBuild(ctx context.Context, req *lib.BuildRequest) (_ *lib.BuildRequestResponse, err error) {
 	resp := &lib.BuildRequestResponse{}
-	queueSpan, ctx := tracer.StartSpanFromContext(ctx, "queue_build")
+	var sctx ddtrace.SpanContext
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		gr.logf("Metadata from grpc ctx was not ok!!!\n")
+	} else {
+		for key, val := range md {
+			gr.logf("metadata key: %v = %v\n", key, val)
+		}
+		sctx, err = tracer.Extract(MDCarrier(md))
+		if err != nil {
+			gr.logf("couldnt extract tracer metadata: %v", err)
+		} else {
+			gr.logf("successfull extracted tracer metatdata %v", sctx)
+		}
+	}
+
+	gr.logf("!!!metadata: %v", sctx)
+	buildSpan := tracer.StartSpan("starting_build", tracer.ChildOf(sctx))
 	defer func() {
-		queueSpan.Finish(tracer.WithError(err))
+		buildSpan.Finish(tracer.WithError(err))
 	}()
+
 	if req.Push.Registry.Repo == "" {
 		if req.Push.S3.Bucket == "" || req.Push.S3.KeyPrefix == "" || req.Push.S3.Region == "" {
 			return nil, grpc.Errorf(codes.InvalidArgument, "must specify either registry repo or S3 region/bucket/key-prefix")
@@ -438,9 +458,9 @@ func (gr *GrpcServer) StartBuild(ctx context.Context, req *lib.BuildRequest) (_ 
 	if err != nil {
 		return nil, grpc.Errorf(codes.Internal, "error creating build in DB: %v", err)
 	}
-	setTagsForSpan(queueSpan, req.GetBuild(), req.GetPush(), id)
+	setTagsForSpan(buildSpan, req.GetBuild(), req.GetPush(), id)
 	var cf context.CancelFunc
-	ctx, cf = context.WithCancel(buildcontext.NewBuildIDContext(context.Background(), id, queueSpan))
+	ctx, cf = context.WithCancel(buildcontext.NewBuildIDContext(context.Background(), id, buildSpan))
 	wreq := workerRequest{
 		ctx: ctx,
 		req: req,
@@ -588,4 +608,39 @@ func (gr *GrpcServer) Shutdown() {
 		gr.logf("timeout waiting for builds to finish")
 	}
 	gr.wwg.Wait() // wait for workers to return
+}
+
+// MDCarrier implements tracer.TextMapWriter and tracer.TextMapReader on top
+// of gRPC's metadata, allowing it to be used as a span context carrier for
+// distributed tracing.
+type MDCarrier metadata.MD
+
+var _ tracer.TextMapWriter = (*MDCarrier)(nil)
+var _ tracer.TextMapReader = (*MDCarrier)(nil)
+
+// Get will return the first entry in the metadata at the given key.
+func (mdc MDCarrier) Get(key string) string {
+	if m := mdc[key]; len(m) > 0 {
+		return m[0]
+	}
+	return ""
+}
+
+// Set will add the given value to the values found at key. Key will be lowercased to match
+// the metadata implementation.
+func (mdc MDCarrier) Set(key, val string) {
+	k := strings.ToLower(key) // as per google.golang.org/grpc/metadata/metadata.go
+	mdc[k] = append(mdc[k], val)
+}
+
+// ForeachKey will iterate over all key/value pairs in the metadata.
+func (mdc MDCarrier) ForeachKey(handler func(key, val string) error) error {
+	for k, vs := range mdc {
+		for _, v := range vs {
+			if err := handler(k, v); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
