@@ -5,6 +5,7 @@ import (
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/google/uuid"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 // LogFunc is a function that logs a formatted string somewhere
@@ -12,30 +13,30 @@ type LogFunc func(string, ...interface{})
 
 // DataLayer describes an object that interacts with the persistant data store
 type DataLayer interface {
-	CreateQAEnvironment(*QAEnvironment) error
-	GetQAEnvironment(string) (*QAEnvironment, error)
-	GetQAEnvironmentConsistently(string) (*QAEnvironment, error)
-	GetQAEnvironments() ([]QAEnvironment, error)
-	DeleteQAEnvironment(string) error
-	GetQAEnvironmentsByStatus(status string) ([]QAEnvironment, error)
-	GetRunningQAEnvironments() ([]QAEnvironment, error)
-	GetQAEnvironmentsByRepoAndPR(string, uint) ([]QAEnvironment, error)
-	GetQAEnvironmentsByRepo(repo string) ([]QAEnvironment, error)
-	GetQAEnvironmentBySourceSHA(sourceSHA string) (*QAEnvironment, error)
-	GetQAEnvironmentsBySourceBranch(sourceBranch string) ([]QAEnvironment, error)
-	GetQAEnvironmentsByUser(user string) ([]QAEnvironment, error)
-	SetQAEnvironmentStatus(string, EnvironmentStatus) error
-	SetQAEnvironmentRepoData(string, *RepoRevisionData) error
-	SetQAEnvironmentRefMap(string, RefMap) error
-	SetQAEnvironmentCommitSHAMap(string, RefMap) error
-	SetQAEnvironmentCreated(string, time.Time) error
-	GetExtantQAEnvironments(string, uint) ([]QAEnvironment, error)
-	SetAminoEnvironmentID(name string, did int) error
-	SetAminoServiceToPort(name string, serviceToPort map[string]int64) error
-	SetAminoKubernetesNamespace(name, namespace string) error
-	AddEvent(string, string) error
-	Search(opts models.EnvSearchParameters) ([]QAEnvironment, error)
-	GetMostRecent(n uint) ([]QAEnvironment, error)
+	CreateQAEnvironment(tracer.Span, *QAEnvironment) error
+	GetQAEnvironment(tracer.Span, string) (*QAEnvironment, error)
+	GetQAEnvironmentConsistently(tracer.Span, string) (*QAEnvironment, error)
+	GetQAEnvironments(tracer.Span) ([]QAEnvironment, error)
+	DeleteQAEnvironment(tracer.Span, string) error
+	GetQAEnvironmentsByStatus(span tracer.Span, status string) ([]QAEnvironment, error)
+	GetRunningQAEnvironments(tracer.Span) ([]QAEnvironment, error)
+	GetQAEnvironmentsByRepoAndPR(tracer.Span, string, uint) ([]QAEnvironment, error)
+	GetQAEnvironmentsByRepo(span tracer.Span, repo string) ([]QAEnvironment, error)
+	GetQAEnvironmentBySourceSHA(span tracer.Span, sourceSHA string) (*QAEnvironment, error)
+	GetQAEnvironmentsBySourceBranch(span tracer.Span, sourceBranch string) ([]QAEnvironment, error)
+	GetQAEnvironmentsByUser(span tracer.Span, user string) ([]QAEnvironment, error)
+	SetQAEnvironmentStatus(tracer.Span, string, EnvironmentStatus) error
+	SetQAEnvironmentRepoData(tracer.Span, string, *RepoRevisionData) error
+	SetQAEnvironmentRefMap(tracer.Span, string, RefMap) error
+	SetQAEnvironmentCommitSHAMap(tracer.Span, string, RefMap) error
+	SetQAEnvironmentCreated(tracer.Span, string, time.Time) error
+	GetExtantQAEnvironments(tracer.Span, string, uint) ([]QAEnvironment, error)
+	SetAminoEnvironmentID(span tracer.Span, name string, did int) error
+	SetAminoServiceToPort(span tracer.Span, name string, serviceToPort map[string]int64) error
+	SetAminoKubernetesNamespace(span tracer.Span, name, namespace string) error
+	AddEvent(tracer.Span, string, string) error
+	Search(span tracer.Span, opts models.EnvSearchParameters) ([]QAEnvironment, error)
+	GetMostRecent(span tracer.Span, n uint) ([]QAEnvironment, error)
 	Close() error
 	HelmDataLayer
 	K8sEnvDataLayer
@@ -44,19 +45,19 @@ type DataLayer interface {
 
 // HelmDataLayer describes an object that stores data about Helm
 type HelmDataLayer interface {
-	GetHelmReleasesForEnv(name string) ([]models.HelmRelease, error)
-	UpdateHelmReleaseRevision(envname, release, revision string) error
-	CreateHelmReleasesForEnv(releases []models.HelmRelease) error
-	DeleteHelmReleasesForEnv(name string) (uint, error)
+	GetHelmReleasesForEnv(span tracer.Span, name string) ([]models.HelmRelease, error)
+	UpdateHelmReleaseRevision(span tracer.Span, envname, release, revision string) error
+	CreateHelmReleasesForEnv(span tracer.Span, releases []models.HelmRelease) error
+	DeleteHelmReleasesForEnv(span tracer.Span, name string) (uint, error)
 }
 
 // K8sEnvDataLayer describes an object that stores data about the K8s environment details
 type K8sEnvDataLayer interface {
-	GetK8sEnv(name string) (*models.KubernetesEnvironment, error)
-	GetK8sEnvsByNamespace(ns string) ([]models.KubernetesEnvironment, error)
-	CreateK8sEnv(env *models.KubernetesEnvironment) error
-	DeleteK8sEnv(name string) error
-	UpdateK8sEnvTillerAddr(envname, taddr string) error
+	GetK8sEnv(span tracer.Span, name string) (*models.KubernetesEnvironment, error)
+	GetK8sEnvsByNamespace(span tracer.Span, ns string) ([]models.KubernetesEnvironment, error)
+	CreateK8sEnv(span tracer.Span, env *models.KubernetesEnvironment) error
+	DeleteK8sEnv(span tracer.Span, name string) error
+	UpdateK8sEnvTillerAddr(span tracer.Span, envname, taddr string) error
 }
 
 // EventLoggerDataLayer desribes an object that stores event log data

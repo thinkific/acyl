@@ -160,6 +160,7 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error parsing Amino config: %s", err)
 	}
 
+	pgConfig.DatadogServiceName = datadogServiceName + ".postgres"
 	dl, err := persistence.NewPGLayer(&pgConfig, logger)
 	if err != nil {
 		log.Fatalf("error opening PG database: %v", err)

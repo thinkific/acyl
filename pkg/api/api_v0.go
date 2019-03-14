@@ -262,7 +262,8 @@ Accepted:
 
 func (api *v0api) envListHandler(w http.ResponseWriter, r *http.Request) {
 	var fullDetails bool
-	envs, err := api.dl.GetQAEnvironments()
+	span, _ := tracer.SpanFromContext(r.Context())
+	envs, err := api.dl.GetQAEnvironments(span)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error getting environments: %v", err))
 		return
@@ -302,7 +303,8 @@ func (api *v0api) envListHandler(w http.ResponseWriter, r *http.Request) {
 
 func (api *v0api) envDetailHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	qa, err := api.dl.GetQAEnvironmentConsistently(name)
+	span, _ := tracer.SpanFromContext(r.Context())
+	qa, err := api.dl.GetQAEnvironmentConsistently(span, name)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error getting environment: %v", err))
 		return
@@ -323,34 +325,29 @@ func (api *v0api) envDetailHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *v0api) envDestroyHandler(w http.ResponseWriter, r *http.Request) {
-	rootSpan := tracer.StartSpan("env_destroy_handler")
-	getEnvSpan := tracer.StartSpan("env_destroy_handler.get_env", tracer.ChildOf(rootSpan.Context()))
 	name := mux.Vars(r)["name"]
-	qa, err := api.dl.GetQAEnvironmentConsistently(name)
+	span, _ := tracer.SpanFromContext(r.Context())
+	qa, err := api.dl.GetQAEnvironmentConsistently(span, name)
 	if err != nil {
-		api.internalError(w, err, withSpan(getEnvSpan))
-		rootSpan.Finish(tracer.WithError(err))
+		api.internalError(w, err)
 		return
 	}
 	if qa == nil {
-		api.notfoundError(w, withSpan(getEnvSpan))
-		rootSpan.Finish(tracer.WithError(fmt.Errorf("not found")))
+		api.notfoundError(w)
 		return
 	}
-	getEnvSpan.Finish()
 	go func() {
 		err := api.es.DestroyExplicitly(context.Background(), qa, models.DestroyApiRequest)
 		if err != nil {
 			api.logger.Printf("error destroying QA: %v: %v", name, err)
 		}
-		rootSpan.Finish(tracer.WithError(err))
 	}()
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (api *v0api) envSuccessHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	err := api.es.Success(context.Background(), name)
+	err := api.es.Success(r.Context(), name)
 	if err != nil {
 		api.internalError(w, err)
 		return
@@ -360,7 +357,7 @@ func (api *v0api) envSuccessHandler(w http.ResponseWriter, r *http.Request) {
 
 func (api *v0api) envFailureHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	err := api.es.Failure(context.Background(), name, "")
+	err := api.es.Failure(r.Context(), name, "")
 	if err != nil {
 		api.internalError(w, err)
 		return
@@ -378,7 +375,8 @@ func (api *v0api) envEventHandler(w http.ResponseWriter, r *http.Request) {
 		api.badRequestError(w, err)
 		return
 	}
-	err = api.dl.AddEvent(name, event.Message)
+	span, _ := tracer.SpanFromContext(r.Context())
+	err = api.dl.AddEvent(span, name, event.Message)
 	if err != nil {
 		api.internalError(w, err)
 		return
@@ -438,7 +436,8 @@ func (api *v0api) envSearchHandler(w http.ResponseWriter, r *http.Request) {
 			ops.Status = s
 		}
 	}
-	qas, err := api.dl.Search(ops)
+	span, _ := tracer.SpanFromContext(r.Context())
+	qas, err := api.dl.Search(span, ops)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error searching in DB: %v", err))
 	}

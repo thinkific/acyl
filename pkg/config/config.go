@@ -32,6 +32,7 @@ type ServerConfig struct {
 type PGConfig struct {
 	PostgresURI            string
 	PostgresMigrationsPath string
+	DatadogServiceName     string
 }
 
 // K8sSecret models a kubernetes secret

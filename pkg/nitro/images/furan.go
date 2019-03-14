@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/metrics"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
@@ -83,7 +85,8 @@ func (fib *FuranBuilderBackend) BuildImage(ctx context.Context, envName, githubR
 			}
 		}
 	}()
-	fib.dl.AddEvent(envName, fmt.Sprintf("building container: %v:%v", githubRepo, ref))
+	span, _ := tracer.SpanFromContext(ctx)
+	fib.dl.AddEvent(span, envName, fmt.Sprintf("building container: %v:%v", githubRepo, ref))
 
 	var err error
 	defer fib.mc.TimeContainerBuild(envName, githubRepo, ref, githubRepo, ref, &err)()
@@ -100,16 +103,16 @@ func (fib *FuranBuilderBackend) BuildImage(ctx context.Context, envName, githubR
 			buildErr = err
 			errmsg := fmt.Sprintf("build failed: %v: %v: %v", githubRepo, id, err)
 			logger.Printf(errmsg)
-			fib.dl.AddEvent(envName, errmsg)
+			fib.dl.AddEvent(span, envName, errmsg)
 			if i != retries-1 {
-				fib.dl.AddEvent(envName, fmt.Sprintf("retrying image build: %v", githubRepo))
+				fib.dl.AddEvent(span, envName, fmt.Sprintf("retrying image build: %v", githubRepo))
 			}
 			continue
 		}
 
 		okmsg := fmt.Sprintf("build finished: %v: %v", githubRepo, id)
 		logger.Printf(okmsg)
-		fib.dl.AddEvent(envName, okmsg)
+		fib.dl.AddEvent(span, envName, okmsg)
 		buildErr = nil
 		break
 	}

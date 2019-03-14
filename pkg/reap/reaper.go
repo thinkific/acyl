@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/locker"
 	"github.com/dollarshaveclub/acyl/pkg/models"
@@ -57,6 +59,11 @@ func NewReaper(lp locker.LockProvider, dl persistence.DataLayer, es spawner.Envi
 
 // Reap is called periodically to do various cleanup tasks
 func (r *Reaper) Reap() {
+	var err error
+	reapSpan, ctx := tracer.StartSpanFromContext(context.Background(), "reap")
+	defer func() {
+		reapSpan.Finish(tracer.WithError(err))
+	}()
 	lock, err := r.lp.AcquireNamedLock(lockName, lockTTL)
 	if err != nil {
 		r.logger.Printf("error trying to acquire lock: %v", err)
@@ -67,29 +74,30 @@ func (r *Reaper) Reap() {
 	}
 	defer lock.Release()
 
-	err = r.pruneDestroyedRecords()
+	err = r.pruneDestroyedRecords(ctx)
 	if err != nil {
 		r.logger.Printf("error pruning destroyed records: %v", err)
 	}
-	err = r.destroyFailedOrStuckEnvironments()
+	err = r.destroyFailedOrStuckEnvironments(ctx)
 	if err != nil {
 		r.logger.Printf("error destroying failed/stuck environments: %v", err)
 	}
-	err = r.destroyClosedPRs()
+	err = r.destroyClosedPRs(ctx)
 	if err != nil {
 		r.logger.Printf("error destroying environments associated with closed PRs: %v", err)
 	}
-	err = r.enforceGlobalLimit()
+	err = r.enforceGlobalLimit(ctx)
 	if err != nil {
 		r.logger.Printf("error enforcing global limit (%v): %v", r.globalLimit, err)
 	}
-	if err = r.auditQaEnvs(); err != nil {
+	if err = r.auditQaEnvs(ctx); err != nil {
 		r.logger.Printf("reaper: audit qa envs: %v", err)
 	}
 }
 
-func (r *Reaper) auditQaEnvs() error {
-	qas, err := r.dl.GetQAEnvironments()
+func (r *Reaper) auditQaEnvs(ctx context.Context) error {
+	span, _ := tracer.SpanFromContext(ctx)
+	qas, err := r.dl.GetQAEnvironments(span)
 	if err != nil {
 		return fmt.Errorf("error getting QA environments: %v", err)
 	}
@@ -112,8 +120,9 @@ func (r *Reaper) auditQaEnvs() error {
 	return nil
 }
 
-func (r *Reaper) destroyClosedPRs() error {
-	qas, err := r.dl.GetQAEnvironments()
+func (r *Reaper) destroyClosedPRs(ctx context.Context) error {
+	span, _ := tracer.SpanFromContext(ctx)
+	qas, err := r.dl.GetQAEnvironments(span)
 	if err != nil {
 		return fmt.Errorf("error getting QA environments: %v", err)
 	}
@@ -136,8 +145,9 @@ func (r *Reaper) destroyClosedPRs() error {
 	return nil
 }
 
-func (r *Reaper) pruneDestroyedRecords() error {
-	qas, err := r.dl.GetQAEnvironments()
+func (r *Reaper) pruneDestroyedRecords(ctx context.Context) error {
+	span, _ := tracer.SpanFromContext(ctx)
+	qas, err := r.dl.GetQAEnvironments(span)
 	if err != nil {
 		return fmt.Errorf("error getting QA environments: %v", err)
 	}
@@ -158,7 +168,7 @@ func (r *Reaper) pruneDestroyedRecords() error {
 			}
 			if !found {
 				r.logger.Printf("could not find destroyed event for %v", qa.Name)
-				err = r.dl.DeleteQAEnvironment(qa.Name)
+				err = r.dl.DeleteQAEnvironment(span, qa.Name)
 				if err != nil {
 					r.logger.Printf("error deleting destroyed environment: %v", err)
 				}
@@ -166,7 +176,7 @@ func (r *Reaper) pruneDestroyedRecords() error {
 			}
 			if time.Since(ts) > (destroyedMaxDurationHours * time.Hour) {
 				r.logger.Printf("deleting destroyed environment: %v", qa.Name)
-				err = r.dl.DeleteQAEnvironment(qa.Name)
+				err = r.dl.DeleteQAEnvironment(span, qa.Name)
 				if err != nil {
 					r.logger.Printf("error deleting destroyed environment: %v", err)
 				}
@@ -177,26 +187,27 @@ func (r *Reaper) pruneDestroyedRecords() error {
 	return nil
 }
 
-func (r *Reaper) destroyIfOlderThan(qa *models.QAEnvironment, d time.Duration, reason models.QADestroyReason) (err error) {
+func (r *Reaper) destroyIfOlderThan(ctx context.Context, qa *models.QAEnvironment, d time.Duration, reason models.QADestroyReason) (err error) {
 	if time.Since(qa.Created) > d {
 		r.logger.Printf("destroying environment %v: in state %v greater than %v secs", qa.Name, qa.Status.String(), d.Seconds())
 		defer func() { r.mc.Reaped(qa.Name, qa.Repo, reason, err) }()
-		return r.es.DestroyExplicitly(context.Background(), qa, reason)
+		return r.es.DestroyExplicitly(ctx, qa, reason)
 	}
 	return nil
 }
 
-func (r *Reaper) destroyFailedOrStuckEnvironments() error {
-	qas, err := r.dl.GetQAEnvironments()
+func (r *Reaper) destroyFailedOrStuckEnvironments(ctx context.Context) error {
+	span, _ := tracer.SpanFromContext(ctx)
+	qas, err := r.dl.GetQAEnvironments(span)
 	if err != nil {
 		return fmt.Errorf("error getting QA environments: %v", err)
 	}
 	for _, qa := range qas {
 		switch qa.Status {
 		case models.Spawned:
-			err = r.destroyIfOlderThan(&qa, spawnedMaxDurationSecs*time.Second, models.ReapAgeSpawned)
+			err = r.destroyIfOlderThan(ctx, &qa, spawnedMaxDurationSecs*time.Second, models.ReapAgeSpawned)
 		case models.Failure:
-			err = r.destroyIfOlderThan(&qa, failedMaxDurationSecs*time.Second, models.ReapAgeFailure)
+			err = r.destroyIfOlderThan(ctx, &qa, failedMaxDurationSecs*time.Second, models.ReapAgeFailure)
 		default:
 			continue
 		}
@@ -207,11 +218,12 @@ func (r *Reaper) destroyFailedOrStuckEnvironments() error {
 	return nil
 }
 
-func (r *Reaper) enforceGlobalLimit() error {
+func (r *Reaper) enforceGlobalLimit(ctx context.Context) error {
 	if r.globalLimit == 0 {
 		return nil
 	}
-	qae, err := r.dl.GetRunningQAEnvironments()
+	span, _ := tracer.SpanFromContext(ctx)
+	qae, err := r.dl.GetRunningQAEnvironments(span)
 	if err != nil {
 		return fmt.Errorf("error getting running environments: %v", err)
 	}

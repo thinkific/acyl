@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -87,7 +89,8 @@ func (a *AminoBackend) CreateEnvironment(ctx context.Context, qa *QAEnvironment,
 	a.logger.Printf("creating Amino environment %s with deployment tags: %v", qaName, deploymentTags)
 
 	// Queue up the deployment of the environment.
-	createCtx := context.Background() // CreateEnvironment gets its own context so it won't be cancelled
+	span, _ := tracer.SpanFromContext(ctx)
+	createCtx := tracer.ContextWithSpan(context.Background(), span) // CreateEnvironment gets its own context so it won't be cancelled
 	response, err := a.aminoClient.CreateEnvironment(createCtx, &pbaminoapi.CreateEnvironmentRequest{
 		Name:                           qaName,
 		DeploymentTags:                 deploymentTags,
@@ -103,13 +106,13 @@ func (a *AminoBackend) CreateEnvironment(ctx context.Context, qa *QAEnvironment,
 	if err != nil {
 		return "", fmt.Errorf("error creating environment with Amino: %s", err)
 	}
-	if err := a.dataLayer.SetAminoEnvironmentID(qaName, int(response.Id)); err != nil {
+	if err := a.dataLayer.SetAminoEnvironmentID(span, qaName, int(response.Id)); err != nil {
 		return "", fmt.Errorf("error setting Amino environment ID: %s", err)
 	}
 	envID := response.Id
 
 	if ctx.Err() == context.Canceled {
-		if err := a.dataLayer.AddEvent(qa.Name, "spawn preempted by new action"); err != nil {
+		if err := a.dataLayer.AddEvent(span, qa.Name, "spawn preempted by new action"); err != nil {
 			a.logger.Printf("error storing Amino event: %s", err)
 		}
 		return "", ctx.Err()
@@ -133,7 +136,7 @@ func (a *AminoBackend) CreateEnvironment(ctx context.Context, qa *QAEnvironment,
 		defer cancelFuncStatus()
 
 		if grpc.Code(err) == codes.Canceled || err == context.Canceled {
-			if err := a.dataLayer.AddEvent(qa.Name, "spawn preempted by new action"); err != nil {
+			if err := a.dataLayer.AddEvent(span, qa.Name, "spawn preempted by new action"); err != nil {
 				a.logger.Printf("error storing Amino event: %s", err)
 			}
 
@@ -148,7 +151,7 @@ func (a *AminoBackend) CreateEnvironment(ctx context.Context, qa *QAEnvironment,
 		if err != nil {
 
 			if grpc.Code(err) == codes.Canceled || err == context.Canceled {
-				if err := a.dataLayer.AddEvent(qa.Name, "spawn preempted by new action"); err != nil {
+				if err := a.dataLayer.AddEvent(span, qa.Name, "spawn preempted by new action"); err != nil {
 					a.logger.Printf("error storing Amino event: %s", err)
 				}
 
@@ -215,6 +218,7 @@ func (a *AminoBackend) waitForEnvironment(ctx context.Context, envID int, name s
 	successfulDeploys := make(map[string]bool)
 	successfulJobs := make(map[string]bool)
 	var lastResponse *pbaminoapi.EnvironmentStatusResponse
+	span, _ := tracer.SpanFromContext(ctx)
 
 	for {
 		if ctx.Err() == context.Canceled {
@@ -226,14 +230,14 @@ func (a *AminoBackend) waitForEnvironment(ctx context.Context, envID int, name s
 		// If we meet a deadline, then log the pending events.
 		select {
 		case <-ctx.Done():
-			if err := a.dataLayer.AddEvent(name, "environment deploy timed out"); err != nil {
+			if err := a.dataLayer.AddEvent(span, name, "environment deploy timed out"); err != nil {
 				a.logger.Printf("error storing Amino event: %s", err)
 			}
 			if lastResponse != nil {
-				if err := a.dataLayer.AddEvent(name, fmt.Sprintf("pending deployments: %v", lastResponse.UnavailableDeployments)); err != nil {
+				if err := a.dataLayer.AddEvent(span, name, fmt.Sprintf("pending deployments: %v", lastResponse.UnavailableDeployments)); err != nil {
 					a.logger.Printf("error storing Amino event: %s", err)
 				}
-				if err := a.dataLayer.AddEvent(name, fmt.Sprintf("pending jobs: %v", lastResponse.ActiveJobs)); err != nil {
+				if err := a.dataLayer.AddEvent(span, name, fmt.Sprintf("pending jobs: %v", lastResponse.ActiveJobs)); err != nil {
 					a.logger.Printf("error storing Amino event: %s", err)
 				}
 			}
@@ -272,14 +276,14 @@ func (a *AminoBackend) waitForEnvironment(ctx context.Context, envID int, name s
 
 		// Save namespace. It's immediately available.
 		namespace := response.GetKubernetesNamespace()
-		if err := a.dataLayer.SetAminoKubernetesNamespace(name, namespace); err != nil {
+		if err := a.dataLayer.SetAminoKubernetesNamespace(span, name, namespace); err != nil {
 			a.logger.Printf("error setting Amino Kubernetes namespace: %s", err)
 		}
 
 		// Log events for all new successful deploys and jobs.
 		for _, deploy := range response.AvailableDeployments {
 			if _, ok := successfulDeploys[deploy]; !ok {
-				if err := a.dataLayer.AddEvent(name, fmt.Sprintf("deploy completed: %s", deploy)); err != nil {
+				if err := a.dataLayer.AddEvent(span, name, fmt.Sprintf("deploy completed: %s", deploy)); err != nil {
 					a.logger.Printf("error storing Amino event: %s", err)
 				}
 			}
@@ -287,7 +291,7 @@ func (a *AminoBackend) waitForEnvironment(ctx context.Context, envID int, name s
 		}
 		for _, job := range response.CompletedJobs {
 			if _, ok := successfulJobs[job]; !ok {
-				if err := a.dataLayer.AddEvent(name, fmt.Sprintf("job completed: %s", job)); err != nil {
+				if err := a.dataLayer.AddEvent(span, name, fmt.Sprintf("job completed: %s", job)); err != nil {
 					a.logger.Printf("error storing Amino event: %s", err)
 				}
 			}
@@ -298,12 +302,12 @@ func (a *AminoBackend) waitForEnvironment(ctx context.Context, envID int, name s
 		// deployments are available.
 		if len(response.AllDeployments) == len(response.AvailableDeployments) &&
 			len(response.AllJobs) == len(response.CompletedJobs) {
-			if err := a.dataLayer.AddEvent(name, "environment deploy completed"); err != nil {
+			if err := a.dataLayer.AddEvent(span, name, "environment deploy completed"); err != nil {
 				a.logger.Printf("error storing Amino event: %s", err)
 			}
 
 			serviceToExposedPorts := response.GetServiceToExposedPort()
-			if err := a.dataLayer.SetAminoServiceToPort(name, serviceToExposedPorts); err != nil {
+			if err := a.dataLayer.SetAminoServiceToPort(span, name, serviceToExposedPorts); err != nil {
 				a.logger.Printf("error setting Amino service metadata: %s", err)
 			}
 

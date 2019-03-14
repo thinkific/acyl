@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -19,48 +20,48 @@ func TestCleanupPruneDestroyedEnvRecords(t *testing.T) {
 	}
 
 	c := Cleaner{DB: tdl.pgdb, LogFunc: t.Logf}
-	if err := dl.CreateQAEnvironment(&models.QAEnvironment{Created: time.Now().UTC().Add(-1 * time.Hour), Name: "foo-bar"}); err != nil {
+	if err := dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{Created: time.Now().UTC().Add(-1 * time.Hour), Name: "foo-bar"}); err != nil {
 		t.Fatalf("environment create should have succeeded: %v", err)
 	}
-	if err := dl.SetQAEnvironmentStatus("foo-bar", models.Destroyed); err != nil {
+	if err := dl.SetQAEnvironmentStatus(context.Background(), "foo-bar", models.Destroyed); err != nil {
 		t.Fatalf("environment set status should have succeeded: %v", err)
 	}
 	expires := 1 * time.Millisecond
 	time.Sleep(expires * 2)
-	if err := dl.CreateQAEnvironment(&models.QAEnvironment{Created: time.Now().UTC(), Name: "foo-bar-2"}); err != nil {
+	if err := dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{Created: time.Now().UTC(), Name: "foo-bar-2"}); err != nil {
 		t.Fatalf("environment create 2 should have succeeded: %v", err)
 	}
-	if err := dl.SetQAEnvironmentStatus("foo-bar-2", models.Destroyed); err != nil {
+	if err := dl.SetQAEnvironmentStatus(context.Background(), "foo-bar-2", models.Destroyed); err != nil {
 		t.Fatalf("environment set status 2 should have succeeded: %v", err)
 	}
-	dl.CreateK8sEnv(&models.KubernetesEnvironment{EnvName: "foo-bar"})
-	dl.CreateHelmReleasesForEnv([]models.HelmRelease{models.HelmRelease{EnvName: "foo-bar"}})
-	dl.SetQAEnvironmentCreated("foo-bar-2", time.Now().UTC().Add(1*time.Hour))
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: "foo-bar"})
+	dl.CreateHelmReleasesForEnv(context.Background(), []models.HelmRelease{models.HelmRelease{EnvName: "foo-bar"}})
+	dl.SetQAEnvironmentCreated(context.Background(), "foo-bar-2", time.Now().UTC().Add(1*time.Hour))
 	if err := c.PruneDestroyedEnvRecords(expires); err != nil {
 		t.Fatalf("prune should have succeeded: %v", err)
 	}
-	env, err := dl.GetQAEnvironment("foo-bar")
+	env, err := dl.GetQAEnvironment(context.Background(), "foo-bar")
 	if err != nil {
 		t.Fatalf("environment get 1 should have succeeded: %v", err)
 	}
 	if env != nil {
 		t.Fatalf("environment should have been pruned")
 	}
-	k8senv, err := dl.GetK8sEnv("foo-bar")
+	k8senv, err := dl.GetK8sEnv(context.Background(), "foo-bar")
 	if err != nil {
 		t.Fatalf("k8senv get should have succeeded: %v", err)
 	}
 	if k8senv != nil {
 		t.Fatalf("k8senv should have been pruned")
 	}
-	hr, err := dl.GetHelmReleasesForEnv("foo-bar")
+	hr, err := dl.GetHelmReleasesForEnv(context.Background(), "foo-bar")
 	if err != nil {
 		t.Fatalf("helm releases get should have succeeded: %v", err)
 	}
 	if len(hr) != 0 {
 		t.Fatalf("helm releases should have been pruned")
 	}
-	env, err = dl.GetQAEnvironment("foo-bar-2")
+	env, err = dl.GetQAEnvironment(context.Background(), "foo-bar-2")
 	if err != nil {
 		t.Fatalf("environment get 2 should have succeeded: %v", err)
 	}

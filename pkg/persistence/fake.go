@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
 )
@@ -161,14 +162,14 @@ func (fdl *FakeDataLayer) Load(dir string) error {
 	return nil
 }
 
-func (fdl *FakeDataLayer) CreateQAEnvironment(qa *QAEnvironment) error {
+func (fdl *FakeDataLayer) CreateQAEnvironment(span tracer.Span, qa *QAEnvironment) error {
 	fdl.data.Lock()
 	fdl.data.d[qa.Name] = qa
 	fdl.data.Unlock()
 	return nil
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironment(name string) (*QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetQAEnvironment(span tracer.Span, name string) (*QAEnvironment, error) {
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	if qa, ok := fdl.data.d[name]; ok {
@@ -177,11 +178,11 @@ func (fdl *FakeDataLayer) GetQAEnvironment(name string) (*QAEnvironment, error) 
 	return nil, nil
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironmentConsistently(name string) (*QAEnvironment, error) {
-	return fdl.GetQAEnvironment(name)
+func (fdl *FakeDataLayer) GetQAEnvironmentConsistently(span tracer.Span, name string) (*QAEnvironment, error) {
+	return fdl.GetQAEnvironment(span, name)
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironments() ([]QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetQAEnvironments(span tracer.Span) ([]QAEnvironment, error) {
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -191,7 +192,7 @@ func (fdl *FakeDataLayer) GetQAEnvironments() ([]QAEnvironment, error) {
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) DeleteQAEnvironment(name string) error {
+func (fdl *FakeDataLayer) DeleteQAEnvironment(span tracer.Span, name string) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -211,7 +212,7 @@ func (fdl *FakeDataLayer) DeleteQAEnvironment(name string) error {
 	return nil
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironmentsByStatus(status string) ([]QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetQAEnvironmentsByStatus(span tracer.Span, status string) ([]QAEnvironment, error) {
 	out := []models.QAEnvironment{}
 	s, err := models.EnvironmentStatusFromString(status)
 	if err != nil {
@@ -227,16 +228,16 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsByStatus(status string) ([]QAEnvironm
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) GetRunningQAEnvironments() ([]QAEnvironment, error) {
-	out1, _ := fdl.GetQAEnvironmentsByStatus("Success")
-	out2, _ := fdl.GetQAEnvironmentsByStatus("Spawned")
-	out3, _ := fdl.GetQAEnvironmentsByStatus("Updating")
+func (fdl *FakeDataLayer) GetRunningQAEnvironments(span tracer.Span) ([]QAEnvironment, error) {
+	out1, _ := fdl.GetQAEnvironmentsByStatus(span, "Success")
+	out2, _ := fdl.GetQAEnvironmentsByStatus(span, "Spawned")
+	out3, _ := fdl.GetQAEnvironmentsByStatus(span, "Updating")
 	out := append(out1, append(out2, out3...)...)
 	sort.Slice(out, func(i, j int) bool { return out[i].Created.Before(out[j].Created) })
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironmentsByRepoAndPR(repo string, pr uint) ([]QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetQAEnvironmentsByRepoAndPR(span tracer.Span, repo string, pr uint) ([]QAEnvironment, error) {
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -248,7 +249,7 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsByRepoAndPR(repo string, pr uint) ([]
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironmentsByRepo(repo string) ([]QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetQAEnvironmentsByRepo(span tracer.Span, repo string) ([]QAEnvironment, error) {
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -260,7 +261,7 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsByRepo(repo string) ([]QAEnvironment,
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironmentBySourceSHA(sourceSHA string) (*QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetQAEnvironmentBySourceSHA(span tracer.Span, sourceSHA string) (*QAEnvironment, error) {
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	for _, v := range fdl.data.d {
@@ -271,7 +272,7 @@ func (fdl *FakeDataLayer) GetQAEnvironmentBySourceSHA(sourceSHA string) (*QAEnvi
 	return nil, nil
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironmentsBySourceBranch(sourceBranch string) ([]QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetQAEnvironmentsBySourceBranch(span tracer.Span, sourceBranch string) ([]QAEnvironment, error) {
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -283,7 +284,7 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsBySourceBranch(sourceBranch string) (
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) GetQAEnvironmentsByUser(user string) ([]QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetQAEnvironmentsByUser(span tracer.Span, user string) ([]QAEnvironment, error) {
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -295,7 +296,7 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsByUser(user string) ([]QAEnvironment,
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) GetExtantQAEnvironments(repo string, pr uint) ([]QAEnvironment, error) {
+func (fdl *FakeDataLayer) GetExtantQAEnvironments(span tracer.Span, repo string, pr uint) ([]QAEnvironment, error) {
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -307,7 +308,7 @@ func (fdl *FakeDataLayer) GetExtantQAEnvironments(repo string, pr uint) ([]QAEnv
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) SetQAEnvironmentStatus(name string, status EnvironmentStatus) error {
+func (fdl *FakeDataLayer) SetQAEnvironmentStatus(span tracer.Span, name string, status EnvironmentStatus) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -317,7 +318,7 @@ func (fdl *FakeDataLayer) SetQAEnvironmentStatus(name string, status Environment
 	return errors.New("env not found")
 }
 
-func (fdl *FakeDataLayer) SetQAEnvironmentRepoData(name string, rrd *RepoRevisionData) error {
+func (fdl *FakeDataLayer) SetQAEnvironmentRepoData(span tracer.Span, name string, rrd *RepoRevisionData) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -334,7 +335,7 @@ func (fdl *FakeDataLayer) SetQAEnvironmentRepoData(name string, rrd *RepoRevisio
 	return errors.New("env not found")
 }
 
-func (fdl *FakeDataLayer) SetQAEnvironmentRefMap(name string, rm RefMap) error {
+func (fdl *FakeDataLayer) SetQAEnvironmentRefMap(span tracer.Span, name string, rm RefMap) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -344,7 +345,7 @@ func (fdl *FakeDataLayer) SetQAEnvironmentRefMap(name string, rm RefMap) error {
 	return errors.New("env not found")
 }
 
-func (fdl *FakeDataLayer) SetQAEnvironmentCommitSHAMap(name string, csm RefMap) error {
+func (fdl *FakeDataLayer) SetQAEnvironmentCommitSHAMap(span tracer.Span, name string, csm RefMap) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -354,7 +355,7 @@ func (fdl *FakeDataLayer) SetQAEnvironmentCommitSHAMap(name string, csm RefMap) 
 	return errors.New("env not found")
 }
 
-func (fdl *FakeDataLayer) SetQAEnvironmentCreated(name string, ts time.Time) error {
+func (fdl *FakeDataLayer) SetQAEnvironmentCreated(span tracer.Span, name string, ts time.Time) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -364,7 +365,7 @@ func (fdl *FakeDataLayer) SetQAEnvironmentCreated(name string, ts time.Time) err
 	return errors.New("env not found")
 }
 
-func (fdl *FakeDataLayer) SetAminoEnvironmentID(name string, did int) error {
+func (fdl *FakeDataLayer) SetAminoEnvironmentID(span tracer.Span, name string, did int) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -374,7 +375,7 @@ func (fdl *FakeDataLayer) SetAminoEnvironmentID(name string, did int) error {
 	return errors.New("env not found")
 }
 
-func (fdl *FakeDataLayer) SetAminoServiceToPort(name string, serviceToPort map[string]int64) error {
+func (fdl *FakeDataLayer) SetAminoServiceToPort(span tracer.Span, name string, serviceToPort map[string]int64) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -384,7 +385,7 @@ func (fdl *FakeDataLayer) SetAminoServiceToPort(name string, serviceToPort map[s
 	return errors.New("env not found")
 }
 
-func (fdl *FakeDataLayer) SetAminoKubernetesNamespace(name, namespace string) error {
+func (fdl *FakeDataLayer) SetAminoKubernetesNamespace(span tracer.Span, name, namespace string) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -394,7 +395,7 @@ func (fdl *FakeDataLayer) SetAminoKubernetesNamespace(name, namespace string) er
 	return errors.New("env not found")
 }
 
-func (fdl *FakeDataLayer) AddEvent(name string, msg string) error {
+func (fdl *FakeDataLayer) AddEvent(span tracer.Span, name string, msg string) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -420,7 +421,7 @@ func (fdl *FakeDataLayer) getQAEnvironmentsBySourceRef(sourceref string) ([]QAEn
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) Search(opts models.EnvSearchParameters) ([]QAEnvironment, error) {
+func (fdl *FakeDataLayer) Search(span tracer.Span, opts models.EnvSearchParameters) ([]QAEnvironment, error) {
 	if opts.Pr != 0 && opts.Repo == "" {
 		return nil, fmt.Errorf("search by PR requires repo name")
 	}
@@ -436,7 +437,7 @@ func (fdl *FakeDataLayer) Search(opts models.EnvSearchParameters) ([]QAEnvironme
 		}
 		return pres
 	}
-	envs, _ := fdl.GetQAEnvironments()
+	envs, _ := fdl.GetQAEnvironments(span)
 	if opts.Pr != 0 {
 		envs = filter(envs, func(e models.QAEnvironment) bool { return e.PullRequest == opts.Pr && e.Repo == opts.Repo })
 	}
@@ -461,8 +462,8 @@ func (fdl *FakeDataLayer) Search(opts models.EnvSearchParameters) ([]QAEnvironme
 	return envs, nil
 }
 
-func (fdl *FakeDataLayer) GetMostRecent(n uint) ([]QAEnvironment, error) {
-	envs, _ := fdl.GetQAEnvironments()
+func (fdl *FakeDataLayer) GetMostRecent(span tracer.Span, n uint) ([]QAEnvironment, error) {
+	envs, _ := fdl.GetQAEnvironments(span)
 	sort.Slice(envs, func(i int, j int) bool { return envs[i].Created.After(envs[j].Created) })
 	if int(n) > len(envs) {
 		return envs, nil
@@ -474,7 +475,7 @@ func (fdl *FakeDataLayer) Close() error {
 	return nil
 }
 
-func (fdl *FakeDataLayer) GetHelmReleasesForEnv(name string) ([]models.HelmRelease, error) {
+func (fdl *FakeDataLayer) GetHelmReleasesForEnv(span tracer.Span, name string) ([]models.HelmRelease, error) {
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	v, ok := fdl.data.helm[name]
@@ -484,7 +485,7 @@ func (fdl *FakeDataLayer) GetHelmReleasesForEnv(name string) ([]models.HelmRelea
 	return nil, nil
 }
 
-func (fdl *FakeDataLayer) UpdateHelmReleaseRevision(envname, release, revision string) error {
+func (fdl *FakeDataLayer) UpdateHelmReleaseRevision(span tracer.Span, envname, release, revision string) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	for i, r := range fdl.data.helm[envname] {
@@ -495,7 +496,7 @@ func (fdl *FakeDataLayer) UpdateHelmReleaseRevision(envname, release, revision s
 	return nil
 }
 
-func (fdl *FakeDataLayer) CreateHelmReleasesForEnv(releases []models.HelmRelease) error {
+func (fdl *FakeDataLayer) CreateHelmReleasesForEnv(span tracer.Span, releases []models.HelmRelease) error {
 	if len(releases) == 0 {
 		return errors.New("empty releases")
 	}
@@ -509,7 +510,7 @@ func (fdl *FakeDataLayer) CreateHelmReleasesForEnv(releases []models.HelmRelease
 	return nil
 }
 
-func (fdl *FakeDataLayer) DeleteHelmReleasesForEnv(name string) (uint, error) {
+func (fdl *FakeDataLayer) DeleteHelmReleasesForEnv(span tracer.Span, name string) (uint, error) {
 	var n uint
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
@@ -522,7 +523,7 @@ func (fdl *FakeDataLayer) DeleteHelmReleasesForEnv(name string) (uint, error) {
 	return n, nil
 }
 
-func (fdl *FakeDataLayer) GetK8sEnv(name string) (*models.KubernetesEnvironment, error) {
+func (fdl *FakeDataLayer) GetK8sEnv(span tracer.Span, name string) (*models.KubernetesEnvironment, error) {
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	env, ok := fdl.data.k8s[name]
@@ -532,7 +533,7 @@ func (fdl *FakeDataLayer) GetK8sEnv(name string) (*models.KubernetesEnvironment,
 	return env, nil
 }
 
-func (fdl *FakeDataLayer) GetK8sEnvsByNamespace(ns string) ([]models.KubernetesEnvironment, error) {
+func (fdl *FakeDataLayer) GetK8sEnvsByNamespace(span tracer.Span, ns string) ([]models.KubernetesEnvironment, error) {
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	var out []models.KubernetesEnvironment
@@ -544,7 +545,7 @@ func (fdl *FakeDataLayer) GetK8sEnvsByNamespace(ns string) ([]models.KubernetesE
 	return out, nil
 }
 
-func (fdl *FakeDataLayer) CreateK8sEnv(env *models.KubernetesEnvironment) error {
+func (fdl *FakeDataLayer) CreateK8sEnv(span tracer.Span, env *models.KubernetesEnvironment) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if env == nil || env.EnvName == "" {
@@ -557,14 +558,14 @@ func (fdl *FakeDataLayer) CreateK8sEnv(env *models.KubernetesEnvironment) error 
 	return nil
 }
 
-func (fdl *FakeDataLayer) DeleteK8sEnv(name string) error {
+func (fdl *FakeDataLayer) DeleteK8sEnv(span tracer.Span, name string) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	delete(fdl.data.k8s, name)
 	return nil
 }
 
-func (fdl *FakeDataLayer) UpdateK8sEnvTillerAddr(envname, taddr string) error {
+func (fdl *FakeDataLayer) UpdateK8sEnvTillerAddr(span tracer.Span, envname, taddr string) error {
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	env, ok := fdl.data.k8s[envname]
