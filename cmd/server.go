@@ -182,7 +182,7 @@ func server(cmd *cobra.Command, args []string) {
 	cn := slacknotifier.NewSlackNotifier(slackConfig.Channel, slackapi, mapper)
 
 	var envspawner spawner.EnvironmentSpawner
-	furanClientDDName := strings.Join([]string{datadogServiceName, "furan-client"}, ".")
+	furanClientDDName := datadogServiceName + ".furan-client"
 	es, err := spawner.NewQASpawner(logger, dl, ng, rc, lp, serverConfig.FuranAddrs, consulConfig.Addr, cn, mc, mc, nrapp, &awsCreds, &awsConfig, &backendConfig, &aminoConfig, githubConfig.TypePath, serverConfig.GlobalEnvironmentLimit, serverConfig.HostnameTemplate, furanClientDDName)
 	if err != nil {
 		log.Fatalf("error creating spawner: %s", err)

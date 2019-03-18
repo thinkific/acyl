@@ -133,13 +133,6 @@ func setTagsForGithubWebhookHandler(span tracer.Span, rd *models.RepoRevisionDat
 	span.SetTag("user", rd.User)
 }
 
-// We need to set this sampling priority tag in order to allow distributed tracing to work.
-// This only needs to be done for the root level span as the value is propagated down.
-// https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing
-func enableDistributedTracing(span tracer.Span) {
-	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
-}
-
 func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var err error
@@ -150,7 +143,11 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	// prevent us from making usable monitors in Datadog, since we respond with
 	// 200 ok even though the async action may fail.
 	rootSpan := tracer.StartSpan("github_webhook_handler")
-	enableDistributedTracing(rootSpan)
+
+	// We need to set this sampling priority tag in order to allow distributed tracing to work.
+	// This only needs to be done for the root level span as the value is propagated down.
+	// https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing
+	rootSpan.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
 	defer func() {
 		if err != nil {
 			api.logger.Printf("webhook handler error: %v", err)
