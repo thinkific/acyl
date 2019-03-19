@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
-	newrelic "github.com/newrelic/go-agent"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 type ctxKeyType string
@@ -13,23 +13,18 @@ type ctxKeyType string
 var ctxIDKey ctxKeyType = "id"
 var ctxStartedKey ctxKeyType = "started"
 var ctxPushStartedkey ctxKeyType = "push_started"
-var ctxNewRelicTxnKey ctxKeyType = "newrelic_txn"
 
 // NewBuildIDContext returns a context with the current build ID and time started
 // stored as values
-func NewBuildIDContext(ctx context.Context, id gocql.UUID, txn newrelic.Transaction) context.Context {
-	return context.WithValue(context.WithValue(context.WithValue(ctx, ctxNewRelicTxnKey, txn), ctxIDKey, id), ctxStartedKey, time.Now().UTC())
+func NewBuildIDContext(ctx context.Context, id gocql.UUID, span tracer.Span) context.Context {
+	ctxWithSpan := tracer.ContextWithSpan(ctx, span)
+	return context.WithValue(context.WithValue(ctxWithSpan, ctxIDKey, id), ctxStartedKey, time.Now().UTC())
 }
 
 // NewPushStartedContext returns a context with the push started timestamp stored
 // as a value
 func NewPushStartedContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, ctxPushStartedkey, time.Now().UTC())
-}
-
-// NewNRTxnContext returnsa context with the current New Relic transaction stored as a value
-func NewNRTxnContext(ctx context.Context, txn newrelic.Transaction) context.Context {
-	return context.WithValue(ctx, ctxNewRelicTxnKey, txn)
 }
 
 // BuildIDFromContext returns the ID stored in ctx, if any
@@ -48,12 +43,6 @@ func StartedFromContext(ctx context.Context) (time.Time, bool) {
 func PushStartedFromContext(ctx context.Context) (time.Time, bool) {
 	ps, ok := ctx.Value(ctxPushStartedkey).(time.Time)
 	return ps, ok
-}
-
-// NRTxnFromContext returns the New Relic transaction stored in ctx, if any
-func NRTxnFromContext(ctx context.Context) (newrelic.Transaction, bool) {
-	txn, ok := ctx.Value(ctxNewRelicTxnKey).(newrelic.Transaction)
-	return txn, ok
 }
 
 // IsCancelled checks if the provided done channel is closed

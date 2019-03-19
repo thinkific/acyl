@@ -17,7 +17,7 @@ type MetricsCollector interface {
 	Float(string, string, string, []string, float64) error
 	ImageSize(int64, int64, string, string) error
 	BuildStarted(string, string) error
-	BuildFailed(string, string) error
+	BuildFailed(string, string, bool) error
 	BuildSucceeded(string, string) error
 	KafkaProducerFailure() error
 	KafkaConsumerFailure() error
@@ -30,26 +30,33 @@ type MetricsCollector interface {
 
 // DatadogCollector represents a collector that pushes metrics to Datadog
 type DatadogCollector struct {
-	c *statsd.Client
+	c           *statsd.Client
+	defaultTags []string
 }
 
 // NewDatadogCollector returns a DatadogCollector using dogstatsd at addr
-func NewDatadogCollector(addr string) (*DatadogCollector, error) {
+func NewDatadogCollector(addr string, defaultTags []string) (*DatadogCollector, error) {
 	c, err := statsd.New(addr)
 	if err != nil {
 		return nil, err
 	}
 	c.Namespace = namespace
 	return &DatadogCollector{
-		c: c,
+		c:           c,
+		defaultTags: defaultTags,
 	}, nil
 }
 
 func (dc *DatadogCollector) tags(repo, ref string) []string {
-	return []string{
+	return append([]string{
 		fmt.Sprintf("repo:%v", repo),
 		fmt.Sprintf("ref:%v", ref),
-	}
+	}, dc.defaultTags...)
+}
+
+func (dc *DatadogCollector) buildErrorTags(repo, ref string, userError bool) []string {
+	errorTag := fmt.Sprintf("user_error:%v", userError)
+	return append(dc.tags(repo, ref), errorTag)
 }
 
 // Duration pushes duration d (seconds) to the metric name to dogstatsd
@@ -83,8 +90,8 @@ func (dc *DatadogCollector) BuildStarted(repo, ref string) error {
 }
 
 // BuildFailed increments the counter for each build that fails
-func (dc *DatadogCollector) BuildFailed(repo, ref string) error {
-	return dc.c.Count("build.failed", 1, dc.tags(repo, ref), 1)
+func (dc *DatadogCollector) BuildFailed(repo, ref string, userError bool) error {
+	return dc.c.Count("build.failed", 1, dc.buildErrorTags(repo, ref, userError), 1)
 }
 
 // BuildSucceeded increments the counter for each build that succeeds
@@ -102,7 +109,7 @@ func (dc *DatadogCollector) KafkaConsumerFailure() error {
 	return dc.c.Count("kafka.consumer.failure", 1, nil, 1)
 }
 
-// GCFailure reports an occurance of GC failure
+// GCFailure reports an occurence of GC failure
 func (dc *DatadogCollector) GCFailure() error {
 	return dc.c.Count("gc.failure", 1, nil, 1)
 }
