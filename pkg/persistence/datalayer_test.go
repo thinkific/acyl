@@ -25,7 +25,7 @@ func TestDataLayerCreateQAEnvironment(t *testing.T) {
 		SourceSHA:    "asdk9339kdkde9e9e",
 		QAType:       "asdf",
 	}
-	err := dl.CreateQAEnvironment(&qae)
+	err := dl.CreateQAEnvironment(fakeSpan, &qae)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestDataLayerGetQAEnvironment(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qae, err := dl.GetQAEnvironment("foo-bar")
+	qae, err := dl.GetQAEnvironment(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestDataLayerGetQAEnvironmentConsistently(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestDataLayerGetQAEnvironments(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qs, err := dl.GetQAEnvironments()
+	qs, err := dl.GetQAEnvironments(fakeSpan)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -88,35 +88,35 @@ func TestDataLayerDeleteQAEnvironment(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	err := dl.DeleteQAEnvironment("foo-bar-2")
+	err := dl.DeleteQAEnvironment(fakeSpan, "foo-bar-2")
 	if err == nil {
 		t.Fatalf("delete should have failed because environment is not destroyed")
 	}
-	if err := dl.CreateK8sEnv(&models.KubernetesEnvironment{EnvName: "foo-bar-2", Namespace: "foo-bar"}); err != nil {
+	if err := dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: "foo-bar-2", Namespace: "foo-bar"}); err != nil {
 		t.Fatalf("create k8senv should have succeeded: %v", err)
 	}
-	if err := dl.CreateHelmReleasesForEnv([]models.HelmRelease{models.HelmRelease{EnvName: "foo-bar-2", Release: "foo"}}); err != nil {
+	if err := dl.CreateHelmReleasesForEnv(fakeSpan, []models.HelmRelease{models.HelmRelease{EnvName: "foo-bar-2", Release: "foo"}}); err != nil {
 		t.Fatalf("k8senv create should have succeeded: %v", err)
 	}
-	if err := dl.SetQAEnvironmentStatus("foo-bar-2", models.Destroyed); err != nil {
+	if err := dl.SetQAEnvironmentStatus(fakeSpan, "foo-bar-2", models.Destroyed); err != nil {
 		t.Fatalf("set status should have succeeded: %v", err)
 	}
-	err = dl.DeleteQAEnvironment("foo-bar-2")
+	err = dl.DeleteQAEnvironment(fakeSpan, "foo-bar-2")
 	if err != nil {
 		t.Fatalf("delete should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar-2")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar-2")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
-	k8senv, err := dl.GetK8sEnv("foo-bar-2")
+	k8senv, err := dl.GetK8sEnv(fakeSpan, "foo-bar-2")
 	if err != nil {
 		t.Fatalf("get k8senv should have succeeded: %v", err)
 	}
 	if k8senv != nil {
 		t.Fatalf("k8senv should have been deleted")
 	}
-	hr, err := dl.GetHelmReleasesForEnv("foo-bar-2")
+	hr, err := dl.GetHelmReleasesForEnv(fakeSpan, "foo-bar-2")
 	if err != nil {
 		t.Fatalf("get helm releases should have succeeded: %v", err)
 	}
@@ -134,14 +134,14 @@ func TestDataLayerGetQAEnvironmentsByStatus(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qs, err := dl.GetQAEnvironmentsByStatus("success")
+	qs, err := dl.GetQAEnvironmentsByStatus(fakeSpan, "success")
 	if err != nil {
 		t.Fatalf("success get should have succeeded: %v", err)
 	}
 	if len(qs) != 5 {
 		t.Fatalf("wrong success count: %v", len(qs))
 	}
-	qs, err = dl.GetQAEnvironmentsByStatus("destroyed")
+	qs, err = dl.GetQAEnvironmentsByStatus(fakeSpan, "destroyed")
 	if err != nil {
 		t.Fatalf("destroy get should have succeeded: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestDataLayerGetRunningQAEnvironments(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qs, err := dl.GetRunningQAEnvironments()
+	qs, err := dl.GetRunningQAEnvironments(fakeSpan)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestDataLayerGetQAEnvironmentsByRepoAndPR(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qs, err := dl.GetQAEnvironmentsByRepoAndPR("dollarshaveclub/foo-baz", 99)
+	qs, err := dl.GetQAEnvironmentsByRepoAndPR(fakeSpan, "dollarshaveclub/foo-baz", 99)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestDataLayerGetQAEnvironmentsByRepo(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qs, err := dl.GetQAEnvironmentsByRepo("dollarshaveclub/foo-bar")
+	qs, err := dl.GetQAEnvironmentsByRepo(fakeSpan, "dollarshaveclub/foo-bar")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -221,11 +221,11 @@ func TestDataLayerSetQAEnvironmentStatus(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	err := dl.SetQAEnvironmentStatus("foo-bar", models.Spawned)
+	err := dl.SetQAEnvironmentStatus(fakeSpan, "foo-bar", models.Spawned)
 	if err != nil {
 		t.Fatalf("set should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -252,11 +252,11 @@ func TestDataLayerSetQAEnvironmentRepoData(t *testing.T) {
 		SourceBranch: "foo",
 		BaseBranch:   "master",
 	}
-	err := dl.SetQAEnvironmentRepoData("foo-bar", &rd)
+	err := dl.SetQAEnvironmentRepoData(fakeSpan, "foo-bar", &rd)
 	if err != nil {
 		t.Fatalf("set should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -292,11 +292,11 @@ func TestDataLayerSetQAEnvironmentRefMap(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	err := dl.SetQAEnvironmentRefMap("foo-bar", map[string]string{"dollarshaveclub/foo-bar": "some-branch"})
+	err := dl.SetQAEnvironmentRefMap(fakeSpan, "foo-bar", map[string]string{"dollarshaveclub/foo-bar": "some-branch"})
 	if err != nil {
 		t.Fatalf("set should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -322,11 +322,11 @@ func TestDataLayerSetQAEnvironmentCommitSHAMap(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	sha := "37a1218def12549a56e4e48be95d9cdf9a20d45d"
-	err := dl.SetQAEnvironmentCommitSHAMap("foo-bar", map[string]string{"dollarshaveclub/foo-bar": sha})
+	err := dl.SetQAEnvironmentCommitSHAMap(fakeSpan, "foo-bar", map[string]string{"dollarshaveclub/foo-bar": sha})
 	if err != nil {
 		t.Fatalf("set should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -352,11 +352,11 @@ func TestDataLayerSetQAEnvironmentCreated(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	ts := time.Now().UTC()
-	err := dl.SetQAEnvironmentCreated("foo-bar", ts)
+	err := dl.SetQAEnvironmentCreated(fakeSpan, "foo-bar", ts)
 	if err != nil {
 		t.Fatalf("set should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestDataLayerGetExtantQAEnvironments(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qs, err := dl.GetExtantQAEnvironments("dollarshaveclub/foo-baz", 99)
+	qs, err := dl.GetExtantQAEnvironments(fakeSpan, "dollarshaveclub/foo-baz", 99)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -393,11 +393,11 @@ func TestDataLayerSetAminoEnvironmentID(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	err := dl.SetAminoEnvironmentID("foo-bar", 1000)
+	err := dl.SetAminoEnvironmentID(fakeSpan, "foo-bar", 1000)
 	if err != nil {
 		t.Fatalf("set should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -415,11 +415,11 @@ func TestDataLayerSetAminoServiceToPort(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	err := dl.SetAminoServiceToPort("foo-bar", map[string]int64{"oracle": 6666})
+	err := dl.SetAminoServiceToPort(fakeSpan, "foo-bar", map[string]int64{"oracle": 6666})
 	if err != nil {
 		t.Fatalf("set should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -441,11 +441,11 @@ func TestDataLayerSetAminoKubernetesNamespace(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	err := dl.SetAminoKubernetesNamespace("foo-bar", "k8s-foo-bar")
+	err := dl.SetAminoKubernetesNamespace(fakeSpan, "foo-bar", "k8s-foo-bar")
 	if err != nil {
 		t.Fatalf("set should have succeeded: %v", err)
 	}
-	qae, err := dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err := dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -463,7 +463,7 @@ func TestDataLayerAddEvent(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qae, err := dl.GetQAEnvironment("foo-bar")
+	qae, err := dl.GetQAEnvironment(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("first get should have succeeded: %v", err)
 	}
@@ -471,11 +471,11 @@ func TestDataLayerAddEvent(t *testing.T) {
 		t.Fatalf("wrong env: %v", qae.Name)
 	}
 	i := len(qae.Events)
-	err = dl.AddEvent("foo-bar", "this is a msg")
+	err = dl.AddEvent(fakeSpan, "foo-bar", "this is a msg")
 	if err != nil {
 		t.Fatalf("add should have succeeded: %v", err)
 	}
-	qae, err = dl.GetQAEnvironmentConsistently("foo-bar")
+	qae, err = dl.GetQAEnvironmentConsistently(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("second get should have succeeded: %v", err)
 	}
@@ -493,7 +493,7 @@ func TestDataLayerGetQAEnvironmentBySourceSHA(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qae, err := dl.GetQAEnvironmentBySourceSHA("93jdhsksjusnc839")
+	qae, err := dl.GetQAEnvironmentBySourceSHA(fakeSpan, "93jdhsksjusnc839")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -508,7 +508,7 @@ func TestDataLayerGetQAEnvironmentBySourceBranch(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qas, err := dl.GetQAEnvironmentsBySourceBranch("feature-crash-the-site")
+	qas, err := dl.GetQAEnvironmentsBySourceBranch(fakeSpan, "feature-crash-the-site")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -526,7 +526,7 @@ func TestDataLayerGetQAEnvironmentByUser(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qas, err := dl.GetQAEnvironmentsByUser("alicejones")
+	qas, err := dl.GetQAEnvironmentsByUser(fakeSpan, "alicejones")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -557,7 +557,7 @@ func TestDataLayerSearch(t *testing.T) {
 	defer tdl.TearDown()
 	var qas []QAEnvironment
 	var err error
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("repo: should have succeeded: %v", err)
 	}
@@ -567,7 +567,7 @@ func TestDataLayerSearch(t *testing.T) {
 
 	sopts.Pr = 99
 
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("repo/pr: should have succeeded: %v", err)
 	}
@@ -581,7 +581,7 @@ func TestDataLayerSearch(t *testing.T) {
 	sopts.Pr = 0
 	sopts.SourceSHA = "372829sskskskdkdke499393"
 
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("source sha: should have succeeded: %v", err)
 	}
@@ -593,7 +593,7 @@ func TestDataLayerSearch(t *testing.T) {
 	}
 	sopts.SourceSHA = ""
 	sopts.SourceBranch = "feature-crash-the-site"
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("source branch: should have succeeded: %v", err)
 	}
@@ -605,7 +605,7 @@ func TestDataLayerSearch(t *testing.T) {
 	}
 	sopts.SourceBranch = ""
 	sopts.User = "bobsmith"
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("user: should have succeeded: %v", err)
 	}
@@ -617,7 +617,7 @@ func TestDataLayerSearch(t *testing.T) {
 	}
 	sopts.User = ""
 	sopts.Status = models.Success
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("status: should have succeeded: %v", err)
 	}
@@ -627,7 +627,7 @@ func TestDataLayerSearch(t *testing.T) {
 	sopts.Repo = "dollarshaveclub/foo-bar"
 	sopts.SourceBranch = "feature-sell-moar-stuff"
 	sopts.User = "alicejones"
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("multi 1: should have succeeded: %v", err)
 	}
@@ -640,7 +640,7 @@ func TestDataLayerSearch(t *testing.T) {
 	sopts.Repo = "dollarshaveclub/biz-baz"
 	sopts.SourceBranch = ""
 	sopts.User = ""
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("repo + status success: should have succeeded: %v", err)
 	}
@@ -648,7 +648,7 @@ func TestDataLayerSearch(t *testing.T) {
 		t.Fatalf("repo + status success: unexpected length: %v", len(qas))
 	}
 	sopts.Status = models.Destroyed
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("repo + status destroyed: should have succeeded: %v", err)
 	}
@@ -662,7 +662,7 @@ func TestDataLayerSearch(t *testing.T) {
 	sopts.SourceBranch = "feature-sell-moar-stuff"
 	sopts.User = "notalicejones"
 	sopts.Status = models.Success
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("multi 2: should have succeeded: %v", err)
 	}
@@ -689,7 +689,7 @@ func TestDataLayerSearchWithTrackingRef(t *testing.T) {
 	defer tdl.TearDown()
 	var qas []QAEnvironment
 	var err error
-	qas, err = dl.Search(sopts)
+	qas, err = dl.Search(fakeSpan, sopts)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -707,7 +707,7 @@ func TestDataLayerGetMostRecentEmpty(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qas, err := dl.GetMostRecent(0)
+	qas, err := dl.GetMostRecent(fakeSpan, 0)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -722,7 +722,7 @@ func TestDataLayerGetMostRecentFiveDays(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qas, err := dl.GetMostRecent(5)
+	qas, err := dl.GetMostRecent(fakeSpan, 5)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -737,7 +737,7 @@ func TestDataLayerGetMostRecentTwoDays(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qas, err := dl.GetMostRecent(2)
+	qas, err := dl.GetMostRecent(fakeSpan, 2)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -752,7 +752,7 @@ func TestDataLayerGetMostRecentOneDay(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qas, err := dl.GetMostRecent(1)
+	qas, err := dl.GetMostRecent(fakeSpan, 1)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -767,7 +767,7 @@ func TestDataLayerGetMostRecentOrdering(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	qas, err := dl.GetMostRecent(5)
+	qas, err := dl.GetMostRecent(fakeSpan, 5)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -788,7 +788,7 @@ func TestDataLayerGetHelmReleasesForEnv(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	releases, err := dl.GetHelmReleasesForEnv("foo-bar")
+	releases, err := dl.GetHelmReleasesForEnv(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -811,10 +811,10 @@ func TestDataLayerUpdateHelmReleaseRevision(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.UpdateHelmReleaseRevision("foo-bar", "some-random-name", "9999"); err != nil {
+	if err := dl.UpdateHelmReleaseRevision(fakeSpan, "foo-bar", "some-random-name", "9999"); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	rel, err := dl.GetHelmReleasesForEnv("foo-bar")
+	rel, err := dl.GetHelmReleasesForEnv(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -838,10 +838,10 @@ func TestDataLayerCreateHelmReleasesForEnv(t *testing.T) {
 		models.HelmRelease{EnvName: "foo-bar-2", Release: "some-random-name2", Name: "dollarshaveclub-foo-bar-3"},
 		models.HelmRelease{EnvName: "foo-bar-2", Release: "some-random-name3", Name: "dollarshaveclub-foo-bar-4"},
 	}
-	if err := dl.CreateHelmReleasesForEnv(releases); err != nil {
+	if err := dl.CreateHelmReleasesForEnv(fakeSpan, releases); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	releases, err := dl.GetHelmReleasesForEnv("foo-bar-2")
+	releases, err := dl.GetHelmReleasesForEnv(fakeSpan, "foo-bar-2")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -852,7 +852,7 @@ func TestDataLayerCreateHelmReleasesForEnv(t *testing.T) {
 		t.Fatalf("bad env name: %v", releases[0].EnvName)
 	}
 	releases = []models.HelmRelease{models.HelmRelease{EnvName: "asdf", Release: "some-random-name", Name: "dollarshaveclub-foo-bar-2"}}
-	if err := dl.CreateHelmReleasesForEnv(releases); err == nil {
+	if err := dl.CreateHelmReleasesForEnv(fakeSpan, releases); err == nil {
 		t.Fatalf("should have failed with env not found")
 	}
 }
@@ -863,21 +863,21 @@ func TestDataLayerDeleteHelmReleasesForEnv(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	n, err := dl.DeleteHelmReleasesForEnv("foo-bar")
+	n, err := dl.DeleteHelmReleasesForEnv(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
 	if n != 2 {
 		t.Fatalf("bad count: %v", n)
 	}
-	releases, err := dl.GetHelmReleasesForEnv("foo-bar")
+	releases, err := dl.GetHelmReleasesForEnv(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
 	if len(releases) != 0 {
 		t.Fatalf("bad result length: %v", len(releases))
 	}
-	n, err = dl.DeleteHelmReleasesForEnv("does-not-exist")
+	n, err = dl.DeleteHelmReleasesForEnv(fakeSpan, "does-not-exist")
 	if err != nil || n != 0 {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -889,7 +889,7 @@ func TestDataLayerGetK8sEnv(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	env, err := dl.GetK8sEnv("foo-bar")
+	env, err := dl.GetK8sEnv(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -902,7 +902,7 @@ func TestDataLayerGetK8sEnv(t *testing.T) {
 	if env.Created.Equal(time.Time{}) {
 		t.Fatalf("zero value for created: %v", env.Created)
 	}
-	env, err = dl.GetK8sEnv("does-not-exist")
+	env, err = dl.GetK8sEnv(fakeSpan, "does-not-exist")
 	if err != nil {
 		t.Fatalf("should have succeeded with empty results: %v", err)
 	}
@@ -917,7 +917,7 @@ func TestDataLayerGetK8sEnvByNamespace(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	envs, err := dl.GetK8sEnvsByNamespace("foo")
+	envs, err := dl.GetK8sEnvsByNamespace(fakeSpan, "foo")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -934,7 +934,7 @@ func TestDataLayerGetK8sEnvByNamespace(t *testing.T) {
 	if env.Created.Equal(time.Time{}) {
 		t.Fatalf("zero value for created: %v", env.Created)
 	}
-	envs, err = dl.GetK8sEnvsByNamespace("does-not-exist")
+	envs, err = dl.GetK8sEnvsByNamespace(fakeSpan, "does-not-exist")
 	if err != nil {
 		t.Fatalf("should have succeeded with empty results: %v", err)
 	}
@@ -949,10 +949,10 @@ func TestDataLayerCreateK8sEnv(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.CreateK8sEnv(&models.KubernetesEnvironment{EnvName: "foo-bar-2"}); err != nil {
+	if err := dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: "foo-bar-2"}); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	if err := dl.CreateK8sEnv(&models.KubernetesEnvironment{EnvName: "does-not-exist"}); err == nil {
+	if err := dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: "does-not-exist"}); err == nil {
 		t.Fatalf("should have failed with unknown env")
 	}
 }
@@ -963,10 +963,10 @@ func TestDataLayerDeleteK8sEnv(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.DeleteK8sEnv("foo-bar"); err != nil {
+	if err := dl.DeleteK8sEnv(fakeSpan, "foo-bar"); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	if err := dl.DeleteK8sEnv("does-not-exist"); err != nil {
+	if err := dl.DeleteK8sEnv(fakeSpan, "does-not-exist"); err != nil {
 		t.Fatalf("delete of non-extant env should have succeeded: %v", err)
 	}
 }
@@ -977,10 +977,10 @@ func TestDataLayerUpdateK8sEnvTillerAddr(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.UpdateK8sEnvTillerAddr("foo-bar", "192.168.1.1:1234"); err != nil {
+	if err := dl.UpdateK8sEnvTillerAddr(fakeSpan, "foo-bar", "192.168.1.1:1234"); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	env, err := dl.GetK8sEnv("foo-bar")
+	env, err := dl.GetK8sEnv(fakeSpan, "foo-bar")
 	if err != nil {
 		t.Fatalf("get env should have succeeded: %v", err)
 	}
