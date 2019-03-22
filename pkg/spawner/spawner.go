@@ -623,7 +623,7 @@ func (qs *QASpawner) Create(ctx context.Context, rd RepoRevisionData) (string, e
 		}
 	}()
 
-	defer lock.Release()
+	defer lock.Release(ctx)
 	name, err := qs.create(ctx, rd, false)
 	if err != nil {
 		txn.NoticeError(err)
@@ -661,7 +661,7 @@ func (qs *QASpawner) Update(ctx context.Context, rd RepoRevisionData) (string, e
 		}
 	}()
 
-	defer lock.Release()
+	defer lock.Release(ctx)
 	name, err := qs.update(ctx, rd)
 	if err != nil {
 		txn.NoticeError(err)
@@ -699,7 +699,7 @@ func (qs *QASpawner) Destroy(ctx context.Context, rd RepoRevisionData, reason QA
 		}
 	}()
 
-	defer lock.Release()
+	defer lock.Release(ctx)
 	_, err = qs.destroy(ctx, rd, reason, true)
 	if err != nil {
 		txn.NoticeError(err)

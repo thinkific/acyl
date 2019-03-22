@@ -211,7 +211,7 @@ func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(
 		return errors.Wrap(err, "error getting lock")
 	}
 	end("success:true")
-	defer lock.Release()
+	defer lock.Release(ctx)
 
 	stop := make(chan struct{})
 	defer close(stop)

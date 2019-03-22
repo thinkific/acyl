@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 
 	"github.com/google/uuid"
@@ -122,7 +124,11 @@ func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interfac
 
 // Lock locks the lock and returns a channel used to signal if the lock should be released ASAP. If the lock is currently in use, this method will block until the lock is released. If caller is preemptied while waiting for the lock to be released,
 // an error is returned.
-func (p *PreemptiveLocker) Lock(ctx context.Context) (<-chan interface{}, error) {
+func (p *PreemptiveLocker) Lock(ctx context.Context) (_ <-chan interface{}, err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "lock", tracer.ServiceName("consul"))
+	defer func() {
+		span.Finish(tracer.WithError(err))
+	}()
 	if len(p.id) != 0 {
 		return nil, errors.New("Lock() called again.")
 	}
@@ -184,9 +190,13 @@ func (p *PreemptiveLocker) lockWithID(ctx context.Context, id string) (<-chan in
 }
 
 // Release releases the lock
-func (p *PreemptiveLocker) Release() (err error) {
+func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "release", tracer.ServiceName("consul"))
 	p.w.Stop()
-	defer func() { err = p.l.Unlock() }() // always unlock
+	defer func() {
+		err = p.l.Unlock() // always unlock
+		span.Finish(tracer.WithError(err))
+	}()
 	var kp *consul.KVPair
 	kp, _, _ = p.kv.Get(p.pendingKey, &consul.QueryOptions{AllowStale: false, WaitIndex: uint64(0), WaitTime: p.opts.LockWait})
 	if p.id == string(kp.Value[:]) {
