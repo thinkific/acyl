@@ -8,6 +8,7 @@ import (
 	models "github.com/dollarshaveclub/acyl/pkg/models"
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
+	ddtrace "gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	reflect "reflect"
 	time "time"
 )
@@ -36,17 +37,17 @@ func (m *MockDataLayer) EXPECT() *MockDataLayerMockRecorder {
 }
 
 // AddEvent mocks base method
-func (m *MockDataLayer) AddEvent(arg0, arg1 string) error {
+func (m *MockDataLayer) AddEvent(arg0 ddtrace.Span, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddEvent", arg0, arg1)
+	ret := m.ctrl.Call(m, "AddEvent", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AddEvent indicates an expected call of AddEvent
-func (mr *MockDataLayerMockRecorder) AddEvent(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) AddEvent(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddEvent", reflect.TypeOf((*MockDataLayer)(nil).AddEvent), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddEvent", reflect.TypeOf((*MockDataLayer)(nil).AddEvent), arg0, arg1, arg2)
 }
 
 // AppendToEventLog mocks base method
@@ -92,45 +93,45 @@ func (mr *MockDataLayerMockRecorder) CreateEventLog(arg0 interface{}) *gomock.Ca
 }
 
 // CreateHelmReleasesForEnv mocks base method
-func (m *MockDataLayer) CreateHelmReleasesForEnv(arg0 []models.HelmRelease) error {
+func (m *MockDataLayer) CreateHelmReleasesForEnv(arg0 ddtrace.Span, arg1 []models.HelmRelease) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateHelmReleasesForEnv", arg0)
+	ret := m.ctrl.Call(m, "CreateHelmReleasesForEnv", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateHelmReleasesForEnv indicates an expected call of CreateHelmReleasesForEnv
-func (mr *MockDataLayerMockRecorder) CreateHelmReleasesForEnv(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) CreateHelmReleasesForEnv(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHelmReleasesForEnv", reflect.TypeOf((*MockDataLayer)(nil).CreateHelmReleasesForEnv), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHelmReleasesForEnv", reflect.TypeOf((*MockDataLayer)(nil).CreateHelmReleasesForEnv), arg0, arg1)
 }
 
 // CreateK8sEnv mocks base method
-func (m *MockDataLayer) CreateK8sEnv(arg0 *models.KubernetesEnvironment) error {
+func (m *MockDataLayer) CreateK8sEnv(arg0 ddtrace.Span, arg1 *models.KubernetesEnvironment) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateK8sEnv", arg0)
+	ret := m.ctrl.Call(m, "CreateK8sEnv", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateK8sEnv indicates an expected call of CreateK8sEnv
-func (mr *MockDataLayerMockRecorder) CreateK8sEnv(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) CreateK8sEnv(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateK8sEnv", reflect.TypeOf((*MockDataLayer)(nil).CreateK8sEnv), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateK8sEnv", reflect.TypeOf((*MockDataLayer)(nil).CreateK8sEnv), arg0, arg1)
 }
 
 // CreateQAEnvironment mocks base method
-func (m *MockDataLayer) CreateQAEnvironment(arg0 *models.QAEnvironment) error {
+func (m *MockDataLayer) CreateQAEnvironment(arg0 ddtrace.Span, arg1 *models.QAEnvironment) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateQAEnvironment", arg0)
+	ret := m.ctrl.Call(m, "CreateQAEnvironment", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateQAEnvironment indicates an expected call of CreateQAEnvironment
-func (mr *MockDataLayerMockRecorder) CreateQAEnvironment(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) CreateQAEnvironment(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateQAEnvironment", reflect.TypeOf((*MockDataLayer)(nil).CreateQAEnvironment), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateQAEnvironment", reflect.TypeOf((*MockDataLayer)(nil).CreateQAEnvironment), arg0, arg1)
 }
 
 // DeleteEventLog mocks base method
@@ -178,46 +179,46 @@ func (mr *MockDataLayerMockRecorder) DeleteEventLogsByRepoAndPR(arg0, arg1 inter
 }
 
 // DeleteHelmReleasesForEnv mocks base method
-func (m *MockDataLayer) DeleteHelmReleasesForEnv(arg0 string) (uint, error) {
+func (m *MockDataLayer) DeleteHelmReleasesForEnv(arg0 ddtrace.Span, arg1 string) (uint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteHelmReleasesForEnv", arg0)
+	ret := m.ctrl.Call(m, "DeleteHelmReleasesForEnv", arg0, arg1)
 	ret0, _ := ret[0].(uint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteHelmReleasesForEnv indicates an expected call of DeleteHelmReleasesForEnv
-func (mr *MockDataLayerMockRecorder) DeleteHelmReleasesForEnv(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) DeleteHelmReleasesForEnv(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteHelmReleasesForEnv", reflect.TypeOf((*MockDataLayer)(nil).DeleteHelmReleasesForEnv), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteHelmReleasesForEnv", reflect.TypeOf((*MockDataLayer)(nil).DeleteHelmReleasesForEnv), arg0, arg1)
 }
 
 // DeleteK8sEnv mocks base method
-func (m *MockDataLayer) DeleteK8sEnv(arg0 string) error {
+func (m *MockDataLayer) DeleteK8sEnv(arg0 ddtrace.Span, arg1 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteK8sEnv", arg0)
+	ret := m.ctrl.Call(m, "DeleteK8sEnv", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteK8sEnv indicates an expected call of DeleteK8sEnv
-func (mr *MockDataLayerMockRecorder) DeleteK8sEnv(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) DeleteK8sEnv(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteK8sEnv", reflect.TypeOf((*MockDataLayer)(nil).DeleteK8sEnv), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteK8sEnv", reflect.TypeOf((*MockDataLayer)(nil).DeleteK8sEnv), arg0, arg1)
 }
 
 // DeleteQAEnvironment mocks base method
-func (m *MockDataLayer) DeleteQAEnvironment(arg0 string) error {
+func (m *MockDataLayer) DeleteQAEnvironment(arg0 ddtrace.Span, arg1 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteQAEnvironment", arg0)
+	ret := m.ctrl.Call(m, "DeleteQAEnvironment", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteQAEnvironment indicates an expected call of DeleteQAEnvironment
-func (mr *MockDataLayerMockRecorder) DeleteQAEnvironment(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) DeleteQAEnvironment(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteQAEnvironment", reflect.TypeOf((*MockDataLayer)(nil).DeleteQAEnvironment), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteQAEnvironment", reflect.TypeOf((*MockDataLayer)(nil).DeleteQAEnvironment), arg0, arg1)
 }
 
 // GetEventLogByID mocks base method
@@ -266,285 +267,285 @@ func (mr *MockDataLayerMockRecorder) GetEventLogsByRepoAndPR(arg0, arg1 interfac
 }
 
 // GetExtantQAEnvironments mocks base method
-func (m *MockDataLayer) GetExtantQAEnvironments(arg0 string, arg1 uint) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetExtantQAEnvironments(arg0 ddtrace.Span, arg1 string, arg2 uint) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetExtantQAEnvironments", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetExtantQAEnvironments", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetExtantQAEnvironments indicates an expected call of GetExtantQAEnvironments
-func (mr *MockDataLayerMockRecorder) GetExtantQAEnvironments(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetExtantQAEnvironments(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExtantQAEnvironments", reflect.TypeOf((*MockDataLayer)(nil).GetExtantQAEnvironments), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExtantQAEnvironments", reflect.TypeOf((*MockDataLayer)(nil).GetExtantQAEnvironments), arg0, arg1, arg2)
 }
 
 // GetHelmReleasesForEnv mocks base method
-func (m *MockDataLayer) GetHelmReleasesForEnv(arg0 string) ([]models.HelmRelease, error) {
+func (m *MockDataLayer) GetHelmReleasesForEnv(arg0 ddtrace.Span, arg1 string) ([]models.HelmRelease, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHelmReleasesForEnv", arg0)
+	ret := m.ctrl.Call(m, "GetHelmReleasesForEnv", arg0, arg1)
 	ret0, _ := ret[0].([]models.HelmRelease)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetHelmReleasesForEnv indicates an expected call of GetHelmReleasesForEnv
-func (mr *MockDataLayerMockRecorder) GetHelmReleasesForEnv(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetHelmReleasesForEnv(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHelmReleasesForEnv", reflect.TypeOf((*MockDataLayer)(nil).GetHelmReleasesForEnv), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHelmReleasesForEnv", reflect.TypeOf((*MockDataLayer)(nil).GetHelmReleasesForEnv), arg0, arg1)
 }
 
 // GetK8sEnv mocks base method
-func (m *MockDataLayer) GetK8sEnv(arg0 string) (*models.KubernetesEnvironment, error) {
+func (m *MockDataLayer) GetK8sEnv(arg0 ddtrace.Span, arg1 string) (*models.KubernetesEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetK8sEnv", arg0)
+	ret := m.ctrl.Call(m, "GetK8sEnv", arg0, arg1)
 	ret0, _ := ret[0].(*models.KubernetesEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetK8sEnv indicates an expected call of GetK8sEnv
-func (mr *MockDataLayerMockRecorder) GetK8sEnv(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetK8sEnv(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetK8sEnv", reflect.TypeOf((*MockDataLayer)(nil).GetK8sEnv), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetK8sEnv", reflect.TypeOf((*MockDataLayer)(nil).GetK8sEnv), arg0, arg1)
 }
 
 // GetK8sEnvsByNamespace mocks base method
-func (m *MockDataLayer) GetK8sEnvsByNamespace(arg0 string) ([]models.KubernetesEnvironment, error) {
+func (m *MockDataLayer) GetK8sEnvsByNamespace(arg0 ddtrace.Span, arg1 string) ([]models.KubernetesEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetK8sEnvsByNamespace", arg0)
+	ret := m.ctrl.Call(m, "GetK8sEnvsByNamespace", arg0, arg1)
 	ret0, _ := ret[0].([]models.KubernetesEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetK8sEnvsByNamespace indicates an expected call of GetK8sEnvsByNamespace
-func (mr *MockDataLayerMockRecorder) GetK8sEnvsByNamespace(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetK8sEnvsByNamespace(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetK8sEnvsByNamespace", reflect.TypeOf((*MockDataLayer)(nil).GetK8sEnvsByNamespace), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetK8sEnvsByNamespace", reflect.TypeOf((*MockDataLayer)(nil).GetK8sEnvsByNamespace), arg0, arg1)
 }
 
 // GetMostRecent mocks base method
-func (m *MockDataLayer) GetMostRecent(arg0 uint) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetMostRecent(arg0 ddtrace.Span, arg1 uint) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMostRecent", arg0)
+	ret := m.ctrl.Call(m, "GetMostRecent", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMostRecent indicates an expected call of GetMostRecent
-func (mr *MockDataLayerMockRecorder) GetMostRecent(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetMostRecent(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMostRecent", reflect.TypeOf((*MockDataLayer)(nil).GetMostRecent), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMostRecent", reflect.TypeOf((*MockDataLayer)(nil).GetMostRecent), arg0, arg1)
 }
 
 // GetQAEnvironment mocks base method
-func (m *MockDataLayer) GetQAEnvironment(arg0 string) (*models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironment(arg0 ddtrace.Span, arg1 string) (*models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironment", arg0)
+	ret := m.ctrl.Call(m, "GetQAEnvironment", arg0, arg1)
 	ret0, _ := ret[0].(*models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironment indicates an expected call of GetQAEnvironment
-func (mr *MockDataLayerMockRecorder) GetQAEnvironment(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironment(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironment", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironment), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironment", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironment), arg0, arg1)
 }
 
 // GetQAEnvironmentBySourceSHA mocks base method
-func (m *MockDataLayer) GetQAEnvironmentBySourceSHA(arg0 string) (*models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentBySourceSHA(arg0 ddtrace.Span, arg1 string) (*models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironmentBySourceSHA", arg0)
+	ret := m.ctrl.Call(m, "GetQAEnvironmentBySourceSHA", arg0, arg1)
 	ret0, _ := ret[0].(*models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironmentBySourceSHA indicates an expected call of GetQAEnvironmentBySourceSHA
-func (mr *MockDataLayerMockRecorder) GetQAEnvironmentBySourceSHA(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironmentBySourceSHA(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentBySourceSHA", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentBySourceSHA), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentBySourceSHA", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentBySourceSHA), arg0, arg1)
 }
 
 // GetQAEnvironmentConsistently mocks base method
-func (m *MockDataLayer) GetQAEnvironmentConsistently(arg0 string) (*models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentConsistently(arg0 ddtrace.Span, arg1 string) (*models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironmentConsistently", arg0)
+	ret := m.ctrl.Call(m, "GetQAEnvironmentConsistently", arg0, arg1)
 	ret0, _ := ret[0].(*models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironmentConsistently indicates an expected call of GetQAEnvironmentConsistently
-func (mr *MockDataLayerMockRecorder) GetQAEnvironmentConsistently(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironmentConsistently(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentConsistently", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentConsistently), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentConsistently", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentConsistently), arg0, arg1)
 }
 
 // GetQAEnvironments mocks base method
-func (m *MockDataLayer) GetQAEnvironments() ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironments(arg0 ddtrace.Span) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironments")
+	ret := m.ctrl.Call(m, "GetQAEnvironments", arg0)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironments indicates an expected call of GetQAEnvironments
-func (mr *MockDataLayerMockRecorder) GetQAEnvironments() *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironments(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironments", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironments))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironments", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironments), arg0)
 }
 
 // GetQAEnvironmentsByRepo mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsByRepo(arg0 string) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsByRepo(arg0 ddtrace.Span, arg1 string) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironmentsByRepo", arg0)
+	ret := m.ctrl.Call(m, "GetQAEnvironmentsByRepo", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironmentsByRepo indicates an expected call of GetQAEnvironmentsByRepo
-func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByRepo(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByRepo(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsByRepo", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsByRepo), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsByRepo", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsByRepo), arg0, arg1)
 }
 
 // GetQAEnvironmentsByRepoAndPR mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsByRepoAndPR(arg0 string, arg1 uint) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsByRepoAndPR(arg0 ddtrace.Span, arg1 string, arg2 uint) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironmentsByRepoAndPR", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetQAEnvironmentsByRepoAndPR", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironmentsByRepoAndPR indicates an expected call of GetQAEnvironmentsByRepoAndPR
-func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByRepoAndPR(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByRepoAndPR(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsByRepoAndPR", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsByRepoAndPR), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsByRepoAndPR", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsByRepoAndPR), arg0, arg1, arg2)
 }
 
 // GetQAEnvironmentsBySourceBranch mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsBySourceBranch(arg0 string) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsBySourceBranch(arg0 ddtrace.Span, arg1 string) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironmentsBySourceBranch", arg0)
+	ret := m.ctrl.Call(m, "GetQAEnvironmentsBySourceBranch", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironmentsBySourceBranch indicates an expected call of GetQAEnvironmentsBySourceBranch
-func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsBySourceBranch(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsBySourceBranch(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsBySourceBranch", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsBySourceBranch), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsBySourceBranch", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsBySourceBranch), arg0, arg1)
 }
 
 // GetQAEnvironmentsByStatus mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsByStatus(arg0 string) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsByStatus(arg0 ddtrace.Span, arg1 string) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironmentsByStatus", arg0)
+	ret := m.ctrl.Call(m, "GetQAEnvironmentsByStatus", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironmentsByStatus indicates an expected call of GetQAEnvironmentsByStatus
-func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByStatus(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByStatus(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsByStatus", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsByStatus), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsByStatus", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsByStatus), arg0, arg1)
 }
 
 // GetQAEnvironmentsByUser mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsByUser(arg0 string) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsByUser(arg0 ddtrace.Span, arg1 string) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQAEnvironmentsByUser", arg0)
+	ret := m.ctrl.Call(m, "GetQAEnvironmentsByUser", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQAEnvironmentsByUser indicates an expected call of GetQAEnvironmentsByUser
-func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByUser(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByUser(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsByUser", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsByUser), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQAEnvironmentsByUser", reflect.TypeOf((*MockDataLayer)(nil).GetQAEnvironmentsByUser), arg0, arg1)
 }
 
 // GetRunningQAEnvironments mocks base method
-func (m *MockDataLayer) GetRunningQAEnvironments() ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetRunningQAEnvironments(arg0 ddtrace.Span) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRunningQAEnvironments")
+	ret := m.ctrl.Call(m, "GetRunningQAEnvironments", arg0)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRunningQAEnvironments indicates an expected call of GetRunningQAEnvironments
-func (mr *MockDataLayerMockRecorder) GetRunningQAEnvironments() *gomock.Call {
+func (mr *MockDataLayerMockRecorder) GetRunningQAEnvironments(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningQAEnvironments", reflect.TypeOf((*MockDataLayer)(nil).GetRunningQAEnvironments))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningQAEnvironments", reflect.TypeOf((*MockDataLayer)(nil).GetRunningQAEnvironments), arg0)
 }
 
 // Search mocks base method
-func (m *MockDataLayer) Search(arg0 models.EnvSearchParameters) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) Search(arg0 ddtrace.Span, arg1 models.EnvSearchParameters) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Search", arg0)
+	ret := m.ctrl.Call(m, "Search", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Search indicates an expected call of Search
-func (mr *MockDataLayerMockRecorder) Search(arg0 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) Search(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockDataLayer)(nil).Search), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockDataLayer)(nil).Search), arg0, arg1)
 }
 
 // SetAminoEnvironmentID mocks base method
-func (m *MockDataLayer) SetAminoEnvironmentID(arg0 string, arg1 int) error {
+func (m *MockDataLayer) SetAminoEnvironmentID(arg0 ddtrace.Span, arg1 string, arg2 int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetAminoEnvironmentID", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetAminoEnvironmentID", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetAminoEnvironmentID indicates an expected call of SetAminoEnvironmentID
-func (mr *MockDataLayerMockRecorder) SetAminoEnvironmentID(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SetAminoEnvironmentID(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAminoEnvironmentID", reflect.TypeOf((*MockDataLayer)(nil).SetAminoEnvironmentID), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAminoEnvironmentID", reflect.TypeOf((*MockDataLayer)(nil).SetAminoEnvironmentID), arg0, arg1, arg2)
 }
 
 // SetAminoKubernetesNamespace mocks base method
-func (m *MockDataLayer) SetAminoKubernetesNamespace(arg0, arg1 string) error {
+func (m *MockDataLayer) SetAminoKubernetesNamespace(arg0 ddtrace.Span, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetAminoKubernetesNamespace", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetAminoKubernetesNamespace", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetAminoKubernetesNamespace indicates an expected call of SetAminoKubernetesNamespace
-func (mr *MockDataLayerMockRecorder) SetAminoKubernetesNamespace(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SetAminoKubernetesNamespace(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAminoKubernetesNamespace", reflect.TypeOf((*MockDataLayer)(nil).SetAminoKubernetesNamespace), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAminoKubernetesNamespace", reflect.TypeOf((*MockDataLayer)(nil).SetAminoKubernetesNamespace), arg0, arg1, arg2)
 }
 
 // SetAminoServiceToPort mocks base method
-func (m *MockDataLayer) SetAminoServiceToPort(arg0 string, arg1 map[string]int64) error {
+func (m *MockDataLayer) SetAminoServiceToPort(arg0 ddtrace.Span, arg1 string, arg2 map[string]int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetAminoServiceToPort", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetAminoServiceToPort", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetAminoServiceToPort indicates an expected call of SetAminoServiceToPort
-func (mr *MockDataLayerMockRecorder) SetAminoServiceToPort(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SetAminoServiceToPort(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAminoServiceToPort", reflect.TypeOf((*MockDataLayer)(nil).SetAminoServiceToPort), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAminoServiceToPort", reflect.TypeOf((*MockDataLayer)(nil).SetAminoServiceToPort), arg0, arg1, arg2)
 }
 
 // SetEventLogEnvName mocks base method
@@ -562,99 +563,99 @@ func (mr *MockDataLayerMockRecorder) SetEventLogEnvName(arg0, arg1 interface{}) 
 }
 
 // SetQAEnvironmentCommitSHAMap mocks base method
-func (m *MockDataLayer) SetQAEnvironmentCommitSHAMap(arg0 string, arg1 models.RefMap) error {
+func (m *MockDataLayer) SetQAEnvironmentCommitSHAMap(arg0 ddtrace.Span, arg1 string, arg2 models.RefMap) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQAEnvironmentCommitSHAMap", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetQAEnvironmentCommitSHAMap", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetQAEnvironmentCommitSHAMap indicates an expected call of SetQAEnvironmentCommitSHAMap
-func (mr *MockDataLayerMockRecorder) SetQAEnvironmentCommitSHAMap(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SetQAEnvironmentCommitSHAMap(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentCommitSHAMap", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentCommitSHAMap), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentCommitSHAMap", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentCommitSHAMap), arg0, arg1, arg2)
 }
 
 // SetQAEnvironmentCreated mocks base method
-func (m *MockDataLayer) SetQAEnvironmentCreated(arg0 string, arg1 time.Time) error {
+func (m *MockDataLayer) SetQAEnvironmentCreated(arg0 ddtrace.Span, arg1 string, arg2 time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQAEnvironmentCreated", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetQAEnvironmentCreated", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetQAEnvironmentCreated indicates an expected call of SetQAEnvironmentCreated
-func (mr *MockDataLayerMockRecorder) SetQAEnvironmentCreated(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SetQAEnvironmentCreated(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentCreated", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentCreated), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentCreated", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentCreated), arg0, arg1, arg2)
 }
 
 // SetQAEnvironmentRefMap mocks base method
-func (m *MockDataLayer) SetQAEnvironmentRefMap(arg0 string, arg1 models.RefMap) error {
+func (m *MockDataLayer) SetQAEnvironmentRefMap(arg0 ddtrace.Span, arg1 string, arg2 models.RefMap) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQAEnvironmentRefMap", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetQAEnvironmentRefMap", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetQAEnvironmentRefMap indicates an expected call of SetQAEnvironmentRefMap
-func (mr *MockDataLayerMockRecorder) SetQAEnvironmentRefMap(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SetQAEnvironmentRefMap(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentRefMap", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentRefMap), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentRefMap", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentRefMap), arg0, arg1, arg2)
 }
 
 // SetQAEnvironmentRepoData mocks base method
-func (m *MockDataLayer) SetQAEnvironmentRepoData(arg0 string, arg1 *models.RepoRevisionData) error {
+func (m *MockDataLayer) SetQAEnvironmentRepoData(arg0 ddtrace.Span, arg1 string, arg2 *models.RepoRevisionData) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQAEnvironmentRepoData", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetQAEnvironmentRepoData", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetQAEnvironmentRepoData indicates an expected call of SetQAEnvironmentRepoData
-func (mr *MockDataLayerMockRecorder) SetQAEnvironmentRepoData(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SetQAEnvironmentRepoData(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentRepoData", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentRepoData), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentRepoData", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentRepoData), arg0, arg1, arg2)
 }
 
 // SetQAEnvironmentStatus mocks base method
-func (m *MockDataLayer) SetQAEnvironmentStatus(arg0 string, arg1 models.EnvironmentStatus) error {
+func (m *MockDataLayer) SetQAEnvironmentStatus(arg0 ddtrace.Span, arg1 string, arg2 models.EnvironmentStatus) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQAEnvironmentStatus", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetQAEnvironmentStatus", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetQAEnvironmentStatus indicates an expected call of SetQAEnvironmentStatus
-func (mr *MockDataLayerMockRecorder) SetQAEnvironmentStatus(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) SetQAEnvironmentStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentStatus", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentStatus), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQAEnvironmentStatus", reflect.TypeOf((*MockDataLayer)(nil).SetQAEnvironmentStatus), arg0, arg1, arg2)
 }
 
 // UpdateHelmReleaseRevision mocks base method
-func (m *MockDataLayer) UpdateHelmReleaseRevision(arg0, arg1, arg2 string) error {
+func (m *MockDataLayer) UpdateHelmReleaseRevision(arg0 ddtrace.Span, arg1, arg2, arg3 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateHelmReleaseRevision", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateHelmReleaseRevision", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateHelmReleaseRevision indicates an expected call of UpdateHelmReleaseRevision
-func (mr *MockDataLayerMockRecorder) UpdateHelmReleaseRevision(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) UpdateHelmReleaseRevision(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateHelmReleaseRevision", reflect.TypeOf((*MockDataLayer)(nil).UpdateHelmReleaseRevision), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateHelmReleaseRevision", reflect.TypeOf((*MockDataLayer)(nil).UpdateHelmReleaseRevision), arg0, arg1, arg2, arg3)
 }
 
 // UpdateK8sEnvTillerAddr mocks base method
-func (m *MockDataLayer) UpdateK8sEnvTillerAddr(arg0, arg1 string) error {
+func (m *MockDataLayer) UpdateK8sEnvTillerAddr(arg0 ddtrace.Span, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateK8sEnvTillerAddr", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpdateK8sEnvTillerAddr", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateK8sEnvTillerAddr indicates an expected call of UpdateK8sEnvTillerAddr
-func (mr *MockDataLayerMockRecorder) UpdateK8sEnvTillerAddr(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataLayerMockRecorder) UpdateK8sEnvTillerAddr(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateK8sEnvTillerAddr", reflect.TypeOf((*MockDataLayer)(nil).UpdateK8sEnvTillerAddr), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateK8sEnvTillerAddr", reflect.TypeOf((*MockDataLayer)(nil).UpdateK8sEnvTillerAddr), arg0, arg1, arg2)
 }
