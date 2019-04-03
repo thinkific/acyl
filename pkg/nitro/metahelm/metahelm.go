@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net/http"
 	"strings"
 	"time"
 
+	kubernetestrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/k8s.io/client-go/kubernetes"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
@@ -208,13 +210,23 @@ func NewInClusterK8sClientset(_, _ string) (*kubernetes.Clientset, *rest.Config,
 		return nil, nil, errors.Wrap(err, "error getting k8s in-cluster config")
 	}
 
-	// Since we are overriding WrapTranport, we need to set the token...
-	kcfg.WrapTransport = DatadogTraceWrapTransport()
+	kcfg.WrapTransport = wrapTransport()
 	kc, err := kubernetes.NewForConfig(kcfg)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error getting k8s clientset")
 	}
 	return kc, kcfg, nil
+}
+
+// wrapTransport encapsulates the kubernetestrace WrapTransport and Kubernetes'
+// default TokenSource WrapTransport.
+func wrapTransport() func(rt http.RoundTripper) http.RoundTripper {
+	tokenFile := "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	ts := rest.NewCachedFileTokenSource(tokenFile)
+	tokenWrappedTransport := rest.TokenSourceWrapTransport(ts)
+	return func(rt http.RoundTripper) http.RoundTripper {
+		return kubernetestrace.WrapRoundTripper(tokenWrappedTransport(rt))
+	}
 }
 
 // NewInClusterHelmClient is a HelmClientFactoryFunc that returns a Helm client configured for use within the k8s cluster
