@@ -229,14 +229,16 @@ func (a *AminoBackend) waitForEnvironment(ctx context.Context, envID int, name s
 		// If we meet a deadline, then log the pending events.
 		select {
 		case <-ctx.Done():
-			if err := a.dataLayer.AddEvent(ctx, name, "environment deploy timed out"); err != nil {
+			span, _ := tracer.SpanFromContext(ctx)
+			pendingCtx := tracer.ContextWithSpan(context.Background(), span)
+			if err := a.dataLayer.AddEvent(pendingCtx, name, "environment deploy timed out"); err != nil {
 				a.logger.Printf("error storing Amino event: %s", err)
 			}
 			if lastResponse != nil {
-				if err := a.dataLayer.AddEvent(ctx, name, fmt.Sprintf("pending deployments: %v", lastResponse.UnavailableDeployments)); err != nil {
+				if err := a.dataLayer.AddEvent(pendingCtx, name, fmt.Sprintf("pending deployments: %v", lastResponse.UnavailableDeployments)); err != nil {
 					a.logger.Printf("error storing Amino event: %s", err)
 				}
-				if err := a.dataLayer.AddEvent(ctx, name, fmt.Sprintf("pending jobs: %v", lastResponse.ActiveJobs)); err != nil {
+				if err := a.dataLayer.AddEvent(pendingCtx, name, fmt.Sprintf("pending jobs: %v", lastResponse.ActiveJobs)); err != nil {
 					a.logger.Printf("error storing Amino event: %s", err)
 				}
 			}

@@ -586,7 +586,6 @@ func TestMetahelmInstallCharts(t *testing.T) {
 		RC:  rc,
 	}
 	dl := persistence.NewFakeDataLayer()
-
 	dl.CreateQAEnvironment(context.Background(), nenv.Env)
 	ci := ChartInstaller{
 		kc: fkc,
@@ -715,7 +714,6 @@ func TestMetahelmWriteReleaseNames(t *testing.T) {
 	name := "foo-bar"
 	newenv := &EnvInfo{Env: &models.QAEnvironment{Name: name}, RC: &rc}
 	dl := persistence.NewFakeDataLayer()
-
 	dl.CreateQAEnvironment(context.Background(), newenv.Env)
 	ci := ChartInstaller{dl: dl}
 	if err := ci.writeReleaseNames(context.Background(), rmap, "fake-namespace", newenv); err != nil {
@@ -761,7 +759,6 @@ func TestMetahelmUpdateReleaseRevisions(t *testing.T) {
 	name := "foo-bar"
 	env := &EnvInfo{Env: &models.QAEnvironment{Name: name}, Releases: rmap, RC: &rc}
 	dl := persistence.NewFakeDataLayer()
-
 	dl.CreateQAEnvironment(context.Background(), env.Env)
 	releases := []models.HelmRelease{
 		models.HelmRelease{EnvName: name, Release: "random", RevisionSHA: "9999"},
@@ -1068,7 +1065,6 @@ func TestMetahelmBuildAndUpgradeCharts(t *testing.T) {
 		},
 	}
 	dl := persistence.NewFakeDataLayer()
-
 	dl.CreateQAEnvironment(context.Background(), nenv.Env)
 	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{
 		EnvName:    nenv.Env.Name,
@@ -1145,7 +1141,6 @@ func TestMetahelmDeleteReleases(t *testing.T) {
 		},
 	}
 	dl := persistence.NewFakeDataLayer()
-
 	dl.CreateQAEnvironment(context.Background(), nenv.Env)
 	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{
 		EnvName:   nenv.Env.Name,
@@ -1202,7 +1197,6 @@ func TestMetahelmDeleteNamespace(t *testing.T) {
 		Namespace: "foo",
 	}
 	dl := persistence.NewFakeDataLayer()
-
 	dl.CreateQAEnvironment(context.Background(), nenv.Env)
 	dl.CreateK8sEnv(context.Background(), k8senv)
 	fkc := fake.NewSimpleClientset(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "foo"}})

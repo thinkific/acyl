@@ -278,13 +278,6 @@ func (ci ChartInstaller) BuildAndInstallChartsIntoExisting(ctx context.Context, 
 
 func (ci ChartInstaller) installOrUpgradeIntoExisting(ctx context.Context, env *EnvInfo, k8senv *models.KubernetesEnvironment, cl ChartLocations, upgrade bool) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "chart_installer.install_or_upgrade")
-	defer func() {
-		if err != nil && !nitroerrors.IsUserError(err) {
-			span.Finish(tracer.WithError(err))
-		} else {
-			span.Finish()
-		}
-	}()
 	if ci.kc == nil {
 		return nitroerrors.SystemError(errors.New("k8s client is nil"))
 	}
@@ -300,8 +293,10 @@ func (ci ChartInstaller) installOrUpgradeIntoExisting(ctx context.Context, env *
 				ci.log(ctx, "error cleaning up namespace: %v", err2)
 			}
 			ci.dl.SetQAEnvironmentStatus(ctx, env.Env.Name, models.Failure)
+			span.Finish(tracer.WithError(err))
 			return
 		}
+		span.Finish()
 		ci.dl.SetQAEnvironmentStatus(ctx, env.Env.Name, models.Success)
 	}()
 	csl, err := ci.GenerateCharts(ctx, k8senv.Namespace, env, cl)
