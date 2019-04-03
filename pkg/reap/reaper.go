@@ -96,8 +96,7 @@ func (r *Reaper) Reap() {
 }
 
 func (r *Reaper) auditQaEnvs(ctx context.Context) error {
-	span, _ := tracer.SpanFromContext(ctx)
-	qas, err := r.dl.GetQAEnvironments(span)
+	qas, err := r.dl.GetQAEnvironments(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting QA environments: %v", err)
 	}
@@ -121,8 +120,7 @@ func (r *Reaper) auditQaEnvs(ctx context.Context) error {
 }
 
 func (r *Reaper) destroyClosedPRs(ctx context.Context) error {
-	span, _ := tracer.SpanFromContext(ctx)
-	qas, err := r.dl.GetQAEnvironments(span)
+	qas, err := r.dl.GetQAEnvironments(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting QA environments: %v", err)
 	}
@@ -146,8 +144,7 @@ func (r *Reaper) destroyClosedPRs(ctx context.Context) error {
 }
 
 func (r *Reaper) pruneDestroyedRecords(ctx context.Context) error {
-	span, _ := tracer.SpanFromContext(ctx)
-	qas, err := r.dl.GetQAEnvironments(span)
+	qas, err := r.dl.GetQAEnvironments(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting QA environments: %v", err)
 	}
@@ -168,7 +165,7 @@ func (r *Reaper) pruneDestroyedRecords(ctx context.Context) error {
 			}
 			if !found {
 				r.logger.Printf("could not find destroyed event for %v", qa.Name)
-				err = r.dl.DeleteQAEnvironment(span, qa.Name)
+				err = r.dl.DeleteQAEnvironment(ctx, qa.Name)
 				if err != nil {
 					r.logger.Printf("error deleting destroyed environment: %v", err)
 				}
@@ -176,7 +173,7 @@ func (r *Reaper) pruneDestroyedRecords(ctx context.Context) error {
 			}
 			if time.Since(ts) > (destroyedMaxDurationHours * time.Hour) {
 				r.logger.Printf("deleting destroyed environment: %v", qa.Name)
-				err = r.dl.DeleteQAEnvironment(span, qa.Name)
+				err = r.dl.DeleteQAEnvironment(ctx, qa.Name)
 				if err != nil {
 					r.logger.Printf("error deleting destroyed environment: %v", err)
 				}
@@ -197,8 +194,7 @@ func (r *Reaper) destroyIfOlderThan(ctx context.Context, qa *models.QAEnvironmen
 }
 
 func (r *Reaper) destroyFailedOrStuckEnvironments(ctx context.Context) error {
-	span, _ := tracer.SpanFromContext(ctx)
-	qas, err := r.dl.GetQAEnvironments(span)
+	qas, err := r.dl.GetQAEnvironments(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting QA environments: %v", err)
 	}
@@ -222,8 +218,7 @@ func (r *Reaper) enforceGlobalLimit(ctx context.Context) error {
 	if r.globalLimit == 0 {
 		return nil
 	}
-	span, _ := tracer.SpanFromContext(ctx)
-	qae, err := r.dl.GetRunningQAEnvironments(span)
+	qae, err := r.dl.GetRunningQAEnvironments(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting running environments: %v", err)
 	}

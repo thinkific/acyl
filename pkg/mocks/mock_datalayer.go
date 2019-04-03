@@ -5,10 +5,10 @@
 package mocks
 
 import (
+	context "context"
 	models "github.com/dollarshaveclub/acyl/pkg/models"
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
-	ddtrace "gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	reflect "reflect"
 	time "time"
 )
@@ -37,7 +37,7 @@ func (m *MockDataLayer) EXPECT() *MockDataLayerMockRecorder {
 }
 
 // AddEvent mocks base method
-func (m *MockDataLayer) AddEvent(arg0 ddtrace.Span, arg1, arg2 string) error {
+func (m *MockDataLayer) AddEvent(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddEvent", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -93,7 +93,7 @@ func (mr *MockDataLayerMockRecorder) CreateEventLog(arg0 interface{}) *gomock.Ca
 }
 
 // CreateHelmReleasesForEnv mocks base method
-func (m *MockDataLayer) CreateHelmReleasesForEnv(arg0 ddtrace.Span, arg1 []models.HelmRelease) error {
+func (m *MockDataLayer) CreateHelmReleasesForEnv(arg0 context.Context, arg1 []models.HelmRelease) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateHelmReleasesForEnv", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -107,7 +107,7 @@ func (mr *MockDataLayerMockRecorder) CreateHelmReleasesForEnv(arg0, arg1 interfa
 }
 
 // CreateK8sEnv mocks base method
-func (m *MockDataLayer) CreateK8sEnv(arg0 ddtrace.Span, arg1 *models.KubernetesEnvironment) error {
+func (m *MockDataLayer) CreateK8sEnv(arg0 context.Context, arg1 *models.KubernetesEnvironment) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateK8sEnv", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -121,7 +121,7 @@ func (mr *MockDataLayerMockRecorder) CreateK8sEnv(arg0, arg1 interface{}) *gomoc
 }
 
 // CreateQAEnvironment mocks base method
-func (m *MockDataLayer) CreateQAEnvironment(arg0 ddtrace.Span, arg1 *models.QAEnvironment) error {
+func (m *MockDataLayer) CreateQAEnvironment(arg0 context.Context, arg1 *models.QAEnvironment) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateQAEnvironment", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -179,7 +179,7 @@ func (mr *MockDataLayerMockRecorder) DeleteEventLogsByRepoAndPR(arg0, arg1 inter
 }
 
 // DeleteHelmReleasesForEnv mocks base method
-func (m *MockDataLayer) DeleteHelmReleasesForEnv(arg0 ddtrace.Span, arg1 string) (uint, error) {
+func (m *MockDataLayer) DeleteHelmReleasesForEnv(arg0 context.Context, arg1 string) (uint, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteHelmReleasesForEnv", arg0, arg1)
 	ret0, _ := ret[0].(uint)
@@ -194,7 +194,7 @@ func (mr *MockDataLayerMockRecorder) DeleteHelmReleasesForEnv(arg0, arg1 interfa
 }
 
 // DeleteK8sEnv mocks base method
-func (m *MockDataLayer) DeleteK8sEnv(arg0 ddtrace.Span, arg1 string) error {
+func (m *MockDataLayer) DeleteK8sEnv(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteK8sEnv", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -208,7 +208,7 @@ func (mr *MockDataLayerMockRecorder) DeleteK8sEnv(arg0, arg1 interface{}) *gomoc
 }
 
 // DeleteQAEnvironment mocks base method
-func (m *MockDataLayer) DeleteQAEnvironment(arg0 ddtrace.Span, arg1 string) error {
+func (m *MockDataLayer) DeleteQAEnvironment(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteQAEnvironment", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -267,7 +267,7 @@ func (mr *MockDataLayerMockRecorder) GetEventLogsByRepoAndPR(arg0, arg1 interfac
 }
 
 // GetExtantQAEnvironments mocks base method
-func (m *MockDataLayer) GetExtantQAEnvironments(arg0 ddtrace.Span, arg1 string, arg2 uint) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetExtantQAEnvironments(arg0 context.Context, arg1 string, arg2 uint) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetExtantQAEnvironments", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -282,7 +282,7 @@ func (mr *MockDataLayerMockRecorder) GetExtantQAEnvironments(arg0, arg1, arg2 in
 }
 
 // GetHelmReleasesForEnv mocks base method
-func (m *MockDataLayer) GetHelmReleasesForEnv(arg0 ddtrace.Span, arg1 string) ([]models.HelmRelease, error) {
+func (m *MockDataLayer) GetHelmReleasesForEnv(arg0 context.Context, arg1 string) ([]models.HelmRelease, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetHelmReleasesForEnv", arg0, arg1)
 	ret0, _ := ret[0].([]models.HelmRelease)
@@ -297,7 +297,7 @@ func (mr *MockDataLayerMockRecorder) GetHelmReleasesForEnv(arg0, arg1 interface{
 }
 
 // GetK8sEnv mocks base method
-func (m *MockDataLayer) GetK8sEnv(arg0 ddtrace.Span, arg1 string) (*models.KubernetesEnvironment, error) {
+func (m *MockDataLayer) GetK8sEnv(arg0 context.Context, arg1 string) (*models.KubernetesEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetK8sEnv", arg0, arg1)
 	ret0, _ := ret[0].(*models.KubernetesEnvironment)
@@ -312,7 +312,7 @@ func (mr *MockDataLayerMockRecorder) GetK8sEnv(arg0, arg1 interface{}) *gomock.C
 }
 
 // GetK8sEnvsByNamespace mocks base method
-func (m *MockDataLayer) GetK8sEnvsByNamespace(arg0 ddtrace.Span, arg1 string) ([]models.KubernetesEnvironment, error) {
+func (m *MockDataLayer) GetK8sEnvsByNamespace(arg0 context.Context, arg1 string) ([]models.KubernetesEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetK8sEnvsByNamespace", arg0, arg1)
 	ret0, _ := ret[0].([]models.KubernetesEnvironment)
@@ -327,7 +327,7 @@ func (mr *MockDataLayerMockRecorder) GetK8sEnvsByNamespace(arg0, arg1 interface{
 }
 
 // GetMostRecent mocks base method
-func (m *MockDataLayer) GetMostRecent(arg0 ddtrace.Span, arg1 uint) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetMostRecent(arg0 context.Context, arg1 uint) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMostRecent", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -342,7 +342,7 @@ func (mr *MockDataLayerMockRecorder) GetMostRecent(arg0, arg1 interface{}) *gomo
 }
 
 // GetQAEnvironment mocks base method
-func (m *MockDataLayer) GetQAEnvironment(arg0 ddtrace.Span, arg1 string) (*models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironment(arg0 context.Context, arg1 string) (*models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironment", arg0, arg1)
 	ret0, _ := ret[0].(*models.QAEnvironment)
@@ -357,7 +357,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironment(arg0, arg1 interface{}) *g
 }
 
 // GetQAEnvironmentBySourceSHA mocks base method
-func (m *MockDataLayer) GetQAEnvironmentBySourceSHA(arg0 ddtrace.Span, arg1 string) (*models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentBySourceSHA(arg0 context.Context, arg1 string) (*models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironmentBySourceSHA", arg0, arg1)
 	ret0, _ := ret[0].(*models.QAEnvironment)
@@ -372,7 +372,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironmentBySourceSHA(arg0, arg1 inte
 }
 
 // GetQAEnvironmentConsistently mocks base method
-func (m *MockDataLayer) GetQAEnvironmentConsistently(arg0 ddtrace.Span, arg1 string) (*models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentConsistently(arg0 context.Context, arg1 string) (*models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironmentConsistently", arg0, arg1)
 	ret0, _ := ret[0].(*models.QAEnvironment)
@@ -387,7 +387,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironmentConsistently(arg0, arg1 int
 }
 
 // GetQAEnvironments mocks base method
-func (m *MockDataLayer) GetQAEnvironments(arg0 ddtrace.Span) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironments(arg0 context.Context) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironments", arg0)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -402,7 +402,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironments(arg0 interface{}) *gomock
 }
 
 // GetQAEnvironmentsByRepo mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsByRepo(arg0 ddtrace.Span, arg1 string) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsByRepo(arg0 context.Context, arg1 string) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironmentsByRepo", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -417,7 +417,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByRepo(arg0, arg1 interfac
 }
 
 // GetQAEnvironmentsByRepoAndPR mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsByRepoAndPR(arg0 ddtrace.Span, arg1 string, arg2 uint) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsByRepoAndPR(arg0 context.Context, arg1 string, arg2 uint) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironmentsByRepoAndPR", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -432,7 +432,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByRepoAndPR(arg0, arg1, ar
 }
 
 // GetQAEnvironmentsBySourceBranch mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsBySourceBranch(arg0 ddtrace.Span, arg1 string) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsBySourceBranch(arg0 context.Context, arg1 string) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironmentsBySourceBranch", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -447,7 +447,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsBySourceBranch(arg0, arg1 
 }
 
 // GetQAEnvironmentsByStatus mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsByStatus(arg0 ddtrace.Span, arg1 string) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsByStatus(arg0 context.Context, arg1 string) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironmentsByStatus", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -462,7 +462,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByStatus(arg0, arg1 interf
 }
 
 // GetQAEnvironmentsByUser mocks base method
-func (m *MockDataLayer) GetQAEnvironmentsByUser(arg0 ddtrace.Span, arg1 string) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetQAEnvironmentsByUser(arg0 context.Context, arg1 string) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQAEnvironmentsByUser", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -477,7 +477,7 @@ func (mr *MockDataLayerMockRecorder) GetQAEnvironmentsByUser(arg0, arg1 interfac
 }
 
 // GetRunningQAEnvironments mocks base method
-func (m *MockDataLayer) GetRunningQAEnvironments(arg0 ddtrace.Span) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) GetRunningQAEnvironments(arg0 context.Context) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRunningQAEnvironments", arg0)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -492,7 +492,7 @@ func (mr *MockDataLayerMockRecorder) GetRunningQAEnvironments(arg0 interface{}) 
 }
 
 // Search mocks base method
-func (m *MockDataLayer) Search(arg0 ddtrace.Span, arg1 models.EnvSearchParameters) ([]models.QAEnvironment, error) {
+func (m *MockDataLayer) Search(arg0 context.Context, arg1 models.EnvSearchParameters) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Search", arg0, arg1)
 	ret0, _ := ret[0].([]models.QAEnvironment)
@@ -507,7 +507,7 @@ func (mr *MockDataLayerMockRecorder) Search(arg0, arg1 interface{}) *gomock.Call
 }
 
 // SetAminoEnvironmentID mocks base method
-func (m *MockDataLayer) SetAminoEnvironmentID(arg0 ddtrace.Span, arg1 string, arg2 int) error {
+func (m *MockDataLayer) SetAminoEnvironmentID(arg0 context.Context, arg1 string, arg2 int) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAminoEnvironmentID", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -521,7 +521,7 @@ func (mr *MockDataLayerMockRecorder) SetAminoEnvironmentID(arg0, arg1, arg2 inte
 }
 
 // SetAminoKubernetesNamespace mocks base method
-func (m *MockDataLayer) SetAminoKubernetesNamespace(arg0 ddtrace.Span, arg1, arg2 string) error {
+func (m *MockDataLayer) SetAminoKubernetesNamespace(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAminoKubernetesNamespace", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -535,7 +535,7 @@ func (mr *MockDataLayerMockRecorder) SetAminoKubernetesNamespace(arg0, arg1, arg
 }
 
 // SetAminoServiceToPort mocks base method
-func (m *MockDataLayer) SetAminoServiceToPort(arg0 ddtrace.Span, arg1 string, arg2 map[string]int64) error {
+func (m *MockDataLayer) SetAminoServiceToPort(arg0 context.Context, arg1 string, arg2 map[string]int64) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAminoServiceToPort", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -563,7 +563,7 @@ func (mr *MockDataLayerMockRecorder) SetEventLogEnvName(arg0, arg1 interface{}) 
 }
 
 // SetQAEnvironmentCommitSHAMap mocks base method
-func (m *MockDataLayer) SetQAEnvironmentCommitSHAMap(arg0 ddtrace.Span, arg1 string, arg2 models.RefMap) error {
+func (m *MockDataLayer) SetQAEnvironmentCommitSHAMap(arg0 context.Context, arg1 string, arg2 models.RefMap) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetQAEnvironmentCommitSHAMap", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -577,7 +577,7 @@ func (mr *MockDataLayerMockRecorder) SetQAEnvironmentCommitSHAMap(arg0, arg1, ar
 }
 
 // SetQAEnvironmentCreated mocks base method
-func (m *MockDataLayer) SetQAEnvironmentCreated(arg0 ddtrace.Span, arg1 string, arg2 time.Time) error {
+func (m *MockDataLayer) SetQAEnvironmentCreated(arg0 context.Context, arg1 string, arg2 time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetQAEnvironmentCreated", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -591,7 +591,7 @@ func (mr *MockDataLayerMockRecorder) SetQAEnvironmentCreated(arg0, arg1, arg2 in
 }
 
 // SetQAEnvironmentRefMap mocks base method
-func (m *MockDataLayer) SetQAEnvironmentRefMap(arg0 ddtrace.Span, arg1 string, arg2 models.RefMap) error {
+func (m *MockDataLayer) SetQAEnvironmentRefMap(arg0 context.Context, arg1 string, arg2 models.RefMap) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetQAEnvironmentRefMap", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -605,7 +605,7 @@ func (mr *MockDataLayerMockRecorder) SetQAEnvironmentRefMap(arg0, arg1, arg2 int
 }
 
 // SetQAEnvironmentRepoData mocks base method
-func (m *MockDataLayer) SetQAEnvironmentRepoData(arg0 ddtrace.Span, arg1 string, arg2 *models.RepoRevisionData) error {
+func (m *MockDataLayer) SetQAEnvironmentRepoData(arg0 context.Context, arg1 string, arg2 *models.RepoRevisionData) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetQAEnvironmentRepoData", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -619,7 +619,7 @@ func (mr *MockDataLayerMockRecorder) SetQAEnvironmentRepoData(arg0, arg1, arg2 i
 }
 
 // SetQAEnvironmentStatus mocks base method
-func (m *MockDataLayer) SetQAEnvironmentStatus(arg0 ddtrace.Span, arg1 string, arg2 models.EnvironmentStatus) error {
+func (m *MockDataLayer) SetQAEnvironmentStatus(arg0 context.Context, arg1 string, arg2 models.EnvironmentStatus) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetQAEnvironmentStatus", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -633,7 +633,7 @@ func (mr *MockDataLayerMockRecorder) SetQAEnvironmentStatus(arg0, arg1, arg2 int
 }
 
 // UpdateHelmReleaseRevision mocks base method
-func (m *MockDataLayer) UpdateHelmReleaseRevision(arg0 ddtrace.Span, arg1, arg2, arg3 string) error {
+func (m *MockDataLayer) UpdateHelmReleaseRevision(arg0 context.Context, arg1, arg2, arg3 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateHelmReleaseRevision", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
@@ -647,7 +647,7 @@ func (mr *MockDataLayerMockRecorder) UpdateHelmReleaseRevision(arg0, arg1, arg2,
 }
 
 // UpdateK8sEnvTillerAddr mocks base method
-func (m *MockDataLayer) UpdateK8sEnvTillerAddr(arg0 ddtrace.Span, arg1, arg2 string) error {
+func (m *MockDataLayer) UpdateK8sEnvTillerAddr(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateK8sEnvTillerAddr", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)

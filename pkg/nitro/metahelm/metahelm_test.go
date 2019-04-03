@@ -12,8 +12,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/match"
 	"github.com/dollarshaveclub/acyl/pkg/models"
@@ -45,8 +43,6 @@ func chartMap(charts []metahelm.Chart) map[string]metahelm.Chart {
 	}
 	return out
 }
-
-var fakeSpan, _ = tracer.SpanFromContext(context.Background())
 
 func TestMetahelmGenerateCharts(t *testing.T) {
 	cases := []struct {
@@ -591,7 +587,7 @@ func TestMetahelmInstallCharts(t *testing.T) {
 	}
 	dl := persistence.NewFakeDataLayer()
 
-	dl.CreateQAEnvironment(fakeSpan, nenv.Env)
+	dl.CreateQAEnvironment(context.Background(), nenv.Env)
 	ci := ChartInstaller{
 		kc: fkc,
 		dl: dl,
@@ -654,7 +650,7 @@ func TestMetahelmInstallAndUpgradeChartsBuildError(t *testing.T) {
 		RC:  rc,
 	}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, nenv.Env)
+	dl.CreateQAEnvironment(context.Background(), nenv.Env)
 	ci := ChartInstaller{
 		kc: fkc,
 		dl: dl,
@@ -720,12 +716,12 @@ func TestMetahelmWriteReleaseNames(t *testing.T) {
 	newenv := &EnvInfo{Env: &models.QAEnvironment{Name: name}, RC: &rc}
 	dl := persistence.NewFakeDataLayer()
 
-	dl.CreateQAEnvironment(fakeSpan, newenv.Env)
+	dl.CreateQAEnvironment(context.Background(), newenv.Env)
 	ci := ChartInstaller{dl: dl}
 	if err := ci.writeReleaseNames(context.Background(), rmap, "fake-namespace", newenv); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	releases, err := dl.GetHelmReleasesForEnv(fakeSpan, name)
+	releases, err := dl.GetHelmReleasesForEnv(context.Background(), name)
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -766,17 +762,17 @@ func TestMetahelmUpdateReleaseRevisions(t *testing.T) {
 	env := &EnvInfo{Env: &models.QAEnvironment{Name: name}, Releases: rmap, RC: &rc}
 	dl := persistence.NewFakeDataLayer()
 
-	dl.CreateQAEnvironment(fakeSpan, env.Env)
+	dl.CreateQAEnvironment(context.Background(), env.Env)
 	releases := []models.HelmRelease{
 		models.HelmRelease{EnvName: name, Release: "random", RevisionSHA: "9999"},
 		models.HelmRelease{EnvName: name, Release: "random2", RevisionSHA: "9999"},
 	}
-	dl.CreateHelmReleasesForEnv(fakeSpan, releases)
+	dl.CreateHelmReleasesForEnv(context.Background(), releases)
 	ci := ChartInstaller{dl: dl}
 	if err := ci.updateReleaseRevisions(context.Background(), env); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	releases, err := dl.GetHelmReleasesForEnv(fakeSpan, name)
+	releases, err := dl.GetHelmReleasesForEnv(context.Background(), name)
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -801,12 +797,12 @@ func TestMetahelmWriteK8sEnvironment(t *testing.T) {
 	}
 	newenv := &EnvInfo{Env: &models.QAEnvironment{Name: name}, RC: rc}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, newenv.Env)
+	dl.CreateQAEnvironment(context.Background(), newenv.Env)
 	ci := ChartInstaller{dl: dl}
 	if err := ci.writeK8sEnvironment(context.Background(), newenv, "foo"); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	k8s, err := dl.GetK8sEnv(fakeSpan, name)
+	k8s, err := dl.GetK8sEnv(context.Background(), name)
 	if err != nil {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
@@ -970,7 +966,7 @@ func TestMetahelmBuildAndInstallCharts(t *testing.T) {
 		RC:  rc,
 	}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, nenv.Env)
+	dl.CreateQAEnvironment(context.Background(), nenv.Env)
 	ci := ChartInstaller{
 		kc: fkc,
 		dl: dl,
@@ -1073,8 +1069,8 @@ func TestMetahelmBuildAndUpgradeCharts(t *testing.T) {
 	}
 	dl := persistence.NewFakeDataLayer()
 
-	dl.CreateQAEnvironment(fakeSpan, nenv.Env)
-	dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{
+	dl.CreateQAEnvironment(context.Background(), nenv.Env)
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{
 		EnvName:    nenv.Env.Name,
 		Namespace:  "foo",
 		TillerAddr: ln.Addr().String(),
@@ -1097,8 +1093,8 @@ func TestMetahelmBuildAndUpgradeCharts(t *testing.T) {
 		EnvName:   nenv.Env.Name,
 		Namespace: "foo",
 	}
-	dl.CreateK8sEnv(fakeSpan, k8senv)
-	dl.CreateHelmReleasesForEnv(fakeSpan, rlses)
+	dl.CreateK8sEnv(context.Background(), k8senv)
+	dl.CreateHelmReleasesForEnv(context.Background(), rlses)
 	rels := []*rls.Release{}
 	for _, r := range rlses {
 		rels = append(rels, &rls.Release{Name: r.Release})
@@ -1119,7 +1115,7 @@ func TestMetahelmBuildAndUpgradeCharts(t *testing.T) {
 	if err := ci.BuildAndUpgradeCharts(context.Background(), nenv, k8senv, cl); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	releases, err := dl.GetHelmReleasesForEnv(fakeSpan, nenv.Env.Name)
+	releases, err := dl.GetHelmReleasesForEnv(context.Background(), nenv.Env.Name)
 	if err != nil {
 		t.Fatalf("get helm releases should have succeeded: %v", err)
 	}
@@ -1150,8 +1146,8 @@ func TestMetahelmDeleteReleases(t *testing.T) {
 	}
 	dl := persistence.NewFakeDataLayer()
 
-	dl.CreateQAEnvironment(fakeSpan, nenv.Env)
-	dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{
+	dl.CreateQAEnvironment(context.Background(), nenv.Env)
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{
 		EnvName:   nenv.Env.Name,
 		Namespace: "foo",
 	})
@@ -1173,8 +1169,8 @@ func TestMetahelmDeleteReleases(t *testing.T) {
 		EnvName:   nenv.Env.Name,
 		Namespace: "foo",
 	}
-	dl.CreateK8sEnv(fakeSpan, k8senv)
-	dl.CreateHelmReleasesForEnv(fakeSpan, rlses)
+	dl.CreateK8sEnv(context.Background(), k8senv)
+	dl.CreateHelmReleasesForEnv(context.Background(), rlses)
 	rels := []*rls.Release{}
 	for _, r := range rlses {
 		rels = append(rels, &rls.Release{Name: r.Release})
@@ -1188,7 +1184,7 @@ func TestMetahelmDeleteReleases(t *testing.T) {
 	if err := ci.DeleteReleases(context.Background(), k8senv); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	if releases, err := dl.GetHelmReleasesForEnv(fakeSpan, nenv.Env.Name); err != nil {
+	if releases, err := dl.GetHelmReleasesForEnv(context.Background(), nenv.Env.Name); err != nil {
 		t.Fatalf("helm get should have succeeded: %v", err)
 	} else {
 		if len(releases) != 0 {
@@ -1207,14 +1203,14 @@ func TestMetahelmDeleteNamespace(t *testing.T) {
 	}
 	dl := persistence.NewFakeDataLayer()
 
-	dl.CreateQAEnvironment(fakeSpan, nenv.Env)
-	dl.CreateK8sEnv(fakeSpan, k8senv)
+	dl.CreateQAEnvironment(context.Background(), nenv.Env)
+	dl.CreateK8sEnv(context.Background(), k8senv)
 	fkc := fake.NewSimpleClientset(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "foo"}})
 	ci := ChartInstaller{kc: fkc, dl: dl}
 	if err := ci.DeleteNamespace(context.Background(), k8senv); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	ke, err := dl.GetK8sEnv(fakeSpan, nenv.Env.Name)
+	ke, err := dl.GetK8sEnv(context.Background(), nenv.Env.Name)
 	if err != nil {
 		t.Fatalf("get k8s env should have succeeded: %v", err)
 	}

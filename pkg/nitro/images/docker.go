@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 
@@ -127,8 +125,7 @@ func (dbb *DockerBuilderBackend) BuildImage(ctx context.Context, envName, github
 		BuildArgs:   bargs,
 		AuthConfigs: dbb.Auths,
 	}
-	span, _ := tracer.SpanFromContext(ctx)
-	dbb.DL.AddEvent(span, envName, fmt.Sprintf("building container: %v:%v", githubRepo, ref))
+	dbb.DL.AddEvent(ctx, envName, fmt.Sprintf("building container: %v:%v", githubRepo, ref))
 	dbb.log(ctx, "building image: %v", opts.Tags[0])
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {

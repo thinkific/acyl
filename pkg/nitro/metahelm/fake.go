@@ -3,8 +3,6 @@ package metahelm
 import (
 	"context"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
@@ -46,8 +44,7 @@ func (fi *FakeInstaller) BuildAndInstallCharts(ctx context.Context, newenv *EnvI
 		if err := ci.writeK8sEnvironment(ctx, newenv, "nitro-1234-"+newenv.Env.Name); err != nil {
 			return err
 		}
-		span, _ := tracer.SpanFromContext(ctx)
-		if err := fi.DL.UpdateK8sEnvTillerAddr(span, newenv.Env.Name, "10.10.10.10:1234"); err != nil {
+		if err := fi.DL.UpdateK8sEnvTillerAddr(ctx, newenv.Env.Name, "10.10.10.10:1234"); err != nil {
 			return err
 		}
 		releases := getReleases(chartsLocation)
@@ -96,8 +93,7 @@ func (fi FakeInstaller) DeleteReleases(ctx context.Context, k8senv *models.Kuber
 		if err := ci.DeleteReleases(context.Background(), k8senv); err != nil {
 			return err
 		}
-		span, _ := tracer.SpanFromContext(ctx)
-		return fi.DL.DeleteK8sEnv(span, k8senv.EnvName)
+		return fi.DL.DeleteK8sEnv(ctx, k8senv.EnvName)
 	}
 	return nil
 }

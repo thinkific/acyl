@@ -19,10 +19,18 @@ import (
 	"github.com/pkg/errors"
 	sqltrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/database/sql"
 	sqlxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/jmoiron/sqlx"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 var _ DataLayer = &PGLayer{}
+
+func isCancelled(done <-chan struct{}) bool {
+	select {
+	case <-done:
+		return true
+	default:
+		return false
+	}
+}
 
 // PGClient returns a Postgres DB client.
 func PGClient(config *config.PGConfig) (*sqlx.DB, error) {
@@ -59,7 +67,10 @@ func (p *PGLayer) DB() *sqlx.DB {
 }
 
 // CreateQAEnvironment persists a new QA record.
-func (p *PGLayer) CreateQAEnvironment(span tracer.Span, qae *QAEnvironment) error {
+func (p *PGLayer) CreateQAEnvironment(ctx context.Context, qae *QAEnvironment) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error creating qa environment")
+	}
 	if qae.Name == "" {
 		return fmt.Errorf("QAEnvironment Name is required")
 	}
@@ -78,7 +89,6 @@ func (p *PGLayer) CreateQAEnvironment(span tracer.Span, qae *QAEnvironment) erro
 	}
 
 	q := `INSERT into qa_environments (` + qae.Columns() + `) VALUES (` + qae.InsertParams() + `);`
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	if _, err := p.db.ExecContext(ctx, q, qae.ScanValues()...); err != nil {
 		return errors.Wrapf(err, "error inserting QAEnvironment into database")
 	}
@@ -86,10 +96,12 @@ func (p *PGLayer) CreateQAEnvironment(span tracer.Span, qae *QAEnvironment) erro
 }
 
 // GetQAEnvironment finds a QAEnvironment by the name field.
-func (p *PGLayer) GetQAEnvironment(span tracer.Span, name string) (*QAEnvironment, error) {
+func (p *PGLayer) GetQAEnvironment(ctx context.Context, name string) (*QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting qa environment")
+	}
 	var qae QAEnvironment
 	q := `SELECT ` + qae.Columns() + ` FROM qa_environments WHERE name = $1;`
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	if err := p.db.QueryRowContext(ctx, q, name).Scan(qae.ScanValues()...); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -108,9 +120,9 @@ func (p *PGLayer) GetQAEnvironment(span tracer.Span, name string) (*QAEnvironmen
 
 // GetQAEnvironmentConsistently finds a QAEnvironment by the name
 // field consistently.
-func (p *PGLayer) GetQAEnvironmentConsistently(span tracer.Span, name string) (*QAEnvironment, error) {
+func (p *PGLayer) GetQAEnvironmentConsistently(ctx context.Context, name string) (*QAEnvironment, error) {
 	// All writes are consistent in PG.
-	return p.GetQAEnvironment(span, name)
+	return p.GetQAEnvironment(ctx, name)
 }
 
 func (p *PGLayer) collectRows(rows *sql.Rows, err error) ([]QAEnvironment, error) {
@@ -140,14 +152,19 @@ func (p *PGLayer) collectRows(rows *sql.Rows, err error) ([]QAEnvironment, error
 }
 
 // GetQAEnvironments returns all QA records
-func (p *PGLayer) GetQAEnvironments(span tracer.Span) ([]QAEnvironment, error) {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) GetQAEnvironments(ctx context.Context) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting qa environments")
+	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` FROM qa_environments;`))
 }
 
 // DeleteQAEnvironment deletes a QA environment record. The environment must have status Destroyed.
 // Callers must ensure that the underlying k8s environment has been deleted prior to calling this, otherwise potentially orphan k8s resources will be left running.
-func (p *PGLayer) DeleteQAEnvironment(span tracer.Span, name string) (err error) {
+func (p *PGLayer) DeleteQAEnvironment(ctx context.Context, name string) (err error) {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error deleting qa environment")
+	}
 	txn, err := p.db.Begin()
 	if err != nil {
 		return errors.Wrap(err, "error beginning txn")
@@ -157,7 +174,6 @@ func (p *PGLayer) DeleteQAEnvironment(span tracer.Span, name string) (err error)
 			txn.Rollback()
 		}
 	}()
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	// this may leave orphan namespaces, but we have to delete these rows due to foreign keys
 	q := `DELETE FROM kubernetes_environments WHERE env_name = $1;`
 	res, err := txn.ExecContext(ctx, q, name)
@@ -187,37 +203,47 @@ func (p *PGLayer) DeleteQAEnvironment(span tracer.Span, name string) (err error)
 }
 
 // GetQAEnvironmentsByStatus gets all environmens matching status. TODO(geoffrey): Revisit raw_status with @benjamen
-func (p *PGLayer) GetQAEnvironmentsByStatus(span tracer.Span, status string) ([]QAEnvironment, error) {
+func (p *PGLayer) GetQAEnvironmentsByStatus(ctx context.Context, status string) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting qa environments by status")
+	}
 	s, err := models.EnvironmentStatusFromString(status)
 	if err != nil {
 		return nil, errors.Wrap(err, "error in status")
 	}
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE status = $1;`, s))
 }
 
 // GetRunningQAEnvironments returns all environments with status "success", "updating" or "spawned", in ascending order of creation time.
-func (p *PGLayer) GetRunningQAEnvironments(span tracer.Span) ([]QAEnvironment, error) {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) GetRunningQAEnvironments(ctx context.Context) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting running qa environments")
+	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE status = $1 OR status = $2 OR status = $3 ORDER BY created ASC;`, models.Spawned, models.Success, models.Updating))
 }
 
 // GetQAEnvironmentsByRepoAndPR teturns all environments which have matching repo AND pull request.
-func (p *PGLayer) GetQAEnvironmentsByRepoAndPR(span tracer.Span, repo string, pr uint) ([]QAEnvironment, error) {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) GetQAEnvironmentsByRepoAndPR(ctx context.Context, repo string, pr uint) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting qa environments by Repo and PR")
+	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE repo = $1 AND pull_request = $2;`, repo, pr))
 }
 
 // GetQAEnvironmentsByRepo returns all environments which have matching repo.
-func (p *PGLayer) GetQAEnvironmentsByRepo(span tracer.Span, repo string) ([]QAEnvironment, error) {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) GetQAEnvironmentsByRepo(ctx context.Context, repo string) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting environments by repo")
+	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE repo = $1;`, repo))
 }
 
 // GetQAEnvironmentBySourceSHA returns an environment with a matching sourceSHA.
-func (p *PGLayer) GetQAEnvironmentBySourceSHA(span tracer.Span, sourceSHA string) (*QAEnvironment, error) {
+func (p *PGLayer) GetQAEnvironmentBySourceSHA(ctx context.Context, sourceSHA string) (*QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting environment by source sha")
+	}
 	var qae QAEnvironment
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	q := `SELECT ` + models.QAEnvironment{}.Columns() + ` FROM qa_environments WHERE source_sha = $1;`
 	if err := p.db.QueryRowContext(ctx, q, sourceSHA).Scan(qae.ScanValues()...); err != nil {
 		if err == sql.ErrNoRows {
@@ -232,33 +258,39 @@ func (p *PGLayer) GetQAEnvironmentBySourceSHA(span tracer.Span, sourceSHA string
 }
 
 // GetQAEnvironmentsBySourceBranch returns all environments which have matching sourceBranch.
-func (p *PGLayer) GetQAEnvironmentsBySourceBranch(span tracer.Span, sourceBranch string) ([]QAEnvironment, error) {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) GetQAEnvironmentsBySourceBranch(ctx context.Context, sourceBranch string) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting qa environments by source branch")
+	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE source_branch = $1;`, sourceBranch))
 }
 
 // GetQAEnvironmentsByUser retrieve all QAEnvironment by user (User is username in the DB see models/models.go).
-func (p *PGLayer) GetQAEnvironmentsByUser(span tracer.Span, user string) ([]QAEnvironment, error) {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) GetQAEnvironmentsByUser(ctx context.Context, user string) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting qa environments by user")
+	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE username = $1;`, user))
 }
 
 // SetQAEnvironmentStatus sets a specific QAEnvironment's status
-func (p *PGLayer) SetQAEnvironmentStatus(span tracer.Span, name string, status EnvironmentStatus) error {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) SetQAEnvironmentStatus(ctx context.Context, name string, status EnvironmentStatus) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error setting qa environment status")
+	}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET status = $1 WHERE name = $2;`, status, name)
 	if err != nil {
 		return errors.Wrap(err, "error setting status")
 	}
 	msg := fmt.Sprintf("Marked as %v", status.String())
-	if err := p.AddEvent(span, name, msg); err != nil {
+	if err := p.AddEvent(ctx, name, msg); err != nil {
 		return errors.Wrapf(err, "error setting event for QAEnvironment: %v ", name)
 	}
 	return nil
 }
 
 // SetQAEnvironmentRepoData sets a specific QAEnvironment's RepoRevisionData.
-func (p *PGLayer) SetQAEnvironmentRepoData(span tracer.Span, name string, repo *RepoRevisionData) error {
+func (p *PGLayer) SetQAEnvironmentRepoData(ctx context.Context, name string, repo *RepoRevisionData) error {
 	if repo == nil {
 		return fmt.Errorf("RepoRevisionData is nil")
 	}
@@ -270,69 +302,87 @@ func (p *PGLayer) SetQAEnvironmentRepoData(span tracer.Span, name string, repo *
 		repo.BaseBranch == "" {
 		return fmt.Errorf("all fields of RepoRevisionData must be supplied")
 	}
-
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error getting qa environments by source branch")
+	}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET repo = $1, source_sha = $2, pull_request = $3, base_sha = $4, source_branch = $5, base_branch = $6, username = $7 WHERE name = $8;`, repo.Repo, repo.SourceSHA, repo.PullRequest, repo.BaseSHA, repo.SourceBranch, repo.BaseBranch, repo.User, name)
 	return err
 }
 
 // SetQAEnvironmentRefMap sets a specific QAEnvironment's RefMap.
-func (p *PGLayer) SetQAEnvironmentRefMap(span tracer.Span, name string, refMap RefMap) error {
+func (p *PGLayer) SetQAEnvironmentRefMap(ctx context.Context, name string, refMap RefMap) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error adding event")
+	}
 	qae := models.QAEnvironment{RefMap: refMap}
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET ref_map = $1 WHERE name = $2;`, qae.RefMapHStore(), name)
 	return err
 }
 
 // SetQAEnvironmentCommitSHAMap sets a specific QAEnvironment's commitSHAMap.
-func (p *PGLayer) SetQAEnvironmentCommitSHAMap(span tracer.Span, name string, commitSHAMap RefMap) error {
+func (p *PGLayer) SetQAEnvironmentCommitSHAMap(ctx context.Context, name string, commitSHAMap RefMap) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error adding event")
+	}
 	qae := models.QAEnvironment{CommitSHAMap: commitSHAMap}
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET commit_sha_map = $1 WHERE name = $2;`, qae.CommitSHAMapHStore(), name)
 	return err
 }
 
 // SetQAEnvironmentCreated sets a specific QAEnvironment's created time.
-func (p *PGLayer) SetQAEnvironmentCreated(span tracer.Span, name string, created time.Time) error {
+func (p *PGLayer) SetQAEnvironmentCreated(ctx context.Context, name string, created time.Time) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error adding event")
+	}
 	created = created.Truncate(1 * time.Microsecond)
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET created = $1 WHERE name = $2;`, created, name)
 	return err
 }
 
 // GetExtantQAEnvironments finds any environments for the given repo/PR combination that
 // are not status Destroyed
-func (p *PGLayer) GetExtantQAEnvironments(span tracer.Span, repo string, pr uint) ([]QAEnvironment, error) {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) GetExtantQAEnvironments(ctx context.Context, repo string, pr uint) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error adding event")
+	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` FROM qa_environments WHERE repo = $1 AND pull_request = $2 AND status != $3 AND status != $4;`, repo, pr, models.Destroyed, models.Failure))
 }
 
 // SetAminoEnvironmentID sets the Amino environment ID for an environment.
-func (p *PGLayer) SetAminoEnvironmentID(span tracer.Span, name string, did int) error {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) SetAminoEnvironmentID(ctx context.Context, name string, did int) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error adding event")
+	}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET amino_environment_id = $1 WHERE name = $2;`, did, name)
 	return err
 }
 
 // SetAminoServiceToPort sets the Amino service port metadata for an
 // environment.
-func (p *PGLayer) SetAminoServiceToPort(span tracer.Span, name string, serviceToPort map[string]int64) error {
+func (p *PGLayer) SetAminoServiceToPort(ctx context.Context, name string, serviceToPort map[string]int64) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error adding event")
+	}
 	qae := models.QAEnvironment{AminoServiceToPort: serviceToPort}
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET amino_service_to_port = $1 WHERE name = $2;`, qae.AminoServiceToPortHStore(), name)
 	return err
 }
 
 // SetAminoKubernetesNamespace sets the Kubernetes namespace for an
 // environment.
-func (p *PGLayer) SetAminoKubernetesNamespace(span tracer.Span, name string, namespace string) error {
-	ctx := tracer.ContextWithSpan(context.Background(), span)
+func (p *PGLayer) SetAminoKubernetesNamespace(ctx context.Context, name string, namespace string) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error adding event")
+	}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET amino_kubernetes_namespace = $1 WHERE name = $2;`, namespace, name)
 	return err
 }
 
 // AddEvent adds an event a particular QAEnvironment.
-func (p *PGLayer) AddEvent(span tracer.Span, name string, msg string) error {
+func (p *PGLayer) AddEvent(ctx context.Context, name string, msg string) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error adding event")
+	}
 	event := QAEnvironmentEvent{
 		Timestamp: time.Now().UTC(),
 		Message:   msg,
@@ -341,14 +391,16 @@ func (p *PGLayer) AddEvent(span tracer.Span, name string, msg string) error {
 	if err != nil {
 		return errors.Wrap(err, "error marshaling event")
 	}
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	_, err = p.db.ExecContext(ctx, `UPDATE qa_environments SET raw_events = array_append(raw_events, $1) WHERE name = $2;`, string(out), name)
 	return err
 }
 
 // Search finds environments that satsify the parameters given.
 // Multiple parameters are combined with implicit AND.
-func (p *PGLayer) Search(span tracer.Span, opts models.EnvSearchParameters) ([]QAEnvironment, error) {
+func (p *PGLayer) Search(ctx context.Context, opts models.EnvSearchParameters) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error adding event")
+	}
 	if opts.Pr != 0 && opts.Repo == "" {
 		return nil, fmt.Errorf("search by PR requires repo name")
 	}
@@ -393,16 +445,17 @@ func (p *PGLayer) Search(span tracer.Span, opts models.EnvSearchParameters) ([]Q
 		sargs = append(sargs, opts.TrackingRef)
 	}
 	q := "SELECT " + models.QAEnvironment{}.Columns() + " FROM qa_environments WHERE " + strings.Join(sopts, " AND ") + ";"
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	return p.collectRows(p.db.QueryContext(ctx, q, sargs...))
 }
 
 // GetMostRecent finds the most recent environments from the last n days.
 // Recency is defined by created/updated timestamps.
 // The returned slice is in descending order of recency.
-func (p *PGLayer) GetMostRecent(span tracer.Span, n uint) ([]QAEnvironment, error) {
+func (p *PGLayer) GetMostRecent(ctx context.Context, n uint) ([]QAEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error adding event")
+	}
 	q := `SELECT ` + models.QAEnvironment{}.Columns() + fmt.Sprintf(` from qa_environments WHERE created >= (current_timestamp - interval '%v days');`, n)
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	return p.collectRows(p.db.QueryContext(ctx, q))
 }
 

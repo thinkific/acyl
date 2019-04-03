@@ -262,8 +262,7 @@ Accepted:
 
 func (api *v0api) envListHandler(w http.ResponseWriter, r *http.Request) {
 	var fullDetails bool
-	span, _ := tracer.SpanFromContext(r.Context())
-	envs, err := api.dl.GetQAEnvironments(span)
+	envs, err := api.dl.GetQAEnvironments(r.Context())
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error getting environments: %v", err))
 		return
@@ -303,8 +302,7 @@ func (api *v0api) envListHandler(w http.ResponseWriter, r *http.Request) {
 
 func (api *v0api) envDetailHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	span, _ := tracer.SpanFromContext(r.Context())
-	qa, err := api.dl.GetQAEnvironmentConsistently(span, name)
+	qa, err := api.dl.GetQAEnvironmentConsistently(r.Context(), name)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error getting environment: %v", err))
 		return
@@ -326,8 +324,7 @@ func (api *v0api) envDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 func (api *v0api) envDestroyHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	span, _ := tracer.SpanFromContext(r.Context())
-	qa, err := api.dl.GetQAEnvironmentConsistently(span, name)
+	qa, err := api.dl.GetQAEnvironmentConsistently(r.Context(), name)
 	if err != nil {
 		api.internalError(w, err)
 		return
@@ -375,8 +372,7 @@ func (api *v0api) envEventHandler(w http.ResponseWriter, r *http.Request) {
 		api.badRequestError(w, err)
 		return
 	}
-	span, _ := tracer.SpanFromContext(r.Context())
-	err = api.dl.AddEvent(span, name, event.Message)
+	err = api.dl.AddEvent(r.Context(), name, event.Message)
 	if err != nil {
 		api.internalError(w, err)
 		return
@@ -436,8 +432,7 @@ func (api *v0api) envSearchHandler(w http.ResponseWriter, r *http.Request) {
 			ops.Status = s
 		}
 	}
-	span, _ := tracer.SpanFromContext(r.Context())
-	qas, err := api.dl.Search(span, ops)
+	qas, err := api.dl.Search(r.Context(), ops)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error searching in DB: %v", err))
 	}

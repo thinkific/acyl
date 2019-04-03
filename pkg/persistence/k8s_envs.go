@@ -6,16 +6,17 @@ import (
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/pkg/errors"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 var _ K8sEnvDataLayer = &PGLayer{}
 
 // GetK8sEnv gets a k8s environment by environment name
-func (pg *PGLayer) GetK8sEnv(span tracer.Span, name string) (*models.KubernetesEnvironment, error) {
+func (pg *PGLayer) GetK8sEnv(ctx context.Context, name string) (*models.KubernetesEnvironment, error) {
 	out := &models.KubernetesEnvironment{}
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting helm releases for env")
+	}
 	q := `SELECT ` + models.KubernetesEnvironment{}.Columns() + ` FROM kubernetes_environments WHERE env_name = $1;`
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	if err := pg.db.QueryRowContext(ctx, q, name).Scan(out.ScanValues()...); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -26,32 +27,40 @@ func (pg *PGLayer) GetK8sEnv(span tracer.Span, name string) (*models.KubernetesE
 }
 
 // GetK8sEnvsByNamespace returns any KubernetesEnvironments associated with a specific namespace name
-func (pg *PGLayer) GetK8sEnvsByNamespace(span tracer.Span, ns string) ([]models.KubernetesEnvironment, error) {
+func (pg *PGLayer) GetK8sEnvsByNamespace(ctx context.Context, ns string) ([]models.KubernetesEnvironment, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting helm releases for env")
+	}
 	q := `SELECT ` + models.KubernetesEnvironment{}.Columns() + ` FROM kubernetes_environments WHERE namespace = $1;`
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	return collectK8sEnvRows(pg.db.QueryContext(ctx, q, ns))
 }
 
 // CreateK8sEnv inserts a new k8s environment into the DB
-func (pg *PGLayer) CreateK8sEnv(span tracer.Span, env *models.KubernetesEnvironment) error {
+func (pg *PGLayer) CreateK8sEnv(ctx context.Context, env *models.KubernetesEnvironment) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error getting helm releases for env")
+	}
 	q := `INSERT INTO kubernetes_environments (` + env.InsertColumns() + `) VALUES (` + env.InsertParams() + `);`
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	_, err := pg.db.ExecContext(ctx, q, env.InsertValues()...)
 	return errors.Wrap(err, "error inserting k8s environment")
 }
 
 // DeleteK8sEnv deletes a k8s environment from the DB
-func (pg *PGLayer) DeleteK8sEnv(span tracer.Span, name string) error {
+func (pg *PGLayer) DeleteK8sEnv(ctx context.Context, name string) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error getting helm releases for env")
+	}
 	q := `DELETE FROM kubernetes_environments WHERE env_name = $1;`
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	_, err := pg.db.ExecContext(ctx, q, name)
 	return errors.Wrap(err, "error deleting k8s environment")
 }
 
 // UpdateK8sEnvTillerAddr updates an existing k8s environment with the provided tiller address
-func (pg *PGLayer) UpdateK8sEnvTillerAddr(span tracer.Span, envname, taddr string) error {
+func (pg *PGLayer) UpdateK8sEnvTillerAddr(ctx context.Context, envname, taddr string) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error getting helm releases for env")
+	}
 	q := `UPDATE kubernetes_environments SET tiller_addr = $1 WHERE env_name = $2;`
-	ctx := tracer.ContextWithSpan(context.Background(), span)
 	_, err := pg.db.ExecContext(ctx, q, taddr, envname)
 	return errors.Wrap(err, "error updating k8s environment")
 }

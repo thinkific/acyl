@@ -18,7 +18,6 @@ import (
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 // API output schema
@@ -142,8 +141,7 @@ func (api *v2api) marshalQAEnvironments(qas []models.QAEnvironment, w http.Respo
 
 func (api *v2api) envDetailHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	span, _ := tracer.SpanFromContext(r.Context())
-	qa, err := api.dl.GetQAEnvironmentConsistently(span, name)
+	qa, err := api.dl.GetQAEnvironmentConsistently(r.Context(), name)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error getting environment: %v", err))
 		return
@@ -222,8 +220,7 @@ func (api *v2api) envSearchHandler(w http.ResponseWriter, r *http.Request) {
 			ops.TrackingRef = v
 		}
 	}
-	span, _ := tracer.SpanFromContext(r.Context())
-	qas, err := api.dl.Search(span, ops)
+	qas, err := api.dl.Search(r.Context(), ops)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error searching in DB: %v", err))
 	}

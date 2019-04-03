@@ -26,7 +26,6 @@ import (
 	metahelmlib "github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/nlopes/slack"
 	"github.com/pkg/errors"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -50,12 +49,11 @@ func TestLockingOperation(t *testing.T) {
 			return nil
 		}
 	}
-	ctxWithSpan := tracer.ContextWithSpan(context.Background(), fakeSpan)
-	if err := m.lockingOperation(ctxWithSpan, "foo", "1", f); err != nil {
+	if err := m.lockingOperation(context.Background(), "foo", "1", f); err != nil {
 		t.Fatalf("should have been preempted")
 	}
 	c = make(chan struct{})
-	err := m.lockingOperation(ctxWithSpan, "foo", "1", f)
+	err := m.lockingOperation(context.Background(), "foo", "1", f)
 	if err == nil {
 		t.Fatalf("should have timed out")
 	}
@@ -179,7 +177,7 @@ func TestFetchCharts(t *testing.T) {
 
 func TestGetEnv(t *testing.T) {
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar", PullRequest: 99, Status: models.Success})
+	dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar", PullRequest: 99, Status: models.Success})
 	m := Manager{
 		DL: dl,
 		MC: &metrics.FakeCollector{},
@@ -265,14 +263,14 @@ func TestCreate(t *testing.T) {
 		"foo-mysql":  nil,
 	}
 	// extant environments for global limit testing
-	dl.CreateQAEnvironment(fakeSpan, &models.QAEnvironment{
+	dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{
 		Created:     time.Now().UTC(),
 		Name:        "some-other-random-name",
 		Repo:        rdd.Repo,
 		PullRequest: rdd.PullRequest,
 		Status:      models.Success,
 	})
-	dl.CreateQAEnvironment(fakeSpan, &models.QAEnvironment{
+	dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{
 		Created:     time.Now().UTC().Add(10 * time.Millisecond),
 		Name:        "some-other-random-name2",
 		Repo:        rdd.Repo,
@@ -295,11 +293,11 @@ func TestCreate(t *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
-				env, _ := dl.GetQAEnvironment(fakeSpan, name)
+				env, _ := dl.GetQAEnvironment(context.Background(), name)
 				if env == nil {
 					st.Fatalf("env missing")
 				}
-				k8senv, _ := dl.GetK8sEnv(fakeSpan, name)
+				k8senv, _ := dl.GetK8sEnv(context.Background(), name)
 				if k8senv == nil {
 					st.Fatalf("k8senv missing")
 				}
@@ -315,7 +313,7 @@ func TestCreate(t *testing.T) {
 				if v != "master" {
 					st.Fatalf("bad branch for foo/mysql: %v", v)
 				}
-				releases, _ := dl.GetHelmReleasesForEnv(fakeSpan, name)
+				releases, _ := dl.GetHelmReleasesForEnv(context.Background(), name)
 				if len(releases) != 3 {
 					st.Fatalf("bad release count: %v", len(releases))
 				}
@@ -343,11 +341,11 @@ func TestCreate(t *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
-				env, _ := dl.GetQAEnvironment(fakeSpan, name)
+				env, _ := dl.GetQAEnvironment(context.Background(), name)
 				if env == nil {
 					st.Fatalf("env missing")
 				}
-				env, _ = dl.GetQAEnvironment(fakeSpan, "some-other-random-name")
+				env, _ = dl.GetQAEnvironment(context.Background(), "some-other-random-name")
 				if env == nil {
 					st.Fatalf("destroyed env not found")
 				}
@@ -518,7 +516,7 @@ func TestUpdate(t *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
-				rlses, _ := dl.GetHelmReleasesForEnv(fakeSpan, env.Name)
+				rlses, _ := dl.GetHelmReleasesForEnv(context.Background(), env.Name)
 				if len(rlses) != 3 {
 					st.Fatalf("bad release count: %v", len(rlses))
 				}
@@ -548,8 +546,7 @@ func TestUpdate(t *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
-				fakeSpan, _ := tracer.SpanFromContext(context.Background())
-				rlses, _ := dl.GetHelmReleasesForEnv(fakeSpan, env.Name)
+				rlses, _ := dl.GetHelmReleasesForEnv(context.Background(), env.Name)
 				if len(rlses) != 4 {
 					st.Fatalf("bad release count: %v: %v", len(rlses), rlses)
 				}
@@ -592,11 +589,11 @@ func TestUpdate(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			dl := persistence.NewFakeDataLayer()
-			dl.CreateQAEnvironment(fakeSpan, &c.inputEnv)
+			dl.CreateQAEnvironment(context.Background(), &c.inputEnv)
 			if c.inputK8sEnv.EnvName != "" {
-				dl.CreateK8sEnv(fakeSpan, &c.inputK8sEnv)
+				dl.CreateK8sEnv(context.Background(), &c.inputK8sEnv)
 			}
-			dl.CreateHelmReleasesForEnv(fakeSpan, c.inputReleases)
+			dl.CreateHelmReleasesForEnv(context.Background(), c.inputReleases)
 			fg := &meta.FakeGetter{
 				GetFunc: func(ctx context.Context, rd models.RepoRevisionData) (*models.RepoConfig, error) {
 					return &c.inputRC, nil
@@ -651,7 +648,6 @@ func TestUpdate(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	dl := persistence.NewFakeDataLayer()
-	fakeSpan, _ := tracer.SpanFromContext(context.Background())
 	rdd := models.RepoRevisionData{
 		Repo:         "foo/bar",
 		PullRequest:  1,
@@ -715,15 +711,15 @@ func TestDelete(t *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
-				rls, _ := dl.GetHelmReleasesForEnv(fakeSpan, env.Name)
+				rls, _ := dl.GetHelmReleasesForEnv(context.Background(), env.Name)
 				if len(rls) != 0 {
 					st.Fatalf("bad release count: %v", len(rls))
 				}
-				ke2, _ := dl.GetK8sEnv(fakeSpan, env.Name)
+				ke2, _ := dl.GetK8sEnv(context.Background(), env.Name)
 				if ke2 != nil {
 					st.Fatalf("k8s env should be deleted: %v", ke2)
 				}
-				e2, _ := dl.GetQAEnvironment(fakeSpan, env.Name)
+				e2, _ := dl.GetQAEnvironment(context.Background(), env.Name)
 				if e2.Status != models.Destroyed {
 					st.Fatalf("bad status: %v", e2.Status)
 				}
@@ -735,15 +731,15 @@ func TestDelete(t *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
-				rls, _ := dl.GetHelmReleasesForEnv(fakeSpan, failedenv.Name)
+				rls, _ := dl.GetHelmReleasesForEnv(context.Background(), failedenv.Name)
 				if len(rls) != 0 {
 					st.Fatalf("bad release count: %v", len(rls))
 				}
-				ke2, _ := dl.GetK8sEnv(fakeSpan, failedenv.Name)
+				ke2, _ := dl.GetK8sEnv(context.Background(), failedenv.Name)
 				if ke2 != nil {
 					st.Fatalf("k8s env should be deleted: %v", ke2)
 				}
-				e2, _ := dl.GetQAEnvironment(fakeSpan, failedenv.Name)
+				e2, _ := dl.GetQAEnvironment(context.Background(), failedenv.Name)
 				if e2.Status != models.Destroyed {
 					st.Fatalf("bad status: %v", e2.Status)
 				}
@@ -763,13 +759,12 @@ func TestDelete(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			fakeSpan, _ := tracer.SpanFromContext(context.Background())
-			dl.CreateQAEnvironment(fakeSpan, &c.inputEnv)
+			dl.CreateQAEnvironment(context.Background(), &c.inputEnv)
 			if c.inputK8sEnv.EnvName != "" {
-				dl.CreateK8sEnv(fakeSpan, &c.inputK8sEnv)
+				dl.CreateK8sEnv(context.Background(), &c.inputK8sEnv)
 			}
 			if len(c.inputReleases) > 0 {
-				dl.CreateHelmReleasesForEnv(fakeSpan, c.inputReleases)
+				dl.CreateHelmReleasesForEnv(context.Background(), c.inputReleases)
 			}
 			releases := []string{}
 			for _, r := range c.inputReleases {
@@ -1052,7 +1047,6 @@ func (f *fakeS3Pusher) Push(contentType string, in io.Reader, opts s3.Options) (
 
 func TestFailedEnvSlackNotification(t *testing.T) {
 	dl := persistence.NewFakeDataLayer()
-	fakeSpan, _ := tracer.SpanFromContext(context.Background())
 	m := Manager{
 		DL: dl,
 		MC: &metrics.FakeCollector{},
@@ -1102,8 +1096,8 @@ func TestFailedEnvSlackNotification(t *testing.T) {
 			},
 		},
 	}
-	dl.CreateQAEnvironment(fakeSpan, ne.env)
-	dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{
+	dl.CreateQAEnvironment(context.Background(), ne.env)
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{
 		EnvName:   ne.env.Name,
 		Namespace: "nitro-1234-" + ne.env.Name,
 	})
@@ -1138,7 +1132,7 @@ func TestProcessEnvConfig(t *testing.T) {
 		},
 	}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, &env)
+	dl.CreateQAEnvironment(context.Background(), &env)
 	tests := []struct {
 		name    string
 		fields  fields
@@ -1157,7 +1151,7 @@ func TestProcessEnvConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				ctx: tracer.ContextWithSpan(context.Background(), fakeSpan),
+				ctx: context.Background(),
 				env: &env,
 				rd: &models.RepoRevisionData{
 					Repo:         env.Repo,

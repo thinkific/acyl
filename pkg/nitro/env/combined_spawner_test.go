@@ -4,21 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/meta"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 )
 
-var fakeSpan, _ = tracer.SpanFromContext(context.Background())
-
 func TestCombinedSpawnerExtantUsedNitro(t *testing.T) {
 	env1 := &models.KubernetesEnvironment{EnvName: "foo-bar"}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, &models.QAEnvironment{Name: env1.EnvName})
-	dl.CreateK8sEnv(fakeSpan, env1)
+	dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{Name: env1.EnvName})
+	dl.CreateK8sEnv(context.Background(), env1)
 	cb := CombinedSpawner{DL: dl}
 	ok, err := cb.extantUsedNitro(context.Background(), env1.EnvName)
 	if err != nil {
@@ -40,9 +36,9 @@ func TestCombinedSpawnerExtantUsedNitroFromRDD(t *testing.T) {
 	env1 := &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar", PullRequest: 1}
 	env2 := &models.QAEnvironment{Name: "foo-bar2", Repo: "foo/bar2", PullRequest: 1, AminoEnvironmentID: 23}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, env1)
-	dl.CreateQAEnvironment(fakeSpan, env2)
-	dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: env1.Name})
+	dl.CreateQAEnvironment(context.Background(), env1)
+	dl.CreateQAEnvironment(context.Background(), env2)
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: env1.Name})
 	cb := CombinedSpawner{DL: dl}
 	ok, err := cb.extantUsedNitroFromRDD(context.Background(), *env1.RepoRevisionDataFromQA())
 	if err != nil {
@@ -101,7 +97,7 @@ func TestCombinedSpawnerIsAcylYAMLV2FromName(t *testing.T) {
 	}
 	env1 := &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar", PullRequest: 1}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, env1)
+	dl.CreateQAEnvironment(context.Background(), env1)
 	cb := CombinedSpawner{MG: mg, DL: dl}
 	ok, err := cb.isAcylYMLV2FromName(context.Background(), env1.Name)
 	if err != nil {
@@ -167,9 +163,9 @@ func TestCombinedSpawnerDestroy(t *testing.T) {
 	env1 := &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar", PullRequest: 1}
 	env2 := &models.QAEnvironment{Name: "foo-bar2", Repo: "foo/bar2", PullRequest: 1, AminoEnvironmentID: 23}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, env1)
-	dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: env1.Name})
-	dl.CreateQAEnvironment(fakeSpan, env2)
+	dl.CreateQAEnvironment(context.Background(), env1)
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: env1.Name})
+	dl.CreateQAEnvironment(context.Background(), env2)
 	var nitrocalled, aminocalled bool
 	fknitro := &spawner.FakeEnvironmentSpawner{
 		DestroyFunc: func(ctx context.Context, rd models.RepoRevisionData, reason models.QADestroyReason) error {
@@ -203,9 +199,9 @@ func TestCombinedSpawnerDestroyExplicitly(t *testing.T) {
 	env1 := &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar", PullRequest: 1}
 	env2 := &models.QAEnvironment{Name: "foo-bar2", Repo: "foo/bar2", PullRequest: 1, AminoEnvironmentID: 23}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, env1)
-	dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: env1.Name})
-	dl.CreateQAEnvironment(fakeSpan, env2)
+	dl.CreateQAEnvironment(context.Background(), env1)
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: env1.Name})
+	dl.CreateQAEnvironment(context.Background(), env2)
 	var nitrocalled, aminocalled bool
 	fknitro := &spawner.FakeEnvironmentSpawner{
 		DestroyExplicitlyFunc: func(ctx context.Context, env *models.QAEnvironment, reason models.QADestroyReason) error {
@@ -239,9 +235,9 @@ func TestCombinedSpawnerSuccess(t *testing.T) {
 	env1 := &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar", PullRequest: 1}
 	env2 := &models.QAEnvironment{Name: "foo-bar2", Repo: "foo/bar2", PullRequest: 1, AminoEnvironmentID: 23}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, env1)
-	dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: env1.Name})
-	dl.CreateQAEnvironment(fakeSpan, env2)
+	dl.CreateQAEnvironment(context.Background(), env1)
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: env1.Name})
+	dl.CreateQAEnvironment(context.Background(), env2)
 	var nitrocalled, aminocalled bool
 	fknitro := &spawner.FakeEnvironmentSpawner{
 		SuccessFunc: func(ctx context.Context, name string) error {
@@ -275,9 +271,9 @@ func TestCombinedSpawnerFailure(t *testing.T) {
 	env1 := &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar", PullRequest: 1}
 	env2 := &models.QAEnvironment{Name: "foo-bar2", Repo: "foo/bar2", PullRequest: 1, AminoEnvironmentID: 23}
 	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(fakeSpan, env1)
-	dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: env1.Name})
-	dl.CreateQAEnvironment(fakeSpan, env2)
+	dl.CreateQAEnvironment(context.Background(), env1)
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: env1.Name})
+	dl.CreateQAEnvironment(context.Background(), env2)
 	var nitrocalled, aminocalled bool
 	fknitro := &spawner.FakeEnvironmentSpawner{
 		FailureFunc: func(ctx context.Context, name, msg string) error {
@@ -341,9 +337,9 @@ func TestCombinedSpawnerUpdate(t *testing.T) {
 				env1.AminoEnvironmentID = 23
 			}
 			dl := persistence.NewFakeDataLayer()
-			dl.CreateQAEnvironment(fakeSpan, env1)
+			dl.CreateQAEnvironment(context.Background(), env1)
 			if c.nitro {
-				dl.CreateK8sEnv(fakeSpan, &models.KubernetesEnvironment{EnvName: env1.Name})
+				dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: env1.Name})
 			}
 			var nitrodestroycalled, aminodestroycalled bool
 			var nitrocreatecalled, aminocreatecalled bool

@@ -23,7 +23,6 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/nitro/images"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/metahelm"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/metrics"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/src-d/go-billy.v4/osfs"
 
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
@@ -449,8 +448,7 @@ func configTestUpdate(cmd *cobra.Command, args []string) {
 		}
 	}()
 	// make sure an extant environment exists
-	span, _ := tracer.SpanFromContext(context.Background())
-	envs, err := nitromgr.DL.GetExtantQAEnvironments(span, rrd.Repo, rrd.PullRequest)
+	envs, err := nitromgr.DL.GetExtantQAEnvironments(context.Background(), rrd.Repo, rrd.PullRequest)
 	if err != nil {
 		perr(err)
 		return
@@ -492,8 +490,7 @@ func configTestDelete(cmd *cobra.Command, args []string) {
 		}
 	}()
 	// make sure an extant environment exists
-	span, _ := tracer.SpanFromContext(context.Background())
-	envs, err := nitromgr.DL.GetExtantQAEnvironments(span, rrd.Repo, rrd.PullRequest)
+	envs, err := nitromgr.DL.GetExtantQAEnvironments(context.Background(), rrd.Repo, rrd.PullRequest)
 	if err != nil {
 		perr(err)
 		return

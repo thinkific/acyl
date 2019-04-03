@@ -72,8 +72,7 @@ func (m *Manager) setloggername(ctx context.Context, name string) {
 	l := eventlogger.GetLogger(ctx)
 	l.SetEnvName(name)
 	if l.ID != uuid.UUID([16]byte{}) {
-		span, _ := tracer.SpanFromContext(ctx)
-		m.DL.AddEvent(span, name, "webhook event id: "+l.ID.String())
+		m.DL.AddEvent(ctx, name, "webhook event id: "+l.ID.String())
 	}
 }
 
@@ -105,8 +104,7 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 		cmsg = "<error getting commit message: " + err.Error() + ">"
 	}
 	var k8sns string
-	span, _ := tracer.SpanFromContext(ctx)
-	k8senv, err := m.DL.GetK8sEnv(span, env.env.Name)
+	k8senv, err := m.DL.GetK8sEnv(ctx, env.env.Name)
 	switch {
 	case err != nil:
 		k8sns = fmt.Sprintf("<error getting namespace: %v>", err)
@@ -121,7 +119,7 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 	if err := mergo.Merge(&env.rc.Notifications, m.DefaultNotifications); err != nil {
 		msg := "error merging notifications defaults: " + err.Error()
 		m.log(ctx, msg)
-		m.DL.AddEvent(span, env.env.Name, msg)
+		m.DL.AddEvent(ctx, env.env.Name, msg)
 	}
 	n := notifier.Notification{
 		Data: models.NotificationData{
@@ -148,12 +146,12 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 	if err := m.NF(func(msg string, args ...interface{}) { m.log(ctx, msg, args...) }, env.rc.Notifications, env.env.User).FanOut(n); err != nil {
 		msg := "error sending " + event.Key() + " notification: " + err.Error()
 		m.log(ctx, msg)
-		m.DL.AddEvent(span, env.env.Name, msg)
+		m.DL.AddEvent(ctx, env.env.Name, msg)
 	}
 }
 
 func (m *Manager) createPendingGithubStatus(ctx context.Context, rd *models.RepoRevisionData) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "create_pending_github_status")
+	span, ctx := tracer.StartSpanFromContext(ctx, "create_pending_github_status")
 	defer func() {
 		span.Finish(tracer.WithError(err))
 	}()
@@ -251,8 +249,7 @@ func (m *Manager) enforceGlobalLimit(ctx context.Context) error {
 		return nil
 	}
 	limit := int(m.GlobalLimit)
-	span, _ := tracer.SpanFromContext(ctx)
-	qae, err := m.DL.GetRunningQAEnvironments(span)
+	qae, err := m.DL.GetRunningQAEnvironments(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting running environments: %v", err)
 	}
@@ -319,7 +316,7 @@ func (m *Manager) generateNewEnv(ctx context.Context, rd *models.RepoRevisionDat
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	envs, err := m.DL.GetQAEnvironmentsByRepoAndPR(span, rd.Repo, rd.PullRequest)
+	envs, err := m.DL.GetQAEnvironmentsByRepoAndPR(ctx, rd.Repo, rd.PullRequest)
 	if err != nil {
 		return nil, errors.Wrap(err, "error checking for existing environment record")
 	}
@@ -329,17 +326,17 @@ func (m *Manager) generateNewEnv(ctx context.Context, rd *models.RepoRevisionDat
 		env = &envs[len(envs)-1]
 		m.log(ctx, "reusing environment db record: %v", env.Name)
 		// update relevant fields
-		if err := m.DL.SetQAEnvironmentStatus(span, env.Name, models.Spawned); err != nil {
+		if err := m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Spawned); err != nil {
 			return nil, errors.Wrap(err, "error setting environment status")
 		}
-		m.DL.AddEvent(span, env.Name, fmt.Sprintf("reusing environment record for webhook event %v", eventlogger.GetLogger(ctx).ID.String()))
-		if err := m.DL.SetQAEnvironmentRepoData(span, env.Name, rd); err != nil {
+		m.DL.AddEvent(ctx, env.Name, fmt.Sprintf("reusing environment record for webhook event %v", eventlogger.GetLogger(ctx).ID.String()))
+		if err := m.DL.SetQAEnvironmentRepoData(ctx, env.Name, rd); err != nil {
 			return nil, errors.Wrap(err, "error setting environment repo data")
 		}
-		if err := m.DL.SetQAEnvironmentCreated(span, env.Name, time.Now().UTC()); err != nil {
+		if err := m.DL.SetQAEnvironmentCreated(ctx, env.Name, time.Now().UTC()); err != nil {
 			return nil, errors.Wrap(err, "error setting environment created timestamp")
 		}
-		env, err = m.DL.GetQAEnvironment(span, env.Name)
+		env, err = m.DL.GetQAEnvironment(ctx, env.Name)
 		if err != nil {
 			return nil, errors.Wrap(err, "error getting updated, reused environment record")
 		}
@@ -363,7 +360,7 @@ func (m *Manager) generateNewEnv(ctx context.Context, rd *models.RepoRevisionDat
 			BaseBranch:   rd.BaseBranch,
 			SourceRef:    rd.SourceRef,
 		}
-		if err = m.DL.CreateQAEnvironment(span, env); err != nil {
+		if err = m.DL.CreateQAEnvironment(ctx, env); err != nil {
 			return nil, errors.Wrap(err, "error writing environment to db")
 		}
 	}
@@ -393,16 +390,16 @@ func (m *Manager) processEnvConfig(ctx context.Context, env *models.QAEnvironmen
 	if err != nil {
 		return ne, errors.Wrap(err, "error generating commit SHA map")
 	}
-	if err := m.DL.SetQAEnvironmentRefMap(span, env.Name, rm); err != nil {
+	if err := m.DL.SetQAEnvironmentRefMap(ctx, env.Name, rm); err != nil {
 		return ne, errors.Wrap(err, "error setting environment ref map")
 	}
-	if err := m.DL.SetQAEnvironmentCommitSHAMap(span, env.Name, csm); err != nil {
+	if err := m.DL.SetQAEnvironmentCommitSHAMap(ctx, env.Name, csm); err != nil {
 		return ne, errors.Wrap(err, "error setting environment commit sha map")
 	}
-	if err := m.DL.SetQAEnvironmentRepoData(span, env.Name, rd); err != nil {
+	if err := m.DL.SetQAEnvironmentRepoData(ctx, env.Name, rd); err != nil {
 		return ne, errors.Wrap(err, "error setting environment repo data")
 	}
-	env, err = m.DL.GetQAEnvironment(span, env.Name)
+	env, err = m.DL.GetQAEnvironment(ctx, env.Name)
 	if err != nil {
 		return ne, errors.Wrap(err, "error getting updated environment record")
 	}
@@ -448,7 +445,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 	newenv := &newEnv{env: env}
 	defer func() {
 		if err != nil {
-			if err := m.DL.SetQAEnvironmentStatus(span, env.Name, models.Failure); err != nil {
+			if err := m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Failure); err != nil {
 				m.log(ctx, "error setting environment status to failed: %v", err)
 			}
 			m.pushNotification(ctx, newenv, notifier.Failure, "error creating: "+err.Error())
@@ -511,8 +508,7 @@ var extantEnvsErr = errors.New("did not find exactly one extant environment")
 
 // getenv returns the extant environment for rd or error
 func (m *Manager) getenv(ctx context.Context, rd *models.RepoRevisionData) (*models.QAEnvironment, error) {
-	span, _ := tracer.SpanFromContext(ctx)
-	envs, err := m.DL.GetExtantQAEnvironments(span, rd.Repo, rd.PullRequest)
+	envs, err := m.DL.GetExtantQAEnvironments(ctx, rd.Repo, rd.PullRequest)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting extant environments")
 	}
@@ -535,14 +531,14 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		if err == extantEnvsErr {
 			// if there's no extant envs, set all associated with the repo & PR to status destroyed
 			m.log(ctx, "no extant envs for destroy request")
-			envs, err := m.DL.GetQAEnvironmentsByRepoAndPR(span, rd.Repo, rd.PullRequest)
+			envs, err := m.DL.GetQAEnvironmentsByRepoAndPR(ctx, rd.Repo, rd.PullRequest)
 			if err != nil {
 				return errors.Wrapf(nitroerrors.SystemError(err), "error getting environments associated with the repo (%v) and PR (%v)", rd.Repo, rd.PullRequest)
 			}
 			if len(envs) > 0 {
 				for _, e := range envs {
 					m.log(ctx, "setting %v to status destroyed", e.Name)
-					if err := m.DL.SetQAEnvironmentStatus(span, e.Name, models.Destroyed); err != nil {
+					if err := m.DL.SetQAEnvironmentStatus(ctx, e.Name, models.Destroyed); err != nil {
 						m.log(ctx, "error setting status to destroyed for environment: %v: %v", e.Name, err)
 					}
 				}
@@ -570,7 +566,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		break
 	}
 	m.pushNotification(ctx, ne, notifier.DestroyEnvironment, "")
-	k8senv, err := m.DL.GetK8sEnv(span, env.Name)
+	k8senv, err := m.DL.GetK8sEnv(ctx, env.Name)
 	if err != nil {
 		return errors.Wrap(nitroerrors.SystemError(err), "error getting k8s environment")
 	}
@@ -585,7 +581,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		return errors.Wrap(err, "error deleting namespace")
 	}
 	dnend()
-	err = m.DL.SetQAEnvironmentStatus(span, env.Name, models.Destroyed)
+	err = m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Destroyed)
 	return errors.Wrap(nitroerrors.SystemError(err), "error setting environment status")
 }
 
@@ -623,7 +619,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 	ne := &newEnv{env: env}
 	defer func() {
 		if err != nil {
-			if err := m.DL.SetQAEnvironmentStatus(span, env.Name, models.Failure); err != nil {
+			if err := m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Failure); err != nil {
 				m.log(ctx, "error setting environment status to failed: %v", err)
 			}
 			m.pushNotification(ctx, ne, notifier.Failure, err.Error())
@@ -638,7 +634,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 	if err != nil {
 		return "", errors.Wrap(err, "error processing environment config for update")
 	}
-	k8senv, err := m.DL.GetK8sEnv(span, env.Name)
+	k8senv, err := m.DL.GetK8sEnv(ctx, env.Name)
 	if err != nil {
 		return "", errors.Wrap(nitroerrors.SystemError(err), "error getting k8s environment")
 	}
@@ -671,7 +667,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 	if ne.rc.ConfigSignature() == sig && env.Status == models.Success {
 		m.log(ctx, "config signature matches previous successful environment: performing helm release upgrades")
 		m.MC.Increment(mpfx+"update_in_place", "triggering_repo:"+rd.Repo)
-		releases, err := m.DL.GetHelmReleasesForEnv(span, env.Name)
+		releases, err := m.DL.GetHelmReleasesForEnv(ctx, env.Name)
 		if err != nil {
 			return "", errors.Wrap(nitroerrors.SystemError(err), "error getting helm releases for env")
 		}

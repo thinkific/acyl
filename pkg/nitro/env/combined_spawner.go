@@ -3,8 +3,6 @@ package env
 import (
 	"context"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/meta"
@@ -30,8 +28,7 @@ func (cb *CombinedSpawner) log(ctx context.Context, msg string, args ...interfac
 
 // extantUsedNitro returns whether the extant environment was created using Nitro (otherwise assume Amino)
 func (cb *CombinedSpawner) extantUsedNitro(ctx context.Context, name string) (bool, error) {
-	span, _ := tracer.SpanFromContext(ctx)
-	k8senv, err := cb.DL.GetK8sEnv(span, name)
+	k8senv, err := cb.DL.GetK8sEnv(ctx, name)
 	if err != nil {
 		return false, errors.Wrap(err, "error getting k8s environment")
 	}
@@ -42,8 +39,7 @@ var errNoExtants = errors.New("no extant environments")
 
 // extantUsedNitroFromRDD determines if the extant environment was created using Nitro from the RDD payload
 func (cb *CombinedSpawner) extantUsedNitroFromRDD(ctx context.Context, rd models.RepoRevisionData) (bool, error) {
-	span, _ := tracer.SpanFromContext(ctx)
-	envs, err := cb.DL.GetExtantQAEnvironments(span, rd.Repo, rd.PullRequest)
+	envs, err := cb.DL.GetExtantQAEnvironments(ctx, rd.Repo, rd.PullRequest)
 	if err != nil {
 		return false, errors.Wrap(err, "error getting extant environments")
 	}
@@ -71,8 +67,7 @@ func (cb *CombinedSpawner) isAcylYMLV2(ctx context.Context, rd models.RepoRevisi
 }
 
 func (cb *CombinedSpawner) isAcylYMLV2FromName(ctx context.Context, name string) (bool, error) {
-	span, _ := tracer.SpanFromContext(ctx)
-	qa, err := cb.DL.GetQAEnvironment(span, name)
+	qa, err := cb.DL.GetQAEnvironment(ctx, name)
 	if err != nil {
 		return false, errors.Wrap(err, "error getting QA")
 	}

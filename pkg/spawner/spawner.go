@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -411,8 +409,7 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 			}
 		}
 	}()
-	span, _ := tracer.SpanFromContext(ctx)
-	qs.dl.AddEvent(span, name, fmt.Sprintf("building container: %v:%v", repo, ref))
+	qs.dl.AddEvent(ctx, name, fmt.Sprintf("building container: %v:%v", repo, ref))
 
 	defer qs.pmc.TimeContainerBuild(name, rd.Repo, rd.SourceBranch, repo, ref, &err)()
 
@@ -429,10 +426,10 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 			buildErr = err
 			errmsg := fmt.Sprintf("build failed: %v: %v: %v", repo, id, err)
 			qs.logger.Printf(errmsg)
-			qs.dl.AddEvent(span, name, errmsg)
+			qs.dl.AddEvent(ctx, name, errmsg)
 
 			if i != retries-1 {
-				qs.dl.AddEvent(span, name, fmt.Sprintf("retrying image build: %v", repo))
+				qs.dl.AddEvent(ctx, name, fmt.Sprintf("retrying image build: %v", repo))
 			}
 
 			continue
@@ -440,7 +437,7 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 
 		okmsg := fmt.Sprintf("build finished: %v: %v", repo, id)
 		qs.logger.Printf(okmsg)
-		qs.dl.AddEvent(span, name, okmsg)
+		qs.dl.AddEvent(ctx, name, okmsg)
 		buildErr = nil
 		break
 	}
@@ -546,8 +543,7 @@ func (qs *QASpawner) persistQARecord(ctx context.Context, name string, qat *QATy
 		RefMap:       rm,
 		CommitSHAMap: cm,
 	}
-	span, _ := tracer.SpanFromContext(ctx)
-	return qs.dl.CreateQAEnvironment(span, qae)
+	return qs.dl.CreateQAEnvironment(ctx, qae)
 }
 
 func (qs *QASpawner) createSpawningGithubStatus(rd *RepoRevisionData) error {
@@ -710,8 +706,7 @@ func (qs *QASpawner) Destroy(ctx context.Context, rd RepoRevisionData, reason QA
 
 // isDestroyed checks if the given QA environment has been marked as destroyed
 func (qs *QASpawner) isDestroyed(ctx context.Context, name string) bool {
-	span, _ := tracer.SpanFromContext(ctx)
-	qae, _ := qs.dl.GetQAEnvironmentConsistently(span, name)
+	qae, _ := qs.dl.GetQAEnvironmentConsistently(ctx, name)
 	return qae == nil || qae.Status == Destroyed
 }
 
@@ -741,8 +736,7 @@ func (qs *QASpawner) checkGlobalLimit(ctx context.Context, n uint) error {
 	if qs.globalLimit == 0 {
 		return nil
 	}
-	span, _ := tracer.SpanFromContext(ctx)
-	qae, err := qs.dl.GetRunningQAEnvironments(span)
+	qae, err := qs.dl.GetRunningQAEnvironments(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting running environments: %v", err)
 	}
@@ -804,28 +798,27 @@ func (qs *QASpawner) getMetadata(ctx context.Context, rd RepoRevisionData) (comm
 
 // updateQAMetadata updates the event metadata for an existing environment and returns the updated structure
 func (qs *QASpawner) updateQAMetadata(ctx context.Context, name string, status EnvironmentStatus, rd RepoRevisionData, cm map[string]string, rm map[string]string) (*QAEnvironment, error) {
-	span, _ := tracer.SpanFromContext(ctx)
-	err := qs.dl.SetQAEnvironmentRepoData(span, name, &rd)
+	err := qs.dl.SetQAEnvironmentRepoData(ctx, name, &rd)
 	if err != nil {
 		return nil, fmt.Errorf("error setting RepoData: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentCommitSHAMap(span, name, cm)
+	err = qs.dl.SetQAEnvironmentCommitSHAMap(ctx, name, cm)
 	if err != nil {
 		return nil, fmt.Errorf("error setting commit SHA map: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentRefMap(span, name, rm)
+	err = qs.dl.SetQAEnvironmentRefMap(ctx, name, rm)
 	if err != nil {
 		return nil, fmt.Errorf("error setting ref map: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentCreated(span, name, time.Now().UTC())
+	err = qs.dl.SetQAEnvironmentCreated(ctx, name, time.Now().UTC())
 	if err != nil {
 		return nil, fmt.Errorf("error setting created: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentStatus(span, name, status)
+	err = qs.dl.SetQAEnvironmentStatus(ctx, name, status)
 	if err != nil {
 		return nil, fmt.Errorf("error setting status: %v: %v", name, err)
 	}
-	qa, err := qs.dl.GetQAEnvironmentConsistently(span, name)
+	qa, err := qs.dl.GetQAEnvironmentConsistently(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("error getting QA environment: %v: %v", name, err)
 	}
@@ -838,8 +831,7 @@ func (qs *QASpawner) genUniqueName(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("error generating name: %v", err)
 		}
-		span, _ := tracer.SpanFromContext(ctx)
-		qa, err := qs.dl.GetQAEnvironmentConsistently(span, name)
+		qa, err := qs.dl.GetQAEnvironmentConsistently(ctx, name)
 		if err != nil {
 			return "", fmt.Errorf("error getting QA environment: %v", err)
 		}
@@ -859,8 +851,7 @@ func (qs *QASpawner) ensureOne(ctx context.Context, status EnvironmentStatus, rd
 	nrseg := newrelic.StartSegment(txn, "createEnsureOne")
 	defer nrseg.End()
 
-	span, _ := tracer.SpanFromContext(ctx)
-	qas, err := qs.dl.GetQAEnvironmentsByRepoAndPR(span, rd.Repo, rd.PullRequest)
+	qas, err := qs.dl.GetQAEnvironmentsByRepoAndPR(ctx, rd.Repo, rd.PullRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error getting environments by repo and PR: %v", err)
 	}
@@ -884,7 +875,7 @@ func (qs *QASpawner) ensureOne(ctx context.Context, status EnvironmentStatus, rd
 		if err != nil {
 			return nil, fmt.Errorf("error persisting QA record: %v", err)
 		}
-		qa, err = qs.dl.GetQAEnvironmentConsistently(span, name)
+		qa, err = qs.dl.GetQAEnvironmentConsistently(ctx, name)
 		if err != nil {
 			return nil, fmt.Errorf("error getting new QA record: %v", err)
 		}
@@ -995,8 +986,7 @@ func (qs *QASpawner) create(ctx context.Context, rd RepoRevisionData, updating b
 				qs.logger.Printf("error setting Github failure status: %v", err2)
 			}
 			if name != "" && !qs.isDestroyed(ctx, name) {
-				span, _ := tracer.SpanFromContext(ctx)
-				err2 = qs.dl.SetQAEnvironmentStatus(span, name, Failure)
+				err2 = qs.dl.SetQAEnvironmentStatus(ctx, name, Failure)
 				if err2 != nil {
 					qs.logger.Printf("error setting environment to failed: %v", err2)
 				}
@@ -1078,20 +1068,18 @@ func (qs *QASpawner) destroyQA(ctx context.Context, qae *QAEnvironment) error {
 		qs.logger.Printf("error terminating Amino environment: %v", err)
 	}
 
-	span, _ := tracer.SpanFromContext(ctx)
-	return qs.dl.SetQAEnvironmentStatus(span, qae.Name, Destroyed)
+	return qs.dl.SetQAEnvironmentStatus(ctx, qae.Name, Destroyed)
 }
 
 func (qs *QASpawner) destroy(ctx context.Context, rd RepoRevisionData, reason QADestroyReason, notify bool) (result []string, resultError error) {
 	defer func() { qs.omc.Operation("destroy", "", rd.Repo, rd.BaseBranch, resultError) }()
-	span, _ := tracer.SpanFromContext(ctx)
-	qas, err := qs.dl.GetExtantQAEnvironments(span, rd.Repo, rd.PullRequest)
+	qas, err := qs.dl.GetExtantQAEnvironments(ctx, rd.Repo, rd.PullRequest)
 	if err != nil {
 		return nil, err
 	}
 	names := []string{}
 	for _, qae := range qas {
-		qae, err := qs.dl.GetQAEnvironmentConsistently(span, qae.Name)
+		qae, err := qs.dl.GetQAEnvironmentConsistently(ctx, qae.Name)
 		if err != nil {
 			return names, fmt.Errorf("error getting QA environment: %v", err)
 		}
@@ -1139,16 +1127,15 @@ func (qs *QASpawner) DestroyExplicitly(ctx context.Context, qa *QAEnvironment, r
 }
 
 func (qs *QASpawner) finalize(ctx context.Context, name string, state EnvironmentStatus, status string, desc string, failureMessage string) error {
-	span, _ := tracer.SpanFromContext(ctx)
-	err := qs.dl.SetQAEnvironmentStatus(span, name, state)
+	err := qs.dl.SetQAEnvironmentStatus(ctx, name, state)
 	if err != nil {
 		return err
 	}
-	err = qs.dl.AddEvent(span, name, fmt.Sprintf("marked as %v", state.String()))
+	err = qs.dl.AddEvent(ctx, name, fmt.Sprintf("marked as %v", state.String()))
 	if err != nil {
 		qs.logger.Printf("error adding event: %v: %v", name, err)
 	}
-	qa, err := qs.dl.GetQAEnvironment(span, name)
+	qa, err := qs.dl.GetQAEnvironment(ctx, name)
 	if err != nil {
 		return err
 	}
