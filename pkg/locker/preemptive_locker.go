@@ -21,6 +21,8 @@ var (
 	defaultLockDelay    = 15 * time.Second
 )
 
+const consulServiceName = "acyl.consul"
+
 // PreemptedError is returned when a Lock() operation is preempted
 type PreemptedError interface {
 	Preempted() bool
@@ -125,7 +127,7 @@ func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interfac
 // Lock locks the lock and returns a channel used to signal if the lock should be released ASAP. If the lock is currently in use, this method will block until the lock is released. If caller is preemptied while waiting for the lock to be released,
 // an error is returned.
 func (p *PreemptiveLocker) Lock(ctx context.Context) (_ <-chan interface{}, err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "lock", tracer.ServiceName("consul"))
+	span, ctx := tracer.StartSpanFromContext(ctx, "lock", tracer.ServiceName(consulServiceName))
 	defer func() {
 		span.Finish(tracer.WithError(err))
 	}()
@@ -191,7 +193,7 @@ func (p *PreemptiveLocker) lockWithID(ctx context.Context, id string) (<-chan in
 
 // Release releases the lock
 func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "release", tracer.ServiceName("consul"))
+	span, ctx := tracer.StartSpanFromContext(ctx, "release", tracer.ServiceName(consulServiceName))
 	p.w.Stop()
 	defer func() {
 		err = p.l.Unlock() // always unlock
