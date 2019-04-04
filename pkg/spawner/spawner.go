@@ -140,43 +140,43 @@ func (matcher refMatcher) getRefForOtherRepo(rd *RepoRevisionData, override stri
 
 // QASpawner is an object that can manage environments in AWS
 type QASpawner struct {
-	dl                DataLayer
-	ng                NameGenerator
-	rc                RepoClient
-	lp                PreemptiveLockProvider
-	fa                []string
-	caddr             string
-	cn                ChatNotifier
-	pmc               ProvisioningMetricsCollector
-	omc               OperationMetricsCollector
-	nrapp             newrelic.Application
-	logger            *log.Logger
-	aminoBackend      AcylBackend
-	aminoConfig       *AminoConfig
-	typepath          string
-	globalLimit       uint
-	hostnameTemplate  string
-	furanClientDDName string
+	dl                       DataLayer
+	ng                       NameGenerator
+	rc                       RepoClient
+	lp                       PreemptiveLockProvider
+	fa                       []string
+	caddr                    string
+	cn                       ChatNotifier
+	pmc                      ProvisioningMetricsCollector
+	omc                      OperationMetricsCollector
+	nrapp                    newrelic.Application
+	logger                   *log.Logger
+	aminoBackend             AcylBackend
+	aminoConfig              *AminoConfig
+	typepath                 string
+	globalLimit              uint
+	hostnameTemplate         string
+	datadogServiceNamePrefix string
 }
 
 // NewQASpawner returns a new QASpawner instance with the specified logger and datalayer
-func NewQASpawner(logger *log.Logger, dl DataLayer, ng NameGenerator, rc RepoClient, lp PreemptiveLockProvider, furanAddrs []string, consulAddr string, cn ChatNotifier, omc MetricsCollector, pmc MetricsCollector, nrapp newrelic.Application, awsCreds *AWSCreds, awsConfig *AWSConfig, backendConfig *BackendConfig, ac *AminoConfig, typepath string, globalLimit uint, hostnameTemplate string, furanClientDDName string) (*QASpawner, error) {
+func NewQASpawner(logger *log.Logger, dl DataLayer, ng NameGenerator, rc RepoClient, lp PreemptiveLockProvider, furanAddrs []string, consulAddr string, cn ChatNotifier, omc MetricsCollector, pmc MetricsCollector, nrapp newrelic.Application, awsCreds *AWSCreds, awsConfig *AWSConfig, backendConfig *BackendConfig, ac *AminoConfig, typepath string, globalLimit uint, hostnameTemplate string, datadogServiceNamePrefix string) (*QASpawner, error) {
 	qs := &QASpawner{
-		logger:            logger,
-		dl:                dl,
-		ng:                ng,
-		rc:                rc,
-		lp:                lp,
-		fa:                furanAddrs,
-		caddr:             consulAddr,
-		cn:                cn,
-		pmc:               pmc,
-		omc:               omc,
-		nrapp:             nrapp,
-		typepath:          typepath,
-		globalLimit:       globalLimit,
-		hostnameTemplate:  hostnameTemplate,
-		furanClientDDName: furanClientDDName,
+		logger:                   logger,
+		dl:                       dl,
+		ng:                       ng,
+		rc:                       rc,
+		lp:                       lp,
+		fa:                       furanAddrs,
+		caddr:                    consulAddr,
+		cn:                       cn,
+		pmc:                      pmc,
+		omc:                      omc,
+		nrapp:                    nrapp,
+		typepath:                 typepath,
+		globalLimit:              globalLimit,
+		hostnameTemplate:         hostnameTemplate,
+		datadogServiceNamePrefix: datadogServiceNamePrefix,
 	}
 	conn, err := grpc.Dial(backendConfig.AminoAddr, grpc.WithInsecure())
 	if err != nil {
@@ -376,7 +376,7 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 		fcopts.SelectionStrategy = furan.RandomNodeSelection
 		fcopts.ServiceName = "furan"
 	}
-	fc, err := furan.NewFuranClient(fcopts, qs.logger, qs.furanClientDDName)
+	fc, err := furan.NewFuranClient(fcopts, qs.logger, qs.datadogServiceNamePrefix)
 	if err != nil {
 		done <- err
 	}

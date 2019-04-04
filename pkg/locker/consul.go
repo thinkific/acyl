@@ -20,8 +20,9 @@ type LockProvider interface {
 
 // ConsulLocker uses Consul to provide a lock service
 type ConsulLocker struct {
-	pfx string
-	c   *consul.Client
+	pfx                string
+	c                  *consul.Client
+	datadogServiceName string
 }
 
 // Lock describes an object representing a held lock that can be released
@@ -52,7 +53,7 @@ func (cl *ConsulLock) Release() error {
 
 // NewConsulLocker returns a ConsulLocker using the Consul agent at caddr and using
 // pfx as the lock name prefix
-func NewConsulLocker(caddr, pfx string) (*ConsulLocker, error) {
+func NewConsulLocker(caddr, pfx, datadogServiceNamePrefix string) (*ConsulLocker, error) {
 	c, err := consul.NewClient(&consul.Config{
 		Address: caddr,
 		Scheme:  "http",
@@ -61,8 +62,9 @@ func NewConsulLocker(caddr, pfx string) (*ConsulLocker, error) {
 		return nil, err
 	}
 	return &ConsulLocker{
-		c:   c,
-		pfx: pfx,
+		c:                  c,
+		pfx:                pfx,
+		datadogServiceName: datadogServiceNamePrefix + ".consul",
 	}, nil
 }
 
@@ -95,7 +97,7 @@ func (cl *ConsulLocker) getlock(key string, ttl string) (Lock, error) {
 
 // NewPreemptiveLocker creates a new PreemptiveLocker for the specified repo and pr
 func (cl *ConsulLocker) NewPreemptiveLocker(repo, pr string, opts PreemptiveLockerOpts) *PreemptiveLocker {
-	return NewPreemptiveLocker(NewConsulLockFactory(cl.c), cl.c.KV(), cl.c.Session(), fmt.Sprintf("%v%v/%v/lock", cl.pfx, repo, pr), opts)
+	return NewPreemptiveLocker(NewConsulLockFactory(cl.c), cl.c.KV(), cl.c.Session(), fmt.Sprintf("%v%v/%v/lock", cl.pfx, repo, pr), opts, cl.datadogServiceName)
 }
 
 // AcquireLock attempts to acquire a lock for a specific repo/PR combination or

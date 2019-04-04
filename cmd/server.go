@@ -173,7 +173,7 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error opening wordnet file: %v", err)
 	}
 
-	lp, err := locker.NewConsulLocker(consulConfig.Addr, consulConfig.LockPrefix)
+	lp, err := locker.NewConsulLocker(consulConfig.Addr, consulConfig.LockPrefix, datadogServiceName)
 	if err != nil {
 		log.Fatalf("error creating Consul lock service: %v", err)
 	}
@@ -183,8 +183,7 @@ func server(cmd *cobra.Command, args []string) {
 	cn := slacknotifier.NewSlackNotifier(slackConfig.Channel, slackapi, mapper)
 
 	var envspawner spawner.EnvironmentSpawner
-	furanClientDDName := datadogServiceName + ".furan-client"
-	es, err := spawner.NewQASpawner(logger, dl, ng, rc, lp, serverConfig.FuranAddrs, consulConfig.Addr, cn, mc, mc, nrapp, &awsCreds, &awsConfig, &backendConfig, &aminoConfig, githubConfig.TypePath, serverConfig.GlobalEnvironmentLimit, serverConfig.HostnameTemplate, furanClientDDName)
+	es, err := spawner.NewQASpawner(logger, dl, ng, rc, lp, serverConfig.FuranAddrs, consulConfig.Addr, cn, mc, mc, nrapp, &awsCreds, &awsConfig, &backendConfig, &aminoConfig, githubConfig.TypePath, serverConfig.GlobalEnvironmentLimit, serverConfig.HostnameTemplate, datadogServiceName)
 	if err != nil {
 		log.Fatalf("error creating spawner: %s", err)
 	}
@@ -195,7 +194,7 @@ func server(cmd *cobra.Command, args []string) {
 		if err != nil {
 			log.Fatalf("error setting up nitro metrics collector: %v", err)
 		}
-		fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, consulConfig.Addr, dl, mc, os.Stderr, furanClientDDName)
+		fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, consulConfig.Addr, dl, mc, os.Stderr, datadogServiceName)
 		if err != nil {
 			log.Fatalf("error getting Furan image builder backend: %v", err)
 		}

@@ -38,16 +38,17 @@ type PreemptedError interface {
 // - Client C's invocation of Lock() returns successfully
 //
 type PreemptiveLocker struct {
-	c          LockFactory
-	kv         ConsulKV
-	cs         ConsulSession
-	l          PreemptableLock
-	w          *keyWatcher
-	lockKey    string
-	pendingKey string
-	id         string
-	sessionid  string
-	opts       PreemptiveLockerOpts
+	c                  LockFactory
+	kv                 ConsulKV
+	cs                 ConsulSession
+	l                  PreemptableLock
+	w                  *keyWatcher
+	lockKey            string
+	pendingKey         string
+	id                 string
+	sessionid          string
+	opts               PreemptiveLockerOpts
+	datadogServiceName string
 }
 
 // LockFactory describes an object capable of creating a Consul lock
@@ -99,7 +100,7 @@ type PreemptiveLockerOpts struct {
 }
 
 // NewPreemptiveLocker returns a new preemptive locker or an error
-func NewPreemptiveLocker(factory LockFactory, kv ConsulKV, cs ConsulSession, key string, opts PreemptiveLockerOpts) *PreemptiveLocker {
+func NewPreemptiveLocker(factory LockFactory, kv ConsulKV, cs ConsulSession, key string, opts PreemptiveLockerOpts, datadogServiceName string) *PreemptiveLocker {
 	if opts.SessionTTL == 0 {
 		opts.SessionTTL = defaultSessionTTL
 	}
@@ -110,13 +111,14 @@ func NewPreemptiveLocker(factory LockFactory, kv ConsulKV, cs ConsulSession, key
 		opts.LockDelay = defaultLockDelay
 	}
 	return &PreemptiveLocker{
-		c:          factory,
-		kv:         kv,
-		cs:         cs,
-		w:          newKeyWatcher(kv, opts.LockWait),
-		lockKey:    key,
-		pendingKey: fmt.Sprintf("%s/pending", key),
-		opts:       opts,
+		c:                  factory,
+		kv:                 kv,
+		cs:                 cs,
+		w:                  newKeyWatcher(kv, opts.LockWait),
+		lockKey:            key,
+		pendingKey:         fmt.Sprintf("%s/pending", key),
+		opts:               opts,
+		datadogServiceName: datadogServiceName,
 	}
 }
 
@@ -127,7 +129,7 @@ func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interfac
 // Lock locks the lock and returns a channel used to signal if the lock should be released ASAP. If the lock is currently in use, this method will block until the lock is released. If caller is preemptied while waiting for the lock to be released,
 // an error is returned.
 func (p *PreemptiveLocker) Lock(ctx context.Context) (_ <-chan interface{}, err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "lock", tracer.ServiceName(consulServiceName))
+	span, ctx := tracer.StartSpanFromContext(ctx, "lock", tracer.ServiceName(p.datadogServiceName))
 	defer func() {
 		span.Finish(tracer.WithError(err))
 	}()
@@ -193,7 +195,7 @@ func (p *PreemptiveLocker) lockWithID(ctx context.Context, id string) (<-chan in
 
 // Release releases the lock
 func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "release", tracer.ServiceName(consulServiceName))
+	span, ctx := tracer.StartSpanFromContext(ctx, "release", tracer.ServiceName(p.datadogServiceName))
 	p.w.Stop()
 	defer func() {
 		err = p.l.Unlock() // always unlock
