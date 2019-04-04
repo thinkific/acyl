@@ -225,7 +225,7 @@ func (p *PGLayer) GetRunningQAEnvironments(ctx context.Context) ([]QAEnvironment
 // GetQAEnvironmentsByRepoAndPR teturns all environments which have matching repo AND pull request.
 func (p *PGLayer) GetQAEnvironmentsByRepoAndPR(ctx context.Context, repo string, pr uint) ([]QAEnvironment, error) {
 	if isCancelled(ctx.Done()) {
-		return nil, errors.Wrap(ctx.Err(), "error getting qa environments by Repo and PR")
+		return nil, errors.Wrap(ctx.Err(), "error getting qa environments by repo and pr")
 	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE repo = $1 AND pull_request = $2;`, repo, pr))
 }
@@ -303,7 +303,7 @@ func (p *PGLayer) SetQAEnvironmentRepoData(ctx context.Context, name string, rep
 		return fmt.Errorf("all fields of RepoRevisionData must be supplied")
 	}
 	if isCancelled(ctx.Done()) {
-		return errors.Wrap(ctx.Err(), "error getting qa environments by source branch")
+		return errors.Wrap(ctx.Err(), "error setting qa environment repo data")
 	}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET repo = $1, source_sha = $2, pull_request = $3, base_sha = $4, source_branch = $5, base_branch = $6, username = $7 WHERE name = $8;`, repo.Repo, repo.SourceSHA, repo.PullRequest, repo.BaseSHA, repo.SourceBranch, repo.BaseBranch, repo.User, name)
 	return err
@@ -312,7 +312,7 @@ func (p *PGLayer) SetQAEnvironmentRepoData(ctx context.Context, name string, rep
 // SetQAEnvironmentRefMap sets a specific QAEnvironment's RefMap.
 func (p *PGLayer) SetQAEnvironmentRefMap(ctx context.Context, name string, refMap RefMap) error {
 	if isCancelled(ctx.Done()) {
-		return errors.Wrap(ctx.Err(), "error adding event")
+		return errors.Wrap(ctx.Err(), "error setting qa environment ref map")
 	}
 	qae := models.QAEnvironment{RefMap: refMap}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET ref_map = $1 WHERE name = $2;`, qae.RefMapHStore(), name)
@@ -322,7 +322,7 @@ func (p *PGLayer) SetQAEnvironmentRefMap(ctx context.Context, name string, refMa
 // SetQAEnvironmentCommitSHAMap sets a specific QAEnvironment's commitSHAMap.
 func (p *PGLayer) SetQAEnvironmentCommitSHAMap(ctx context.Context, name string, commitSHAMap RefMap) error {
 	if isCancelled(ctx.Done()) {
-		return errors.Wrap(ctx.Err(), "error adding event")
+		return errors.Wrap(ctx.Err(), "error setting qa environment commit sha map")
 	}
 	qae := models.QAEnvironment{CommitSHAMap: commitSHAMap}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET commit_sha_map = $1 WHERE name = $2;`, qae.CommitSHAMapHStore(), name)
@@ -332,7 +332,7 @@ func (p *PGLayer) SetQAEnvironmentCommitSHAMap(ctx context.Context, name string,
 // SetQAEnvironmentCreated sets a specific QAEnvironment's created time.
 func (p *PGLayer) SetQAEnvironmentCreated(ctx context.Context, name string, created time.Time) error {
 	if isCancelled(ctx.Done()) {
-		return errors.Wrap(ctx.Err(), "error adding event")
+		return errors.Wrap(ctx.Err(), "error setting qa environment creation time")
 	}
 	created = created.Truncate(1 * time.Microsecond)
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET created = $1 WHERE name = $2;`, created, name)
@@ -343,7 +343,7 @@ func (p *PGLayer) SetQAEnvironmentCreated(ctx context.Context, name string, crea
 // are not status Destroyed
 func (p *PGLayer) GetExtantQAEnvironments(ctx context.Context, repo string, pr uint) ([]QAEnvironment, error) {
 	if isCancelled(ctx.Done()) {
-		return nil, errors.Wrap(ctx.Err(), "error adding event")
+		return nil, errors.Wrap(ctx.Err(), "error getting extant qa environments")
 	}
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` FROM qa_environments WHERE repo = $1 AND pull_request = $2 AND status != $3 AND status != $4;`, repo, pr, models.Destroyed, models.Failure))
 }
@@ -351,7 +351,7 @@ func (p *PGLayer) GetExtantQAEnvironments(ctx context.Context, repo string, pr u
 // SetAminoEnvironmentID sets the Amino environment ID for an environment.
 func (p *PGLayer) SetAminoEnvironmentID(ctx context.Context, name string, did int) error {
 	if isCancelled(ctx.Done()) {
-		return errors.Wrap(ctx.Err(), "error adding event")
+		return errors.Wrap(ctx.Err(), "error setting amino environment id")
 	}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET amino_environment_id = $1 WHERE name = $2;`, did, name)
 	return err
@@ -361,7 +361,7 @@ func (p *PGLayer) SetAminoEnvironmentID(ctx context.Context, name string, did in
 // environment.
 func (p *PGLayer) SetAminoServiceToPort(ctx context.Context, name string, serviceToPort map[string]int64) error {
 	if isCancelled(ctx.Done()) {
-		return errors.Wrap(ctx.Err(), "error adding event")
+		return errors.Wrap(ctx.Err(), "error setting amino service to port")
 	}
 	qae := models.QAEnvironment{AminoServiceToPort: serviceToPort}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET amino_service_to_port = $1 WHERE name = $2;`, qae.AminoServiceToPortHStore(), name)
@@ -372,7 +372,7 @@ func (p *PGLayer) SetAminoServiceToPort(ctx context.Context, name string, servic
 // environment.
 func (p *PGLayer) SetAminoKubernetesNamespace(ctx context.Context, name string, namespace string) error {
 	if isCancelled(ctx.Done()) {
-		return errors.Wrap(ctx.Err(), "error adding event")
+		return errors.Wrap(ctx.Err(), "error setting amino k8s namespace")
 	}
 	_, err := p.db.ExecContext(ctx, `UPDATE qa_environments SET amino_kubernetes_namespace = $1 WHERE name = $2;`, namespace, name)
 	return err
@@ -399,7 +399,7 @@ func (p *PGLayer) AddEvent(ctx context.Context, name string, msg string) error {
 // Multiple parameters are combined with implicit AND.
 func (p *PGLayer) Search(ctx context.Context, opts models.EnvSearchParameters) ([]QAEnvironment, error) {
 	if isCancelled(ctx.Done()) {
-		return nil, errors.Wrap(ctx.Err(), "error adding event")
+		return nil, errors.Wrap(ctx.Err(), "error searching for environments")
 	}
 	if opts.Pr != 0 && opts.Repo == "" {
 		return nil, fmt.Errorf("search by PR requires repo name")
@@ -453,7 +453,7 @@ func (p *PGLayer) Search(ctx context.Context, opts models.EnvSearchParameters) (
 // The returned slice is in descending order of recency.
 func (p *PGLayer) GetMostRecent(ctx context.Context, n uint) ([]QAEnvironment, error) {
 	if isCancelled(ctx.Done()) {
-		return nil, errors.Wrap(ctx.Err(), "error adding event")
+		return nil, errors.Wrap(ctx.Err(), "error getting most recent")
 	}
 	q := `SELECT ` + models.QAEnvironment{}.Columns() + fmt.Sprintf(` from qa_environments WHERE created >= (current_timestamp - interval '%v days');`, n)
 	return p.collectRows(p.db.QueryContext(ctx, q))
