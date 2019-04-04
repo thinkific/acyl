@@ -4,7 +4,6 @@
 replicaCount: 8
 maxSurge: 25%
 maxUnavailable: 25%
-env: qa
 image:
   repository: quay.io/dollarshaveclub/furan
   tag: master
@@ -41,9 +40,6 @@ consulAddr: "consul:8500"
 
 ramdisk:
   enabled: false
-
-datadog:
-  overrideDefaultTags: true
 
 dnsPolicy: ClusterFirst
 dnsConfig: {}

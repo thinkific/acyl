@@ -170,6 +170,7 @@ func server(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("error creating key value orchestrator: %v", err)
 	}
+	datadogGrpcServiceName := datadogServiceName + ".grpc"
 	grpcSvr := grpc.NewGRPCServer(imageBuilder, dbConfig.Datalayer, kafkaConfig.Manager, kafkaConfig.Manager, mc, kvo, serverConfig.Queuesize, serverConfig.Concurrency, logger, datadogGrpcServiceName)
 	go grpcSvr.ListenRPC(serverConfig.GRPCAddr, serverConfig.GRPCPort)
 

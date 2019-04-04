@@ -293,7 +293,7 @@ func (ib *ImageBuilder) Build(ctx context.Context, req *lib.BuildRequest, id goc
 	owner := rl[0]
 	repo := rl[1]
 	if buildcontext.IsCancelled(ctx.Done()) {
-		return "", fmt.Errorf("build was cancelled: %v", ctx.Err())
+		return "", errors.UserError(fmt.Sprintf("build was cancelled: %v", ctx.Err()))
 	}
 	ib.logf(ctx, "fetching github repo: %v", req.Build.GithubRepo)
 	contents, err := ib.gf.Get(parentSpan, owner, repo, req.Build.Ref)
@@ -321,7 +321,7 @@ func (ib *ImageBuilder) Build(ctx context.Context, req *lib.BuildRequest, id goc
 
 func (ib *ImageBuilder) saveOutput(ctx context.Context, action actionType, events []lib.BuildEvent) error {
 	if buildcontext.IsCancelled(ctx.Done()) {
-		return fmt.Errorf("build was cancelled: %v", ctx.Err())
+		return errors.UserError(fmt.Sprintf("build was cancelled: %v", ctx.Err()))
 	}
 	id, ok := buildcontext.BuildIDFromContext(ctx)
 	if !ok {
@@ -376,9 +376,6 @@ const (
 // doBuild executes the archive file GET and triggers the Docker build
 func (ib *ImageBuilder) dobuild(ctx context.Context, req *lib.BuildRequest, rbi *RepoBuildData) (_ string, err error) {
 	var imageid string
-	if buildcontext.IsCancelled(ctx.Done()) {
-		return imageid, fmt.Errorf("build was cancelled: %v", ctx.Err())
-	}
 	id, ok := buildcontext.BuildIDFromContext(ctx)
 	if !ok {
 		return imageid, fmt.Errorf("build id missing from context")
@@ -399,6 +396,9 @@ func (ib *ImageBuilder) dobuild(ctx context.Context, req *lib.BuildRequest, rbi 
 	}()
 	ibr, err := ib.c.ImageBuild(ctx, rbi.Context, opts)
 	if err != nil {
+		if buildcontext.IsCancelled(ctx.Done()) {
+			return imageid, errors.UserError(fmt.Sprintf("build was cancelled: %v", ctx.Err()))
+		}
 		dockerBuildStartError := pkgerror.Wrapf(err, "error starting build: ")
 		if strings.HasPrefix(err.Error(), malformedDockerfileEventPrefix) {
 			dockerBuildStartError = errors.UserError(fmt.Sprintf("malformed dockerfile: %v", err))
@@ -408,22 +408,28 @@ func (ib *ImageBuilder) dobuild(ctx context.Context, req *lib.BuildRequest, rbi 
 	output, err := ib.monitorDockerAction(ctx, ibr.Body, Build)
 	err2 := ib.saveOutput(ctx, Build, output) // we want to save output even if error
 	if err != nil {
+		var s3LogURL string
+		var saveLogError error
+		if buildcontext.IsCancelled(ctx.Done()) {
+			return imageid, errors.UserError(fmt.Sprintf("build was cancelled: %v", ctx.Err()))
+		}
 		le := output[len(output)-1]
-		dockerBuildError := fmt.Errorf("build failed: %v, %(v) ", err, le.Message)
+		dockerBuildError := fmt.Errorf("build failed: %v, (%v) ", err, le.Message)
 		if le.EventError.ErrorType == lib.BuildEventError_FATAL && ib.s3errorcfg.PushToS3 {
 			ib.logf(ctx, "pushing failed build log to S3: %v", id.String())
-			loc, err3 := ib.saveEventLogToS3(ctx, req.Build.GithubRepo, req.Build.Ref, Build, output)
-			if err3 != nil {
-				ib.logf(ctx, "error saving build events to S3: %v", err3)
+			s3LogURL, saveLogError = ib.saveEventLogToS3(ctx, req.Build.GithubRepo, req.Build.Ref, Build, output)
+			if saveLogError != nil {
+				ib.logf(ctx, "error saving build events to S3: %v", saveLogError)
 			}
-			ib.logf(ctx, "build failed: log saved to: %v", loc)
+			dockerBuildError = fmt.Errorf("build failed: %v, link to logs: %v", err, s3LogURL)
+			ib.logf(ctx, "build failed: log saved to: %v", s3LogURL)
 		}
 		var errorEvent dockerStreamEvent
 		if err := json.Unmarshal([]byte(le.Message), &errorEvent); err != nil {
 			ib.logger.Printf("error unmarshaling final build event: %v", err)
 		}
 		if errorEvent.ErrorDetail.Code != 0 {
-			dockerBuildError = errors.UserError(le.Message)
+			dockerBuildError = errors.UserError(fmt.Sprintf("last event message: %v, link to logs: %v", le.Message, s3LogURL))
 		}
 		return imageid, dockerBuildError
 	}
@@ -453,7 +459,7 @@ func (ib *ImageBuilder) dobuild(ctx context.Context, req *lib.BuildRequest, rbi 
 
 func (ib *ImageBuilder) writeDockerImageSizeMetrics(ctx context.Context, imageid string, repo string, ref string) error {
 	if buildcontext.IsCancelled(ctx.Done()) {
-		return fmt.Errorf("build was cancelled: %v", ctx.Err())
+		return errors.UserError(fmt.Sprintf("build was cancelled: %v", ctx.Err()))
 	}
 	id, ok := buildcontext.BuildIDFromContext(ctx)
 	if !ok {
@@ -495,10 +501,10 @@ func (ib *ImageBuilder) monitorDockerAction(ctx context.Context, rc io.ReadClose
 	output := []lib.BuildEvent{}
 	var bevent *lib.BuildEvent
 	for {
-		if buildcontext.IsCancelled(ctx.Done()) {
-			return output, fmt.Errorf("action was cancelled: %v", ctx.Err())
-		}
 		line, err := rdr.ReadBytes('\n')
+		if buildcontext.IsCancelled(ctx.Done()) {
+			return output, errors.UserError(fmt.Sprintf("action was cancelled: %v", ctx.Err()))
+		}
 		if err != nil {
 			if err == io.EOF {
 				return output, nil
@@ -532,7 +538,7 @@ func (ib *ImageBuilder) monitorDockerAction(ctx context.Context, rc io.ReadClose
 // CleanImage cleans up the built image after it's been pushed
 func (ib *ImageBuilder) CleanImage(ctx context.Context, imageid string) (err error) {
 	if buildcontext.IsCancelled(ctx.Done()) {
-		return fmt.Errorf("clean was cancelled: %v", ctx.Err())
+		return errors.UserError(fmt.Sprintf("clean was cancelled: %v", ctx.Err()))
 	}
 	id, ok := buildcontext.BuildIDFromContext(ctx)
 	if !ok {
@@ -566,7 +572,7 @@ func (ib *ImageBuilder) CleanImage(ctx context.Context, imageid string) (err err
 // been built successfully
 func (ib *ImageBuilder) PushBuildToRegistry(ctx context.Context, req *lib.BuildRequest) (err error) {
 	if buildcontext.IsCancelled(ctx.Done()) {
-		return fmt.Errorf("push was cancelled: %v", ctx.Err())
+		return errors.UserError(fmt.Sprintf("push was cancelled: %v", ctx.Err()))
 	}
 	id, ok := buildcontext.BuildIDFromContext(ctx)
 	if !ok {
@@ -617,10 +623,10 @@ func (ib *ImageBuilder) PushBuildToRegistry(ctx context.Context, req *lib.BuildR
 		}
 	}()
 	for _, name := range inames {
-		if buildcontext.IsCancelled(ctx.Done()) {
-			return fmt.Errorf("push was cancelled: %v", ctx.Err())
-		}
 		ipr, err := ib.c.ImagePush(ctx, name, opts)
+		if buildcontext.IsCancelled(ctx.Done()) {
+			return errors.UserError(fmt.Sprintf("push was cancelled: %v", ctx.Err()))
+		}
 		if err != nil {
 			return fmt.Errorf("error initiating registry push: %v", err)
 		}
@@ -655,7 +661,7 @@ func (ib *ImageBuilder) getCommitSHA(ctx context.Context, repo, ref string) (str
 // PushBuildToS3 exports and uploads the already built image to the configured S3 bucket/key
 func (ib *ImageBuilder) PushBuildToS3(ctx context.Context, imageid string, req *lib.BuildRequest) (err error) {
 	if buildcontext.IsCancelled(ctx.Done()) {
-		return fmt.Errorf("push was cancelled: %v", ctx.Err())
+		return errors.UserError(fmt.Sprintf("push was cancelled: %v", ctx.Err()))
 	}
 	csha, err := ib.getCommitSHA(ctx, req.Build.GithubRepo, req.Build.Ref)
 	if err != nil {

@@ -71,9 +71,9 @@ type furanNode struct {
 
 // NewFuranClient takes a Consul service name and returns a client which connects
 // to a randomly chosen Furan host and uses the optional logger
-func NewFuranClient(opts *DiscoveryOptions, logger *log.Logger, datadogServiceName string) (*FuranClient, error) {
+func NewFuranClient(opts *DiscoveryOptions, logger *log.Logger, datadogServiceNamePrefix string) (*FuranClient, error) {
 	fc := &FuranClient{}
-	fc.ddName = datadogServiceName
+	fc.ddName = datadogServiceNamePrefix + ".furan-client"
 	if logger == nil {
 		fc.logger = log.New(os.Stderr, "", log.LstdFlags)
 	} else {
