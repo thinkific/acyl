@@ -161,6 +161,7 @@ func server(cmd *cobra.Command, args []string) {
 	}
 
 	pgConfig.DatadogServiceName = datadogServiceName + ".postgres"
+	pgConfig.EnableTracing = true
 	dl, err := persistence.NewPGLayer(&pgConfig, logger)
 	if err != nil {
 		log.Fatalf("error opening PG database: %v", err)

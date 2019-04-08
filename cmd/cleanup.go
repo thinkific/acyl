@@ -27,6 +27,7 @@ var cleanupCmd = &cobra.Command{
 		}
 		sf := secrets.NewPVCSecretsFetcher(sc)
 		err = sf.PopulatePG(&pgConfig)
+		pgConfig.EnableTracing = true
 		if err != nil {
 			clierr("error getting db secrets: %v", err)
 		}

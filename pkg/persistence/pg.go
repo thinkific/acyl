@@ -34,8 +34,14 @@ func isCancelled(done <-chan struct{}) bool {
 
 // PGClient returns a Postgres DB client.
 func PGClient(config *config.PGConfig) (*sqlx.DB, error) {
-	sqltrace.Register("postgres", &pq.Driver{}, sqltrace.WithServiceName(config.DatadogServiceName))
-	db, err := sqlxtrace.Open("postgres", config.PostgresURI)
+	var db *sqlx.DB
+	var err error
+	if config.EnableTracing {
+		sqltrace.Register("postgres", &pq.Driver{}, sqltrace.WithServiceName(config.DatadogServiceName))
+		db, err = sqlxtrace.Open("postgres", config.PostgresURI)
+	} else {
+		db, err = sqlx.Open("postgres", config.PostgresURI)
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening db")
 	}
