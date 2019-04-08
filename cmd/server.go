@@ -174,7 +174,7 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error opening wordnet file: %v", err)
 	}
 
-	lp, err := locker.NewConsulLocker(consulConfig.Addr, consulConfig.LockPrefix, datadogServiceName)
+	lp, err := locker.NewConsulLocker(consulConfig.Addr, consulConfig.LockPrefix, datadogServiceName, true)
 	if err != nil {
 		log.Fatalf("error creating Consul lock service: %v", err)
 	}
