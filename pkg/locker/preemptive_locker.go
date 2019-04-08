@@ -21,8 +21,6 @@ var (
 	defaultLockDelay    = 15 * time.Second
 )
 
-const consulServiceName = "acyl.consul"
-
 // PreemptedError is returned when a Lock() operation is preempted
 type PreemptedError interface {
 	Preempted() bool
