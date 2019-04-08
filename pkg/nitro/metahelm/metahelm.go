@@ -124,8 +124,8 @@ type ChartInstaller struct {
 var _ Installer = &ChartInstaller{}
 
 // NewChartInstaller returns a ChartInstaller configured with an in-cluster K8s clientset
-func NewChartInstaller(ib images.Builder, dl persistence.DataLayer, fs billy.Filesystem, mc metrics.Collector, k8sGroupBindings map[string]string, k8sRepoWhitelist []string, k8sSecretInjs map[string]config.K8sSecret, tcfg TillerConfig) (*ChartInstaller, error) {
-	kc, rcfg, err := NewInClusterK8sClientset("", "")
+func NewChartInstaller(ib images.Builder, dl persistence.DataLayer, fs billy.Filesystem, mc metrics.Collector, k8sGroupBindings map[string]string, k8sRepoWhitelist []string, k8sSecretInjs map[string]config.K8sSecret, tcfg TillerConfig, k8sJWTPath string, enableK8sTracing bool) (*ChartInstaller, error) {
+	kc, rcfg, err := NewInClusterK8sClientset(k8sJWTPath, enableK8sTracing)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting k8s client")
 	}
@@ -204,13 +204,13 @@ func NewKubecfgContextK8sClientset(kubecfgpath, kubectx string) (*kubernetes.Cli
 	return kc, rcfg, nil
 }
 
-func NewInClusterK8sClientset(_, _ string) (*kubernetes.Clientset, *rest.Config, error) {
+func NewInClusterK8sClientset(k8sJWTPath string, enableK8sTracing bool) (*kubernetes.Clientset, *rest.Config, error) {
 	kcfg, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error getting k8s in-cluster config")
 	}
 
-	kcfg.WrapTransport = wrapTransport()
+	kcfg.WrapTransport = wrapTransport(k8sJWTPath, enableK8sTracing)
 	kc, err := kubernetes.NewForConfig(kcfg)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error getting k8s clientset")
@@ -220,12 +220,16 @@ func NewInClusterK8sClientset(_, _ string) (*kubernetes.Clientset, *rest.Config,
 
 // wrapTransport encapsulates the kubernetestrace WrapTransport and Kubernetes'
 // default TokenSource WrapTransport.
-func wrapTransport() func(rt http.RoundTripper) http.RoundTripper {
-	tokenFile := "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	ts := rest.NewCachedFileTokenSource(tokenFile)
+func wrapTransport(k8sJWTPath string, enableK8sTracing bool) func(rt http.RoundTripper) http.RoundTripper {
+	ts := rest.NewCachedFileTokenSource(k8sJWTPath)
 	tokenWrappedTransport := rest.TokenSourceWrapTransport(ts)
+	if enableK8sTracing {
+		return func(rt http.RoundTripper) http.RoundTripper {
+			return kubernetestrace.WrapRoundTripper(tokenWrappedTransport(rt))
+		}
+	}
 	return func(rt http.RoundTripper) http.RoundTripper {
-		return kubernetestrace.WrapRoundTripper(tokenWrappedTransport(rt))
+		return tokenWrappedTransport(rt)
 	}
 }
 
