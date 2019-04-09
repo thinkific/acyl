@@ -165,7 +165,7 @@ func setupNitro(dl persistence.DataLayer) (spawner.EnvironmentSpawner, ghclient.
 	fs := osfs.New("")
 	mg := &meta.DataGetter{RC: rc, FS: fs}
 	ib := &images.FakeImageBuilder{BatchCompletedFunc: func(envname, repo string) (bool, error) { return true, nil }}
-	ci, err := metahelm.NewChartInstaller(ib, dl, fs, mc, map[string]string{}, []string{}, map[string]config.K8sSecret{}, metahelm.TillerConfig{}, vaultConfig.K8sJWTPath, false)
+	ci, err := metahelm.NewChartInstaller(ib, dl, fs, mc, map[string]string{}, []string{}, map[string]config.K8sSecret{}, metahelm.TillerConfig{}, k8sClientConfig.JWTPath, false)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error getting metahelm chart installer")
 	}
