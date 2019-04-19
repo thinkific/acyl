@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 
 	"github.com/google/uuid"
@@ -34,16 +36,18 @@ type PreemptedError interface {
 // - Client C's invocation of Lock() returns successfully
 //
 type PreemptiveLocker struct {
-	c          LockFactory
-	kv         ConsulKV
-	cs         ConsulSession
-	l          PreemptableLock
-	w          *keyWatcher
-	lockKey    string
-	pendingKey string
-	id         string
-	sessionid  string
-	opts       PreemptiveLockerOpts
+	c                  LockFactory
+	kv                 ConsulKV
+	cs                 ConsulSession
+	l                  PreemptableLock
+	w                  *keyWatcher
+	lockKey            string
+	pendingKey         string
+	id                 string
+	sessionid          string
+	opts               PreemptiveLockerOpts
+	datadogServiceName string
+	enableTracing      bool
 }
 
 // LockFactory describes an object capable of creating a Consul lock
@@ -95,7 +99,7 @@ type PreemptiveLockerOpts struct {
 }
 
 // NewPreemptiveLocker returns a new preemptive locker or an error
-func NewPreemptiveLocker(factory LockFactory, kv ConsulKV, cs ConsulSession, key string, opts PreemptiveLockerOpts) *PreemptiveLocker {
+func NewPreemptiveLocker(factory LockFactory, kv ConsulKV, cs ConsulSession, key string, opts PreemptiveLockerOpts, datadogServiceName string, enableTracing bool) *PreemptiveLocker {
 	if opts.SessionTTL == 0 {
 		opts.SessionTTL = defaultSessionTTL
 	}
@@ -106,13 +110,15 @@ func NewPreemptiveLocker(factory LockFactory, kv ConsulKV, cs ConsulSession, key
 		opts.LockDelay = defaultLockDelay
 	}
 	return &PreemptiveLocker{
-		c:          factory,
-		kv:         kv,
-		cs:         cs,
-		w:          newKeyWatcher(kv, opts.LockWait),
-		lockKey:    key,
-		pendingKey: fmt.Sprintf("%s/pending", key),
-		opts:       opts,
+		c:                  factory,
+		kv:                 kv,
+		cs:                 cs,
+		w:                  newKeyWatcher(kv, opts.LockWait),
+		lockKey:            key,
+		pendingKey:         fmt.Sprintf("%s/pending", key),
+		opts:               opts,
+		datadogServiceName: datadogServiceName,
+		enableTracing:      enableTracing,
 	}
 }
 
@@ -120,9 +126,22 @@ func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interfac
 	eventlogger.GetLogger(ctx).Printf("preemptive locker: "+msg, args...)
 }
 
+func (p *PreemptiveLocker) startSpanFromContext(ctx context.Context, operationName string) (tracer.Span, context.Context) {
+	if p.enableTracing {
+		return tracer.StartSpanFromContext(ctx, operationName, tracer.ServiceName(p.datadogServiceName))
+	}
+	// return no-op span if tracing is disabled
+	span, _ := tracer.SpanFromContext(context.Background())
+	return span, ctx
+}
+
 // Lock locks the lock and returns a channel used to signal if the lock should be released ASAP. If the lock is currently in use, this method will block until the lock is released. If caller is preemptied while waiting for the lock to be released,
 // an error is returned.
-func (p *PreemptiveLocker) Lock(ctx context.Context) (<-chan interface{}, error) {
+func (p *PreemptiveLocker) Lock(ctx context.Context) (_ <-chan interface{}, err error) {
+	span, ctx := p.startSpanFromContext(ctx, "lock")
+	defer func() {
+		span.Finish(tracer.WithError(err))
+	}()
 	if len(p.id) != 0 {
 		return nil, errors.New("Lock() called again.")
 	}
@@ -184,9 +203,13 @@ func (p *PreemptiveLocker) lockWithID(ctx context.Context, id string) (<-chan in
 }
 
 // Release releases the lock
-func (p *PreemptiveLocker) Release() (err error) {
+func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
+	span, ctx := p.startSpanFromContext(ctx, "release")
 	p.w.Stop()
-	defer func() { err = p.l.Unlock() }() // always unlock
+	defer func() {
+		err = p.l.Unlock() // always unlock
+		span.Finish(tracer.WithError(err))
+	}()
 	var kp *consul.KVPair
 	kp, _, _ = p.kv.Get(p.pendingKey, &consul.QueryOptions{AllowStale: false, WaitIndex: uint64(0), WaitTime: p.opts.LockWait})
 	if p.id == string(kp.Value[:]) {

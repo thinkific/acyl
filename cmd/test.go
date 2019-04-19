@@ -448,7 +448,7 @@ func configTestUpdate(cmd *cobra.Command, args []string) {
 		}
 	}()
 	// make sure an extant environment exists
-	envs, err := nitromgr.DL.GetExtantQAEnvironments(rrd.Repo, rrd.PullRequest)
+	envs, err := nitromgr.DL.GetExtantQAEnvironments(context.Background(), rrd.Repo, rrd.PullRequest)
 	if err != nil {
 		perr(err)
 		return
@@ -490,7 +490,7 @@ func configTestDelete(cmd *cobra.Command, args []string) {
 		}
 	}()
 	// make sure an extant environment exists
-	envs, err := nitromgr.DL.GetExtantQAEnvironments(rrd.Repo, rrd.PullRequest)
+	envs, err := nitromgr.DL.GetExtantQAEnvironments(context.Background(), rrd.Repo, rrd.PullRequest)
 	if err != nil {
 		perr(err)
 		return

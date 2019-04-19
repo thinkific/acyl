@@ -141,7 +141,7 @@ func (api *v2api) marshalQAEnvironments(qas []models.QAEnvironment, w http.Respo
 
 func (api *v2api) envDetailHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	qa, err := api.dl.GetQAEnvironmentConsistently(name)
+	qa, err := api.dl.GetQAEnvironmentConsistently(r.Context(), name)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error getting environment: %v", err))
 		return
@@ -220,7 +220,7 @@ func (api *v2api) envSearchHandler(w http.ResponseWriter, r *http.Request) {
 			ops.TrackingRef = v
 		}
 	}
-	qas, err := api.dl.Search(ops)
+	qas, err := api.dl.Search(r.Context(), ops)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error searching in DB: %v", err))
 	}

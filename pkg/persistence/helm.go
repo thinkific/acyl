@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"database/sql"
 	"strings"
 
@@ -11,18 +12,27 @@ import (
 
 var _ HelmDataLayer = &PGLayer{}
 
-func (pg *PGLayer) GetHelmReleasesForEnv(name string) ([]models.HelmRelease, error) {
+func (pg *PGLayer) GetHelmReleasesForEnv(ctx context.Context, name string) ([]models.HelmRelease, error) {
+	if isCancelled(ctx.Done()) {
+		return nil, errors.Wrap(ctx.Err(), "error getting helm releases for env")
+	}
 	q := `SELECT ` + models.HelmRelease{}.Columns() + ` FROM helm_releases WHERE env_name = $1;`
-	return collectHelmRows(pg.db.Query(q, name))
+	return collectHelmRows(pg.db.QueryContext(ctx, q, name))
 }
 
-func (pg *PGLayer) UpdateHelmReleaseRevision(envname, release, revision string) error {
+func (pg *PGLayer) UpdateHelmReleaseRevision(ctx context.Context, envname, release, revision string) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error updating helm relese revision")
+	}
 	q := `UPDATE helm_releases SET revision_sha = $1 WHERE env_name = $2 AND release = $3;`
-	_, err := pg.db.Exec(q, revision, envname, release)
+	_, err := pg.db.ExecContext(ctx, q, revision, envname, release)
 	return errors.Wrap(err, "error updating helm release")
 }
 
-func (pg *PGLayer) CreateHelmReleasesForEnv(releases []models.HelmRelease) error {
+func (pg *PGLayer) CreateHelmReleasesForEnv(ctx context.Context, releases []models.HelmRelease) error {
+	if isCancelled(ctx.Done()) {
+		return errors.Wrap(ctx.Err(), "error creating helm releases for env")
+	}
 	tx, err := pg.db.Begin()
 	if err != nil {
 		return errors.Wrap(err, "error opening txn")
@@ -46,9 +56,12 @@ func (pg *PGLayer) CreateHelmReleasesForEnv(releases []models.HelmRelease) error
 	return nil
 }
 
-func (pg *PGLayer) DeleteHelmReleasesForEnv(name string) (uint, error) {
+func (pg *PGLayer) DeleteHelmReleasesForEnv(ctx context.Context, name string) (uint, error) {
+	if isCancelled(ctx.Done()) {
+		return 0, errors.Wrap(ctx.Err(), "error deleting helm releases for env")
+	}
 	q := `DELETE FROM helm_releases WHERE env_name = $1;`
-	res, err := pg.db.Exec(q, name)
+	res, err := pg.db.ExecContext(ctx, q, name)
 	n, _ := res.RowsAffected()
 	return uint(n), err
 }

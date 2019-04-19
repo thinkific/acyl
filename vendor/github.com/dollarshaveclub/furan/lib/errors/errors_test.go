@@ -3,6 +3,8 @@ package errors
 import (
 	"fmt"
 	"testing"
+
+	pkgerrors "github.com/pkg/errors"
 )
 
 func TestUserErrorDetection(t *testing.T) {
@@ -17,6 +19,18 @@ func TestUserErrorDetection(t *testing.T) {
 		{
 			input:          UserError("you did this"),
 			expectedResult: true,
+		},
+		{
+			input:          pkgerrors.Wrap(UserError("you did this"), "some context"),
+			expectedResult: true,
+		},
+		{
+			input:          pkgerrors.Wrap(pkgerrors.Wrap(UserError("you did this"), "some context"), "more context"),
+			expectedResult: true,
+		},
+		{
+			input:          pkgerrors.Wrap(fmt.Errorf("not a user error"), "some context"),
+			expectedResult: false,
 		},
 	}
 	for _, testCase := range testCases {

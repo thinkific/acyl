@@ -44,7 +44,7 @@ func (fi *FakeInstaller) BuildAndInstallCharts(ctx context.Context, newenv *EnvI
 		if err := ci.writeK8sEnvironment(ctx, newenv, "nitro-1234-"+newenv.Env.Name); err != nil {
 			return err
 		}
-		if err := fi.DL.UpdateK8sEnvTillerAddr(newenv.Env.Name, "10.10.10.10:1234"); err != nil {
+		if err := fi.DL.UpdateK8sEnvTillerAddr(ctx, newenv.Env.Name, "10.10.10.10:1234"); err != nil {
 			return err
 		}
 		releases := getReleases(chartsLocation)
@@ -93,7 +93,7 @@ func (fi FakeInstaller) DeleteReleases(ctx context.Context, k8senv *models.Kuber
 		if err := ci.DeleteReleases(context.Background(), k8senv); err != nil {
 			return err
 		}
-		return fi.DL.DeleteK8sEnv(k8senv.EnvName)
+		return fi.DL.DeleteK8sEnv(ctx, k8senv.EnvName)
 	}
 	return nil
 }

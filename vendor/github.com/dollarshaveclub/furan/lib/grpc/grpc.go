@@ -16,6 +16,7 @@ import (
 	"github.com/dollarshaveclub/furan/lib/errors"
 	"github.com/dollarshaveclub/furan/lib/kafka"
 	"github.com/dollarshaveclub/furan/lib/metrics"
+	pkgerrors "github.com/pkg/errors"
 	grpctrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/grpc.v12"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
@@ -291,7 +292,7 @@ func (gr *GrpcServer) monitorCancelled(ctx context.Context, cf context.CancelFun
 // Performs build synchronously
 func (gr *GrpcServer) syncBuild(ctx context.Context, req *lib.BuildRequest) (outcome lib.BuildStatusResponse_BuildState) {
 	var err error // so deferred finalize function has access to any error
-	var failed, userError bool
+	var failed bool
 	var cf context.CancelFunc
 	ctx, cf = context.WithCancel(ctx)
 	defer cf()
@@ -320,7 +321,7 @@ func (gr *GrpcServer) syncBuild(ctx context.Context, req *lib.BuildRequest) (out
 		var eet lib.BuildEventError_ErrorType
 		if failed {
 			eet = lib.BuildEventError_FATAL
-			gr.mc.BuildFailed(req.Build.GithubRepo, req.Build.Ref, userError)
+			gr.mc.BuildFailed(req.Build.GithubRepo, req.Build.Ref, errors.IsUserError(err))
 			buildSpan.Finish(tracer.WithError(err))
 		} else {
 			eet = lib.BuildEventError_NO_ERROR
@@ -363,12 +364,12 @@ func (gr *GrpcServer) syncBuild(ctx context.Context, req *lib.BuildRequest) (out
 		gr.logger.Printf("error pushing BuildStarted metric: %v", err)
 	}
 	if buildcontext.IsCancelled(ctx.Done()) {
-		err = fmt.Errorf("build was cancelled")
+		err = errors.UserError("build was cancelled")
 		return lib.BuildStatusResponse_BUILD_FAILURE
 	}
 	err = gr.dl.SetBuildState(ctx, id, lib.BuildStatusResponse_BUILDING)
 	if err != nil {
-		err = fmt.Errorf("error setting build state to building: %v", err)
+		err = pkgerrors.Wrap(err, "error setting build state to building: ")
 		return lib.BuildStatusResponse_BUILD_FAILURE
 	}
 	imageid, err := gr.ib.Build(ctx, req, id)
@@ -379,17 +380,16 @@ func (gr *GrpcServer) syncBuild(ctx context.Context, req *lib.BuildRequest) (out
 		if err == builder.ErrBuildNotNecessary {
 			return lib.BuildStatusResponse_NOT_NECESSARY
 		}
-		userError = errors.IsUserError(err)
-		err = fmt.Errorf("error performing build: %v", err)
+		err = pkgerrors.Wrap(err, "error performing build: ")
 		return lib.BuildStatusResponse_BUILD_FAILURE
 	}
 	if buildcontext.IsCancelled(ctx.Done()) {
-		err = fmt.Errorf("build was cancelled")
+		err = errors.UserError("build was cancelled")
 		return lib.BuildStatusResponse_BUILD_FAILURE
 	}
 	err = gr.dl.SetBuildState(ctx, id, lib.BuildStatusResponse_PUSHING)
 	if err != nil {
-		err = fmt.Errorf("error setting build state to pushing: %v", err)
+		err = pkgerrors.Wrap(err, "error setting build state to pushing: ")
 		return lib.BuildStatusResponse_BUILD_FAILURE
 	}
 	ctx = buildcontext.NewPushStartedContext(ctx)
@@ -403,7 +403,7 @@ func (gr *GrpcServer) syncBuild(ctx context.Context, req *lib.BuildRequest) (out
 		gr.logger.Printf("error pushing push duration metric: %v", err)
 	}
 	if err != nil {
-		err = fmt.Errorf("error pushing: %v", err)
+		err = pkgerrors.Wrap(err, "error pushing: ")
 		return lib.BuildStatusResponse_PUSH_FAILURE
 	}
 	err = gr.ib.CleanImage(ctx, imageid)
@@ -412,12 +412,12 @@ func (gr *GrpcServer) syncBuild(ctx context.Context, req *lib.BuildRequest) (out
 	}
 	err = gr.dl.SetBuildState(ctx, id, lib.BuildStatusResponse_SUCCESS)
 	if err != nil {
-		err = fmt.Errorf("error setting build state to success: %v", err)
+		err = pkgerrors.Wrap(err, "error setting build state to success: ")
 		return lib.BuildStatusResponse_PUSH_FAILURE
 	}
 	err = gr.dl.SetBuildCompletedTimestamp(ctx, id)
 	if err != nil {
-		err = fmt.Errorf("error setting build completed timestamp: %v", err)
+		err = pkgerrors.Wrap(err, "error setting build completed timestamp: ")
 		return lib.BuildStatusResponse_PUSH_FAILURE
 	}
 	return lib.BuildStatusResponse_SUCCESS

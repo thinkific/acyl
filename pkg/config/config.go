@@ -32,6 +32,14 @@ type ServerConfig struct {
 type PGConfig struct {
 	PostgresURI            string
 	PostgresMigrationsPath string
+	DatadogServiceName     string
+	EnableTracing          bool
+}
+
+// K8sClientConfig models the configuration required for a kubernetes client
+// to communicate with the API server
+type K8sClientConfig struct {
+	JWTPath string
 }
 
 // K8sSecret models a kubernetes secret

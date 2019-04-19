@@ -140,43 +140,43 @@ func (matcher refMatcher) getRefForOtherRepo(rd *RepoRevisionData, override stri
 
 // QASpawner is an object that can manage environments in AWS
 type QASpawner struct {
-	dl                DataLayer
-	ng                NameGenerator
-	rc                RepoClient
-	lp                PreemptiveLockProvider
-	fa                []string
-	caddr             string
-	cn                ChatNotifier
-	pmc               ProvisioningMetricsCollector
-	omc               OperationMetricsCollector
-	nrapp             newrelic.Application
-	logger            *log.Logger
-	aminoBackend      AcylBackend
-	aminoConfig       *AminoConfig
-	typepath          string
-	globalLimit       uint
-	hostnameTemplate  string
-	furanClientDDName string
+	dl                       DataLayer
+	ng                       NameGenerator
+	rc                       RepoClient
+	lp                       PreemptiveLockProvider
+	fa                       []string
+	caddr                    string
+	cn                       ChatNotifier
+	pmc                      ProvisioningMetricsCollector
+	omc                      OperationMetricsCollector
+	nrapp                    newrelic.Application
+	logger                   *log.Logger
+	aminoBackend             AcylBackend
+	aminoConfig              *AminoConfig
+	typepath                 string
+	globalLimit              uint
+	hostnameTemplate         string
+	datadogServiceNamePrefix string
 }
 
 // NewQASpawner returns a new QASpawner instance with the specified logger and datalayer
-func NewQASpawner(logger *log.Logger, dl DataLayer, ng NameGenerator, rc RepoClient, lp PreemptiveLockProvider, furanAddrs []string, consulAddr string, cn ChatNotifier, omc MetricsCollector, pmc MetricsCollector, nrapp newrelic.Application, awsCreds *AWSCreds, awsConfig *AWSConfig, backendConfig *BackendConfig, ac *AminoConfig, typepath string, globalLimit uint, hostnameTemplate string, furanClientDDName string) (*QASpawner, error) {
+func NewQASpawner(logger *log.Logger, dl DataLayer, ng NameGenerator, rc RepoClient, lp PreemptiveLockProvider, furanAddrs []string, consulAddr string, cn ChatNotifier, omc MetricsCollector, pmc MetricsCollector, nrapp newrelic.Application, awsCreds *AWSCreds, awsConfig *AWSConfig, backendConfig *BackendConfig, ac *AminoConfig, typepath string, globalLimit uint, hostnameTemplate string, datadogServiceNamePrefix string) (*QASpawner, error) {
 	qs := &QASpawner{
-		logger:            logger,
-		dl:                dl,
-		ng:                ng,
-		rc:                rc,
-		lp:                lp,
-		fa:                furanAddrs,
-		caddr:             consulAddr,
-		cn:                cn,
-		pmc:               pmc,
-		omc:               omc,
-		nrapp:             nrapp,
-		typepath:          typepath,
-		globalLimit:       globalLimit,
-		hostnameTemplate:  hostnameTemplate,
-		furanClientDDName: furanClientDDName,
+		logger:                   logger,
+		dl:                       dl,
+		ng:                       ng,
+		rc:                       rc,
+		lp:                       lp,
+		fa:                       furanAddrs,
+		caddr:                    consulAddr,
+		cn:                       cn,
+		pmc:                      pmc,
+		omc:                      omc,
+		nrapp:                    nrapp,
+		typepath:                 typepath,
+		globalLimit:              globalLimit,
+		hostnameTemplate:         hostnameTemplate,
+		datadogServiceNamePrefix: datadogServiceNamePrefix,
 	}
 	conn, err := grpc.Dial(backendConfig.AminoAddr, grpc.WithInsecure())
 	if err != nil {
@@ -376,7 +376,7 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 		fcopts.SelectionStrategy = furan.RandomNodeSelection
 		fcopts.ServiceName = "furan"
 	}
-	fc, err := furan.NewFuranClient(fcopts, qs.logger, qs.furanClientDDName)
+	fc, err := furan.NewFuranClient(fcopts, qs.logger, qs.datadogServiceNamePrefix)
 	if err != nil {
 		done <- err
 	}
@@ -409,7 +409,7 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 			}
 		}
 	}()
-	qs.dl.AddEvent(name, fmt.Sprintf("building container: %v:%v", repo, ref))
+	qs.dl.AddEvent(ctx, name, fmt.Sprintf("building container: %v:%v", repo, ref))
 
 	defer qs.pmc.TimeContainerBuild(name, rd.Repo, rd.SourceBranch, repo, ref, &err)()
 
@@ -426,10 +426,10 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 			buildErr = err
 			errmsg := fmt.Sprintf("build failed: %v: %v: %v", repo, id, err)
 			qs.logger.Printf(errmsg)
-			qs.dl.AddEvent(name, errmsg)
+			qs.dl.AddEvent(ctx, name, errmsg)
 
 			if i != retries-1 {
-				qs.dl.AddEvent(name, fmt.Sprintf("retrying image build: %v", repo))
+				qs.dl.AddEvent(ctx, name, fmt.Sprintf("retrying image build: %v", repo))
 			}
 
 			continue
@@ -437,7 +437,7 @@ func (qs QASpawner) buildContainer(ctx context.Context, rd *RepoRevisionData, na
 
 		okmsg := fmt.Sprintf("build finished: %v: %v", repo, id)
 		qs.logger.Printf(okmsg)
-		qs.dl.AddEvent(name, okmsg)
+		qs.dl.AddEvent(ctx, name, okmsg)
 		buildErr = nil
 		break
 	}
@@ -514,7 +514,7 @@ func (qs *QASpawner) getHostname(qaName string) (string, error) {
 }
 
 // persistQARecord writes a new QA record to the database
-func (qs *QASpawner) persistQARecord(name string, qat *QAType, rd *RepoRevisionData, rm, cm map[string]string) error {
+func (qs *QASpawner) persistQARecord(ctx context.Context, name string, qat *QAType, rd *RepoRevisionData, rm, cm map[string]string) error {
 	if rd == nil {
 		return fmt.Errorf("RepoRevisionData is nil")
 	}
@@ -543,7 +543,7 @@ func (qs *QASpawner) persistQARecord(name string, qat *QAType, rd *RepoRevisionD
 		RefMap:       rm,
 		CommitSHAMap: cm,
 	}
-	return qs.dl.CreateQAEnvironment(qae)
+	return qs.dl.CreateQAEnvironment(ctx, qae)
 }
 
 func (qs *QASpawner) createSpawningGithubStatus(rd *RepoRevisionData) error {
@@ -619,7 +619,7 @@ func (qs *QASpawner) Create(ctx context.Context, rd RepoRevisionData) (string, e
 		}
 	}()
 
-	defer lock.Release()
+	defer lock.Release(ctx)
 	name, err := qs.create(ctx, rd, false)
 	if err != nil {
 		txn.NoticeError(err)
@@ -657,7 +657,7 @@ func (qs *QASpawner) Update(ctx context.Context, rd RepoRevisionData) (string, e
 		}
 	}()
 
-	defer lock.Release()
+	defer lock.Release(ctx)
 	name, err := qs.update(ctx, rd)
 	if err != nil {
 		txn.NoticeError(err)
@@ -695,7 +695,7 @@ func (qs *QASpawner) Destroy(ctx context.Context, rd RepoRevisionData, reason QA
 		}
 	}()
 
-	defer lock.Release()
+	defer lock.Release(ctx)
 	_, err = qs.destroy(ctx, rd, reason, true)
 	if err != nil {
 		txn.NoticeError(err)
@@ -705,8 +705,8 @@ func (qs *QASpawner) Destroy(ctx context.Context, rd RepoRevisionData, reason QA
 }
 
 // isDestroyed checks if the given QA environment has been marked as destroyed
-func (qs *QASpawner) isDestroyed(name string) bool {
-	qae, _ := qs.dl.GetQAEnvironmentConsistently(name)
+func (qs *QASpawner) isDestroyed(ctx context.Context, name string) bool {
+	qae, _ := qs.dl.GetQAEnvironmentConsistently(ctx, name)
 	return qae == nil || qae.Status == Destroyed
 }
 
@@ -736,7 +736,7 @@ func (qs *QASpawner) checkGlobalLimit(ctx context.Context, n uint) error {
 	if qs.globalLimit == 0 {
 		return nil
 	}
-	qae, err := qs.dl.GetRunningQAEnvironments()
+	qae, err := qs.dl.GetRunningQAEnvironments(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting running environments: %v", err)
 	}
@@ -797,41 +797,41 @@ func (qs *QASpawner) getMetadata(ctx context.Context, rd RepoRevisionData) (comm
 }
 
 // updateQAMetadata updates the event metadata for an existing environment and returns the updated structure
-func (qs *QASpawner) updateQAMetadata(name string, status EnvironmentStatus, rd RepoRevisionData, cm map[string]string, rm map[string]string) (*QAEnvironment, error) {
-	err := qs.dl.SetQAEnvironmentRepoData(name, &rd)
+func (qs *QASpawner) updateQAMetadata(ctx context.Context, name string, status EnvironmentStatus, rd RepoRevisionData, cm map[string]string, rm map[string]string) (*QAEnvironment, error) {
+	err := qs.dl.SetQAEnvironmentRepoData(ctx, name, &rd)
 	if err != nil {
 		return nil, fmt.Errorf("error setting RepoData: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentCommitSHAMap(name, cm)
+	err = qs.dl.SetQAEnvironmentCommitSHAMap(ctx, name, cm)
 	if err != nil {
 		return nil, fmt.Errorf("error setting commit SHA map: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentRefMap(name, rm)
+	err = qs.dl.SetQAEnvironmentRefMap(ctx, name, rm)
 	if err != nil {
 		return nil, fmt.Errorf("error setting ref map: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentCreated(name, time.Now().UTC())
+	err = qs.dl.SetQAEnvironmentCreated(ctx, name, time.Now().UTC())
 	if err != nil {
 		return nil, fmt.Errorf("error setting created: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentStatus(name, status)
+	err = qs.dl.SetQAEnvironmentStatus(ctx, name, status)
 	if err != nil {
 		return nil, fmt.Errorf("error setting status: %v: %v", name, err)
 	}
-	qa, err := qs.dl.GetQAEnvironmentConsistently(name)
+	qa, err := qs.dl.GetQAEnvironmentConsistently(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("error getting QA environment: %v: %v", name, err)
 	}
 	return qa, nil
 }
 
-func (qs *QASpawner) genUniqueName() (string, error) {
+func (qs *QASpawner) genUniqueName(ctx context.Context) (string, error) {
 	for i := 0; i < nameGenMaxRetries; i++ {
 		name, err := qs.ng.New()
 		if err != nil {
 			return "", fmt.Errorf("error generating name: %v", err)
 		}
-		qa, err := qs.dl.GetQAEnvironmentConsistently(name)
+		qa, err := qs.dl.GetQAEnvironmentConsistently(ctx, name)
 		if err != nil {
 			return "", fmt.Errorf("error getting QA environment: %v", err)
 		}
@@ -851,7 +851,7 @@ func (qs *QASpawner) ensureOne(ctx context.Context, status EnvironmentStatus, rd
 	nrseg := newrelic.StartSegment(txn, "createEnsureOne")
 	defer nrseg.End()
 
-	qas, err := qs.dl.GetQAEnvironmentsByRepoAndPR(rd.Repo, rd.PullRequest)
+	qas, err := qs.dl.GetQAEnvironmentsByRepoAndPR(ctx, rd.Repo, rd.PullRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error getting environments by repo and PR: %v", err)
 	}
@@ -866,16 +866,16 @@ func (qs *QASpawner) ensureOne(ctx context.Context, status EnvironmentStatus, rd
 		qas = filtered
 	}
 	if len(qas) == 0 { // none existing, create a new name and record
-		name, err := qs.genUniqueName()
+		name, err := qs.genUniqueName(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error generating name: %v", err)
 		}
 		qt.Name = name
-		err = qs.persistQARecord(name, qt, &rd, rm, cm)
+		err = qs.persistQARecord(ctx, name, qt, &rd, rm, cm)
 		if err != nil {
 			return nil, fmt.Errorf("error persisting QA record: %v", err)
 		}
-		qa, err = qs.dl.GetQAEnvironmentConsistently(name)
+		qa, err = qs.dl.GetQAEnvironmentConsistently(ctx, name)
 		if err != nil {
 			return nil, fmt.Errorf("error getting new QA record: %v", err)
 		}
@@ -889,7 +889,7 @@ func (qs *QASpawner) ensureOne(ctx context.Context, status EnvironmentStatus, rd
 		}
 	}
 	qa = &qas[len(qas)-1]
-	qa, err = qs.updateQAMetadata(qa.Name, status, rd, cm, rm)
+	qa, err = qs.updateQAMetadata(ctx, qa.Name, status, rd, cm, rm)
 	if err != nil {
 		return nil, fmt.Errorf("error updating metadata: %v", err)
 	}
@@ -985,8 +985,8 @@ func (qs *QASpawner) create(ctx context.Context, rd RepoRevisionData, updating b
 			if err2 != nil {
 				qs.logger.Printf("error setting Github failure status: %v", err2)
 			}
-			if name != "" && !qs.isDestroyed(name) {
-				err2 = qs.dl.SetQAEnvironmentStatus(name, Failure)
+			if name != "" && !qs.isDestroyed(ctx, name) {
+				err2 = qs.dl.SetQAEnvironmentStatus(ctx, name, Failure)
 				if err2 != nil {
 					qs.logger.Printf("error setting environment to failed: %v", err2)
 				}
@@ -1068,18 +1068,18 @@ func (qs *QASpawner) destroyQA(ctx context.Context, qae *QAEnvironment) error {
 		qs.logger.Printf("error terminating Amino environment: %v", err)
 	}
 
-	return qs.dl.SetQAEnvironmentStatus(qae.Name, Destroyed)
+	return qs.dl.SetQAEnvironmentStatus(ctx, qae.Name, Destroyed)
 }
 
 func (qs *QASpawner) destroy(ctx context.Context, rd RepoRevisionData, reason QADestroyReason, notify bool) (result []string, resultError error) {
 	defer func() { qs.omc.Operation("destroy", "", rd.Repo, rd.BaseBranch, resultError) }()
-	qas, err := qs.dl.GetExtantQAEnvironments(rd.Repo, rd.PullRequest)
+	qas, err := qs.dl.GetExtantQAEnvironments(ctx, rd.Repo, rd.PullRequest)
 	if err != nil {
 		return nil, err
 	}
 	names := []string{}
 	for _, qae := range qas {
-		qae, err := qs.dl.GetQAEnvironmentConsistently(qae.Name)
+		qae, err := qs.dl.GetQAEnvironmentConsistently(ctx, qae.Name)
 		if err != nil {
 			return names, fmt.Errorf("error getting QA environment: %v", err)
 		}
@@ -1127,15 +1127,15 @@ func (qs *QASpawner) DestroyExplicitly(ctx context.Context, qa *QAEnvironment, r
 }
 
 func (qs *QASpawner) finalize(ctx context.Context, name string, state EnvironmentStatus, status string, desc string, failureMessage string) error {
-	err := qs.dl.SetQAEnvironmentStatus(name, state)
+	err := qs.dl.SetQAEnvironmentStatus(ctx, name, state)
 	if err != nil {
 		return err
 	}
-	err = qs.dl.AddEvent(name, fmt.Sprintf("marked as %v", state.String()))
+	err = qs.dl.AddEvent(ctx, name, fmt.Sprintf("marked as %v", state.String()))
 	if err != nil {
 		qs.logger.Printf("error adding event: %v: %v", name, err)
 	}
-	qa, err := qs.dl.GetQAEnvironment(name)
+	qa, err := qs.dl.GetQAEnvironment(ctx, name)
 	if err != nil {
 		return err
 	}

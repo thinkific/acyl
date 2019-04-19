@@ -21,7 +21,7 @@ type FuranBuilderBackend struct {
 
 var _ BuilderBackend = &FuranBuilderBackend{}
 
-func NewFuranBuilderBackend(addrs []string, caddr string, dl persistence.DataLayer, mc metrics.Collector, logout io.Writer, furanClientDDName string) (*FuranBuilderBackend, error) {
+func NewFuranBuilderBackend(addrs []string, caddr string, dl persistence.DataLayer, mc metrics.Collector, logout io.Writer, datadogServiceNamePrefix string) (*FuranBuilderBackend, error) {
 	fcopts := &furan.DiscoveryOptions{}
 	if len(addrs) > 0 {
 		fcopts.NodeList = addrs
@@ -32,7 +32,7 @@ func NewFuranBuilderBackend(addrs []string, caddr string, dl persistence.DataLay
 		fcopts.ServiceName = "furan"
 	}
 	logger := log.New(logout, "", log.LstdFlags)
-	fc, err := furan.NewFuranClient(fcopts, logger, furanClientDDName)
+	fc, err := furan.NewFuranClient(fcopts, logger, datadogServiceNamePrefix)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating Furan client")
 	}
@@ -83,7 +83,7 @@ func (fib *FuranBuilderBackend) BuildImage(ctx context.Context, envName, githubR
 			}
 		}
 	}()
-	fib.dl.AddEvent(envName, fmt.Sprintf("building container: %v:%v", githubRepo, ref))
+	fib.dl.AddEvent(ctx, envName, fmt.Sprintf("building container: %v:%v", githubRepo, ref))
 
 	var err error
 	defer fib.mc.TimeContainerBuild(envName, githubRepo, ref, githubRepo, ref, &err)()
@@ -100,16 +100,16 @@ func (fib *FuranBuilderBackend) BuildImage(ctx context.Context, envName, githubR
 			buildErr = err
 			errmsg := fmt.Sprintf("build failed: %v: %v: %v", githubRepo, id, err)
 			logger.Printf(errmsg)
-			fib.dl.AddEvent(envName, errmsg)
+			fib.dl.AddEvent(ctx, envName, errmsg)
 			if i != retries-1 {
-				fib.dl.AddEvent(envName, fmt.Sprintf("retrying image build: %v", githubRepo))
+				fib.dl.AddEvent(ctx, envName, fmt.Sprintf("retrying image build: %v", githubRepo))
 			}
 			continue
 		}
 
 		okmsg := fmt.Sprintf("build finished: %v: %v", githubRepo, id)
 		logger.Printf(okmsg)
-		fib.dl.AddEvent(envName, okmsg)
+		fib.dl.AddEvent(ctx, envName, okmsg)
 		buildErr = nil
 		break
 	}

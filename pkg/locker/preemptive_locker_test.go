@@ -84,7 +84,7 @@ func TestPreemptiveLockerLockAndUnlock(t *testing.T) {
 	}
 
 	// Process one releases lock
-	if err := ftl.Release(); err != nil {
+	if err := ftl.Release(context.Background()); err != nil {
 		t.Fatalf("release should have succeeded: %v", err)
 	}
 
@@ -240,7 +240,7 @@ func TestPreemptiveLockerPreemption(t *testing.T) {
 	go func() {
 		<-preempt
 		t.Logf("process 1: releasing lock")
-		ftl.Release()
+		ftl.Release(context.Background())
 	}()
 
 	// second process
@@ -307,7 +307,7 @@ func TestPreemptiveLockerMultiPreemption(t *testing.T) {
 		<-preempt
 		<-process2 // wait for process 2 to exit
 		<-process3 // wait for process 3 to contend
-		ftl.Release()
+		ftl.Release(context.Background())
 	}()
 
 	// second process

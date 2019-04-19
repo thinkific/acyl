@@ -858,13 +858,13 @@ func TestEnsureOnePRSingleEnv(t *testing.T) {
 	rm := map[string]string{
 		"foo/bar": "feature",
 	}
-	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any()).Times(1).Return([]QAEnvironment{qa}, nil)
-	dl.EXPECT().SetQAEnvironmentRepoData(qa.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentCommitSHAMap(qa.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentRefMap(qa.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentCreated(qa.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentStatus(qa.Name, Updating).Times(1).Return(nil)
-	dl.EXPECT().GetQAEnvironmentConsistently(qa.Name).Times(1).Return(&qa, nil)
+	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return([]QAEnvironment{qa}, nil)
+	dl.EXPECT().SetQAEnvironmentRepoData(gomock.Any(), qa.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentCommitSHAMap(gomock.Any(), qa.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentRefMap(gomock.Any(), qa.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentCreated(gomock.Any(), qa.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentStatus(gomock.Any(), qa.Name, Updating).Times(1).Return(nil)
+	dl.EXPECT().GetQAEnvironmentConsistently(gomock.Any(), qa.Name).Times(1).Return(&qa, nil)
 	qa2, err := qas.ensureOne(ctx, Updating, rd, qt, cm, rm)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
@@ -904,13 +904,13 @@ func TestEnsureOneTrackingSingleEnv(t *testing.T) {
 	rm := map[string]string{
 		"foo/bar": "feature",
 	}
-	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any()).Times(1).Return([]QAEnvironment{qa}, nil)
-	dl.EXPECT().SetQAEnvironmentRepoData(qa.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentCommitSHAMap(qa.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentRefMap(qa.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentCreated(qa.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentStatus(qa.Name, Updating).Times(1).Return(nil)
-	dl.EXPECT().GetQAEnvironmentConsistently(qa.Name).Times(1).Return(&qa, nil)
+	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return([]QAEnvironment{qa}, nil)
+	dl.EXPECT().SetQAEnvironmentRepoData(gomock.Any(), qa.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentCommitSHAMap(gomock.Any(), qa.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentRefMap(gomock.Any(), qa.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentCreated(gomock.Any(), qa.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentStatus(gomock.Any(), qa.Name, Updating).Times(1).Return(nil)
+	dl.EXPECT().GetQAEnvironmentConsistently(gomock.Any(), qa.Name).Times(1).Return(&qa, nil)
 	qa2, err := qas.ensureOne(ctx, Updating, *rd, qt, cm, rm)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
@@ -971,17 +971,17 @@ func TestEnsureOnePRStaleEnvs(t *testing.T) {
 	rm := map[string]string{
 		"foo/bar": "feature",
 	}
-	dl.EXPECT().GetExtantQAEnvironments(qa1.Repo, qa1.PullRequest).AnyTimes().Return(envs, nil)
-	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any()).Times(1).Return(envs, nil)
-	dl.EXPECT().SetQAEnvironmentRepoData(qa1.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentCommitSHAMap(qa1.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentRefMap(qa1.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentCreated(qa1.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentStatus(qa1.Name, Updating).Times(1).Return(nil)
-	dl.EXPECT().GetQAEnvironmentConsistently(qa1.Name).Times(1).Return(&qa1, nil)
+	dl.EXPECT().GetExtantQAEnvironments(gomock.Any(), qa1.Repo, qa1.PullRequest).AnyTimes().Return(envs, nil)
+	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(envs, nil)
+	dl.EXPECT().SetQAEnvironmentRepoData(gomock.Any(), qa1.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentCommitSHAMap(gomock.Any(), qa1.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentRefMap(gomock.Any(), qa1.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentCreated(gomock.Any(), qa1.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentStatus(gomock.Any(), qa1.Name, Updating).Times(1).Return(nil)
+	dl.EXPECT().GetQAEnvironmentConsistently(gomock.Any(), qa1.Name).Times(1).Return(&qa1, nil)
 	be.EXPECT().DestroyEnvironment(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).Return(nil)
-	dl.EXPECT().SetQAEnvironmentStatus(qa2.Name, Destroyed).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentStatus(qa3.Name, Destroyed).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentStatus(gomock.Any(), qa2.Name, Destroyed).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentStatus(gomock.Any(), qa3.Name, Destroyed).Times(1).Return(nil)
 	qa, err := qas.ensureOne(ctx, Updating, *rd, qt, cm, rm)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
@@ -1040,17 +1040,17 @@ func TestEnsureOneTrackingStale(t *testing.T) {
 	rm := map[string]string{
 		"foo/bar": "master",
 	}
-	dl.EXPECT().GetExtantQAEnvironments(qa1.Repo, qa1.PullRequest).AnyTimes().Return(envs, nil)
-	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any()).Times(1).Return(envs, nil)
-	dl.EXPECT().SetQAEnvironmentRepoData(qa1.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentCommitSHAMap(qa1.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentRefMap(qa1.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentCreated(qa1.Name, gomock.Any()).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentStatus(qa1.Name, Updating).Times(1).Return(nil)
-	dl.EXPECT().GetQAEnvironmentConsistently(qa1.Name).Times(1).Return(&qa1, nil)
+	dl.EXPECT().GetExtantQAEnvironments(gomock.Any(), qa1.Repo, qa1.PullRequest).AnyTimes().Return(envs, nil)
+	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(envs, nil)
+	dl.EXPECT().SetQAEnvironmentRepoData(gomock.Any(), qa1.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentCommitSHAMap(gomock.Any(), qa1.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentRefMap(gomock.Any(), qa1.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentCreated(gomock.Any(), qa1.Name, gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentStatus(gomock.Any(), qa1.Name, Updating).Times(1).Return(nil)
+	dl.EXPECT().GetQAEnvironmentConsistently(gomock.Any(), qa1.Name).Times(1).Return(&qa1, nil)
 	be.EXPECT().DestroyEnvironment(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).Return(nil)
-	dl.EXPECT().SetQAEnvironmentStatus(qa2.Name, Destroyed).Times(1).Return(nil)
-	dl.EXPECT().SetQAEnvironmentStatus(qa3.Name, Destroyed).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentStatus(gomock.Any(), qa2.Name, Destroyed).Times(1).Return(nil)
+	dl.EXPECT().SetQAEnvironmentStatus(gomock.Any(), qa3.Name, Destroyed).Times(1).Return(nil)
 	qa, err := qas.ensureOne(ctx, Updating, *rd, qt, cm, rm)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
@@ -1092,11 +1092,11 @@ func TestEnsureOneTrackingNewEnv(t *testing.T) {
 	}
 	newname := "new-test-env"
 	ng.EXPECT().New().Times(1).Return(newname, nil)
-	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any()).Times(1).Return([]QAEnvironment{}, nil)
-	dl.EXPECT().CreateQAEnvironment(gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return([]QAEnvironment{}, nil)
+	dl.EXPECT().CreateQAEnvironment(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 	gomock.InOrder(
-		dl.EXPECT().GetQAEnvironmentConsistently(newname).Times(1).Return(nil, nil),
-		dl.EXPECT().GetQAEnvironmentConsistently(newname).Times(1).Return(&QAEnvironment{Name: newname}, nil),
+		dl.EXPECT().GetQAEnvironmentConsistently(gomock.Any(), newname).Times(1).Return(nil, nil),
+		dl.EXPECT().GetQAEnvironmentConsistently(gomock.Any(), newname).Times(1).Return(&QAEnvironment{Name: newname}, nil),
 	)
 	qa, err := qas.ensureOne(ctx, Updating, rd, qt, cm, rm)
 	if err != nil {
@@ -1139,11 +1139,11 @@ func TestEnsureOnePRNewEnv(t *testing.T) {
 	}
 	newname := "new-test-env"
 	ng.EXPECT().New().Times(1).Return(newname, nil)
-	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any()).Times(1).Return([]QAEnvironment{}, nil)
-	dl.EXPECT().CreateQAEnvironment(gomock.Any()).Times(1).Return(nil)
+	dl.EXPECT().GetQAEnvironmentsByRepoAndPR(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return([]QAEnvironment{}, nil)
+	dl.EXPECT().CreateQAEnvironment(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 	gomock.InOrder(
-		dl.EXPECT().GetQAEnvironmentConsistently(newname).Times(1).Return(nil, nil),
-		dl.EXPECT().GetQAEnvironmentConsistently(newname).Times(1).Return(&QAEnvironment{Name: newname}, nil),
+		dl.EXPECT().GetQAEnvironmentConsistently(gomock.Any(), newname).Times(1).Return(nil, nil),
+		dl.EXPECT().GetQAEnvironmentConsistently(gomock.Any(), newname).Times(1).Return(&QAEnvironment{Name: newname}, nil),
 	)
 	qa, err := qas.ensureOne(ctx, Updating, rd, qt, cm, rm)
 	if err != nil {

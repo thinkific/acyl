@@ -113,7 +113,7 @@ func (api *v1api) marshalQAEnvironments(qas []models.QAEnvironment, w http.Respo
 
 func (api *v1api) envDetailHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	qa, err := api.dl.GetQAEnvironmentConsistently(name)
+	qa, err := api.dl.GetQAEnvironmentConsistently(r.Context(), name)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error getting environment: %v", err))
 		return
@@ -184,7 +184,7 @@ func (api *v1api) envSearchHandler(w http.ResponseWriter, r *http.Request) {
 			ops.Status = s
 		}
 	}
-	qas, err := api.dl.Search(ops)
+	qas, err := api.dl.Search(r.Context(), ops)
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error searching in DB: %v", err))
 	}
@@ -206,7 +206,7 @@ func (api *v1api) envRecentHandler(w http.ResponseWriter, r *http.Request) {
 	if val, ok := qvars["include_destroyed"]; ok {
 		includeDestroyed = val[0] == "true" || val[0] == "yes" || val[0] == "1"
 	}
-	qas, err := api.dl.GetMostRecent(uint(days))
+	qas, err := api.dl.GetMostRecent(r.Context(), uint(days))
 	if err != nil {
 		api.internalError(w, fmt.Errorf("error performing query: %v", err))
 		return

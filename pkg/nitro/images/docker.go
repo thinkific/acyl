@@ -125,7 +125,7 @@ func (dbb *DockerBuilderBackend) BuildImage(ctx context.Context, envName, github
 		BuildArgs:   bargs,
 		AuthConfigs: dbb.Auths,
 	}
-	dbb.DL.AddEvent(envName, fmt.Sprintf("building container: %v:%v", githubRepo, ref))
+	dbb.DL.AddEvent(ctx, envName, fmt.Sprintf("building container: %v:%v", githubRepo, ref))
 	dbb.log(ctx, "building image: %v", opts.Tags[0])
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {

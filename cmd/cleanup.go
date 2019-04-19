@@ -27,6 +27,7 @@ var cleanupCmd = &cobra.Command{
 		}
 		sf := secrets.NewPVCSecretsFetcher(sc)
 		err = sf.PopulatePG(&pgConfig)
+		pgConfig.EnableTracing = true
 		if err != nil {
 			clierr("error getting db secrets: %v", err)
 		}
@@ -76,7 +77,7 @@ func cleanup(cmd *cobra.Command, args []string) {
 
 	cleaner.Clean()
 
-	ci, err := metahelm.NewChartInstaller(nil, dl, nil, nil, k8sConfig.GroupBindings, k8sConfig.PrivilegedRepoWhitelist, k8sConfig.SecretInjections, metahelm.TillerConfig{})
+	ci, err := metahelm.NewChartInstaller(nil, dl, nil, nil, k8sConfig.GroupBindings, k8sConfig.PrivilegedRepoWhitelist, k8sConfig.SecretInjections, metahelm.TillerConfig{}, k8sClientConfig.JWTPath, true)
 	if err != nil {
 		log.Fatalf("error getting metahelm chart installer: %v", err)
 	}

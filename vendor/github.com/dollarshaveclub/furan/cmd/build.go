@@ -164,6 +164,7 @@ func build(cmd *cobra.Command, args []string) {
 	}
 
 	logger = log.New(dnull, "", log.LstdFlags)
+	datadogGrpcServiceName := datadogServiceName + ".grpc"
 	gs := grpc.NewGRPCServer(ib, dbConfig.Datalayer, kafkaConfig.Manager, kafkaConfig.Manager, mc, kvo, 1, 1, logger, datadogGrpcServiceName)
 
 	resp, err := gs.StartBuild(ctx, &cliBuildRequest)

@@ -97,7 +97,7 @@ spec:
           - --dogstatsd-addr={{ .Values.datadog.statsdAddr }}
         {{ end }}
         {{ if .Values.datadog.overrideDefaultTags }}
-          - --default-metrics-tags=env:{{ .Values.env }},namespace:{{ .Release.Namespace }}
+          - --default-metrics-tags={{ .Values.datadog.overrideDefaultTags }}
         {{ end }}
         {{ if .Values.datadog.tracingAgentAddr }}
           - --datadog-tracing-agent-addr={{ .Values.datadog.tracingAgentAddr }}

@@ -160,6 +160,8 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error parsing Amino config: %s", err)
 	}
 
+	pgConfig.DatadogServiceName = datadogServiceName + ".postgres"
+	pgConfig.EnableTracing = true
 	dl, err := persistence.NewPGLayer(&pgConfig, logger)
 	if err != nil {
 		log.Fatalf("error opening PG database: %v", err)
@@ -172,7 +174,7 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error opening wordnet file: %v", err)
 	}
 
-	lp, err := locker.NewConsulLocker(consulConfig.Addr, consulConfig.LockPrefix)
+	lp, err := locker.NewConsulLocker(consulConfig.Addr, consulConfig.LockPrefix, datadogServiceName, true)
 	if err != nil {
 		log.Fatalf("error creating Consul lock service: %v", err)
 	}
@@ -182,8 +184,7 @@ func server(cmd *cobra.Command, args []string) {
 	cn := slacknotifier.NewSlackNotifier(slackConfig.Channel, slackapi, mapper)
 
 	var envspawner spawner.EnvironmentSpawner
-	furanClientDDName := datadogServiceName + ".furan-client"
-	es, err := spawner.NewQASpawner(logger, dl, ng, rc, lp, serverConfig.FuranAddrs, consulConfig.Addr, cn, mc, mc, nrapp, &awsCreds, &awsConfig, &backendConfig, &aminoConfig, githubConfig.TypePath, serverConfig.GlobalEnvironmentLimit, serverConfig.HostnameTemplate, furanClientDDName)
+	es, err := spawner.NewQASpawner(logger, dl, ng, rc, lp, serverConfig.FuranAddrs, consulConfig.Addr, cn, mc, mc, nrapp, &awsCreds, &awsConfig, &backendConfig, &aminoConfig, githubConfig.TypePath, serverConfig.GlobalEnvironmentLimit, serverConfig.HostnameTemplate, datadogServiceName)
 	if err != nil {
 		log.Fatalf("error creating spawner: %s", err)
 	}
@@ -194,7 +195,7 @@ func server(cmd *cobra.Command, args []string) {
 		if err != nil {
 			log.Fatalf("error setting up nitro metrics collector: %v", err)
 		}
-		fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, consulConfig.Addr, dl, mc, os.Stderr, furanClientDDName)
+		fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, consulConfig.Addr, dl, mc, os.Stderr, datadogServiceName)
 		if err != nil {
 			log.Fatalf("error getting Furan image builder backend: %v", err)
 		}
@@ -217,7 +218,7 @@ func server(cmd *cobra.Command, args []string) {
 		if err := k8sConfig.ProcessSecretInjections(sc, k8sSecretsStr); err != nil {
 			log.Fatalf("error in k8s secret injections: %v", err)
 		}
-		ci, err := metahelm.NewChartInstaller(ib, dl, fs, nmc, k8sConfig.GroupBindings, k8sConfig.PrivilegedRepoWhitelist, k8sConfig.SecretInjections, metahelm.TillerConfig{})
+		ci, err := metahelm.NewChartInstaller(ib, dl, fs, nmc, k8sConfig.GroupBindings, k8sConfig.PrivilegedRepoWhitelist, k8sConfig.SecretInjections, metahelm.TillerConfig{}, k8sClientConfig.JWTPath, true)
 		if err != nil {
 			log.Fatalf("error getting metahelm chart installer: %v", err)
 		}
