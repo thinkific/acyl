@@ -1232,6 +1232,7 @@ func TestMetahelmSetupNamespace(t *testing.T) {
 
 func TestMetahelmCleanup(t *testing.T) {
 	maxAge := 1 * time.Hour
+	deletionDelay := 5 * time.Second
 	expires := time.Now().UTC().Add(-(maxAge + (72 * time.Hour)))
 	orphanedNamespaces := []*v1.Namespace{
 		&v1.Namespace{
@@ -1298,7 +1299,7 @@ func TestMetahelmCleanup(t *testing.T) {
 		kc: fkc,
 		dl: dl,
 	}
-	ci.Cleanup(context.Background(), maxAge)
+	ci.Cleanup(context.Background(), maxAge, deletionDelay, false)
 	if _, err := fkc.CoreV1().Namespaces().Get("foo", metav1.GetOptions{}); err == nil {
 		t.Fatalf("should have failed to find namespace foo")
 	}
