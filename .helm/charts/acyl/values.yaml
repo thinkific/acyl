@@ -8,7 +8,6 @@ create_svc: true
 create_cluster_role_binding: false
 is_dqa: false
 run_migrations: false
-enable_cronjob: false
 image:
   repository: quay.io/dollarshaveclub/acyl
   tag: master
