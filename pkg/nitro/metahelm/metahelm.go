@@ -1048,7 +1048,6 @@ func (ci ChartInstaller) removeOrphanedNamespaces(ctx context.Context, maxAge, d
 			}
 			if len(envs) == 0 {
 				ci.log(ctx, "deleting orphaned namespace: %v", ns.Name)
-				time.Sleep(5 * time.Second)
 				bg := meta.DeletePropagationBackground
 				var zero int64
 				if !dryRun {
