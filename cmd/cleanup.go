@@ -36,12 +36,14 @@ var cleanupCmd = &cobra.Command{
 }
 
 var k8sMaxage, destroyedenvsMaxage, eventlogsMaxage, deletionDelay time.Duration
+var dryRun bool
 
 func init() {
 	cleanupCmd.Flags().DurationVar(&k8sMaxage, "k8s-objs-max-age", 14*24*time.Hour, "Maximum age for orphaned k8s objects")
 	cleanupCmd.Flags().DurationVar(&destroyedenvsMaxage, "destroyed-envs-max-age", 30*24*time.Hour, "Maximum age for destroyed environment DB records")
 	cleanupCmd.Flags().DurationVar(&eventlogsMaxage, "event-logs-max-age", 30*24*time.Hour, "Maximum age for event log DB records")
 	cleanupCmd.Flags().DurationVar(&deletionDelay, "deletion-delay", 5*time.Second, "Delay before deleting each individual resource to allow operator to intervene if necessary")
+	cleanupCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Dry run allows you to test the cleanup job by printing out which objects would be deleted, without actually deleting anything")
 	RootCmd.AddCommand(cleanupCmd)
 }
 
@@ -83,5 +85,5 @@ func cleanup(cmd *cobra.Command, args []string) {
 		log.Fatalf("error getting metahelm chart installer: %v", err)
 	}
 
-	ci.Cleanup(ctx, k8sMaxage, deletionDelay)
+	ci.Cleanup(ctx, k8sMaxage, deletionDelay, dryRun)
 }

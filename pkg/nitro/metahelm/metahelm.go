@@ -1020,17 +1020,17 @@ func (ci ChartInstaller) DeleteNamespace(ctx context.Context, k8senv *models.Kub
 
 // Cleanup runs various processes to clean up. For example, it removes orphaned k8s resources older than objMaxAge.
 // It is intended to be run periodically via a cronjob.
-func (ci ChartInstaller) Cleanup(ctx context.Context, objMaxAge, deletionDelay time.Duration) {
-	if err := ci.removeOrphanedNamespaces(ctx, objMaxAge, deletionDelay); err != nil {
+func (ci ChartInstaller) Cleanup(ctx context.Context, objMaxAge, deletionDelay time.Duration, dryRun bool) {
+	if err := ci.removeOrphanedNamespaces(ctx, objMaxAge, deletionDelay, dryRun); err != nil {
 		ci.log(ctx, "error cleaning up orphaned namespaces: %v", err)
 	}
-	if err := ci.removeOrphanedCRBs(ctx, objMaxAge, deletionDelay); err != nil {
+	if err := ci.removeOrphanedCRBs(ctx, objMaxAge, deletionDelay, dryRun); err != nil {
 		ci.log(ctx, "error cleaning up orphaned ClusterRoleBindings: %v", err)
 	}
 }
 
 // removeOrphanedNamespaces removes orphaned namespaces
-func (ci ChartInstaller) removeOrphanedNamespaces(ctx context.Context, maxAge, deletionDelay time.Duration) error {
+func (ci ChartInstaller) removeOrphanedNamespaces(ctx context.Context, maxAge, deletionDelay time.Duration, dryRun bool) error {
 	if maxAge == 0 {
 		return errors.New("maxAge must be greater than zero")
 	}
@@ -1051,9 +1051,11 @@ func (ci ChartInstaller) removeOrphanedNamespaces(ctx context.Context, maxAge, d
 				time.Sleep(5 * time.Second)
 				bg := meta.DeletePropagationBackground
 				var zero int64
-				time.Sleep(deletionDelay)
-				if err := ci.kc.CoreV1().Namespaces().Delete(ns.Name, &meta.DeleteOptions{GracePeriodSeconds: &zero, PropagationPolicy: &bg}); err != nil {
-					return errors.Wrap(err, "error deleting namespace")
+				if !dryRun {
+					time.Sleep(deletionDelay)
+					if err := ci.kc.CoreV1().Namespaces().Delete(ns.Name, &meta.DeleteOptions{GracePeriodSeconds: &zero, PropagationPolicy: &bg}); err != nil {
+						return errors.Wrap(err, "error deleting namespace")
+					}
 				}
 			}
 		}
@@ -1062,7 +1064,7 @@ func (ci ChartInstaller) removeOrphanedNamespaces(ctx context.Context, maxAge, d
 }
 
 // removeOrphanedCRBs removes orphaned ClusterRoleBindings
-func (ci ChartInstaller) removeOrphanedCRBs(ctx context.Context, maxAge, deletionDelay time.Duration) error {
+func (ci ChartInstaller) removeOrphanedCRBs(ctx context.Context, maxAge, deletionDelay time.Duration, dryRun bool) error {
 	if maxAge == 0 {
 		return errors.New("maxAge must be greater than zero")
 	}
@@ -1083,9 +1085,11 @@ func (ci ChartInstaller) removeOrphanedCRBs(ctx context.Context, maxAge, deletio
 				ci.log(ctx, "deleting orphaned ClusterRoleBinding: %v", crb.ObjectMeta.Name)
 				bg := meta.DeletePropagationBackground
 				var zero int64
-				time.Sleep(deletionDelay)
-				if err := ci.kc.RbacV1().ClusterRoleBindings().Delete(crb.ObjectMeta.Name, &meta.DeleteOptions{GracePeriodSeconds: &zero, PropagationPolicy: &bg}); err != nil {
-					return errors.Wrap(err, "error deleting ClusterRoleBinding")
+				if !dryRun {
+					time.Sleep(deletionDelay)
+					if err := ci.kc.RbacV1().ClusterRoleBindings().Delete(crb.ObjectMeta.Name, &meta.DeleteOptions{GracePeriodSeconds: &zero, PropagationPolicy: &bg}); err != nil {
+						return errors.Wrap(err, "error deleting ClusterRoleBinding")
+					}
 				}
 			}
 		}
