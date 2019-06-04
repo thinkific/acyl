@@ -150,49 +150,25 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 	}
 }
 
-func (m *Manager) createPendingGithubStatus(ctx context.Context, rd *models.RepoRevisionData) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "create_pending_github_status")
-	defer func() {
-		span.Finish(tracer.WithError(err))
-	}()
+func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevisionData, env *newEnv, ncs models.NitroCommitStatus) error {
+	var csTemplate models.CommitStatusTemplate
+	if userProvidedTemplate, ok := env.rc.CommitStatuses.Templates[ncs.Key()]; ok {
+		csTemplate = userProvidedTemplate
+	} else {
+		csTemplate, _ = models.DefaultCommitStatusTemplates[ncs.Key()]
+	}
+	csData := models.CommitStatusData{env.env.Name}
+	renderedCSTemplate, err := csTemplate.Render(csData)
+	if err != nil {
+		return errors.Wrap(err, "error rendering template")
+	}
 	cs := &ghclient.CommitStatus{
 		Context:     "Acyl",
-		Status:      "pending",
-		Description: "Environment is being created",
-		TargetURL:   "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
+		Status:      ncs.Key(),
+		Description: renderedCSTemplate.Description,
+		TargetURL:   renderedCSTemplate.TargetURL,
 	}
 	err = m.RC.SetStatus(ctx, rd.Repo, rd.SourceSHA, cs)
-	if err != nil {
-		m.log(ctx, "error setting pending github commit status: %v", err)
-	}
-	return err
-}
-
-func (m *Manager) createErrorGithubStatus(ctx context.Context, rd *models.RepoRevisionData) error {
-	cs := &ghclient.CommitStatus{
-		Context:     "Acyl",
-		Status:      "failure",
-		Description: "Error creating environment",
-		TargetURL:   "https://media.giphy.com/media/pyFsc5uv5WPXN9Ocki/giphy.gif",
-	}
-	err := m.RC.SetStatus(validContext(ctx, context.Background()), rd.Repo, rd.SourceSHA, cs)
-	if err != nil {
-		m.log(ctx, "error setting failed github commit status: %v", err)
-	}
-	return err
-}
-
-func (m *Manager) createSuccessGithubStatus(ctx context.Context, rd *models.RepoRevisionData) error {
-	cs := &ghclient.CommitStatus{
-		Context:     "Acyl",
-		Status:      "success",
-		Description: "Successfully created environment",
-		TargetURL:   "https://media.giphy.com/media/SRO0ZwmImic0/giphy.gif",
-	}
-	err := m.RC.SetStatus(ctx, rd.Repo, rd.SourceSHA, cs)
-	if err != nil {
-		m.log(ctx, "error setting success github commit status: %v", err)
-	}
 	return err
 }
 
@@ -449,13 +425,13 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 				m.log(ctx, "error setting environment status to failed: %v", err)
 			}
 			m.pushNotification(ctx, newenv, notifier.Failure, "error creating: "+err.Error())
-			m.createErrorGithubStatus(ctx, rd)
+			m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusFailure)
 			m.MC.Increment(mpfx+"create_errors", "triggering_repo:"+rd.Repo)
 			return
 		}
 		// metahelm.Manager sets the success status on QAEnvironment
 		m.pushNotification(ctx, newenv, notifier.Success, "")
-		m.createSuccessGithubStatus(ctx, rd)
+		m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusSuccess)
 	}()
 	newenv, err = m.processEnvConfig(ctx, env, rd)
 	if err != nil {
@@ -468,7 +444,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 		break
 	}
 	m.pushNotification(ctx, newenv, notifier.CreateEnvironment, "")
-	m.createPendingGithubStatus(ctx, rd)
+	m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusPending)
 	td, cloc, err := m.fetchCharts(ctx, env.Name, newenv.rc)
 	if err != nil {
 		return "", errors.Wrap(err, "error fetching charts")
@@ -623,12 +599,12 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 				m.log(ctx, "error setting environment status to failed: %v", err)
 			}
 			m.pushNotification(ctx, ne, notifier.Failure, err.Error())
-			m.createErrorGithubStatus(ctx, rd)
+			m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusFailure)
 			return
 		}
 		// metahelm.Manager sets the success status on QAEnvironment
 		m.pushNotification(ctx, ne, notifier.Success, "")
-		m.createSuccessGithubStatus(ctx, rd)
+		m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusSuccess)
 	}()
 	ne, err = m.processEnvConfig(ctx, env, rd)
 	if err != nil {
@@ -648,7 +624,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 		break
 	}
 	m.pushNotification(ctx, ne, notifier.UpdateEnvironment, "")
-	m.createPendingGithubStatus(ctx, rd)
+	m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusPending)
 	td, cloc, err := m.fetchCharts(ctx, env.Name, ne.rc)
 	if err != nil {
 		return "", errors.Wrap(err, "error fetching charts")

@@ -28,6 +28,18 @@ dependencies:
     - chart_path: '.helm/charts/consul'
       chart_vars_path: './.helm/charts/consul/values.yaml'
 
+commit_statuses:
+  templates:
+    success:
+      description: "Wow. Such success."
+      target_url: "https://{{ .EnvName }}-acyl.boogies.io"
+    pending:
+      description: "Wow. Much wait."
+      target_url: "https://giphy.com/gifs/happy-spongebob-squarepants-happiness-brHaCdJqCXijm"
+    failure:
+      description: "Wow. Much failure."
+      target_url: "https://giphy.com/gifs/windows-vaporwave-error-mq5y2jHRCAqMo"
+
 notifications:
   templates:
     success:

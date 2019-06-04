@@ -98,6 +98,7 @@ type RepoConfig struct {
 	Application    RepoConfigAppMetadata `yaml:"application" json:"application"`
 	Dependencies   DependencyDeclaration `yaml:"dependencies" json:"dependencies"`
 	Notifications  Notifications         `yaml:"notifications" json:"notifications"`
+	CommitStatuses CommitStatuses        `yaml:"commit_statuses" json:"commit_statuses"`
 }
 
 // RefMap generates RefMap for a particular environment
