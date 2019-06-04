@@ -1,7 +1,5 @@
 package models
 
-// TODO (mk): Write tests, build and test locally, put up PR.
-
 import (
 	"bytes"
 	"text/template"
