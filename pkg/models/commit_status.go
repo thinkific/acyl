@@ -86,15 +86,15 @@ func renderTemplate(name, ts string, d CommitStatusData) (string, error) {
 // does not specify a template in the acyl.yml configuration file.
 var DefaultCommitStatusTemplates = map[string]CommitStatusTemplate{
 	"success": CommitStatusTemplate{
-		Description: "success description",
-		TargetURL:   "success url",
+		Description: "The Acyl environment {{ .EnvName }} was created successfully.",
+		TargetURL:   "https://media.giphy.com/media/SRO0ZwmImic0/giphy.gif",
 	},
 	"pending": CommitStatusTemplate{
-		Description: "pending description",
-		TargetURL:   "pending url",
+		Description: "The Acyl environment {{ .EnvName }} is being created.",
+		TargetURL:   "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
 	},
 	"failure": CommitStatusTemplate{
-		Description: "failure description",
-		TargetURL:   "failure url",
+		Description: "The Acyl environment {{ .EnvName }} failed.",
+		TargetURL:   "https://media.giphy.com/media/pyFsc5uv5WPXN9Ocki/giphy.gif",
 	},
 }

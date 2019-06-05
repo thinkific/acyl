@@ -1320,7 +1320,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 			want: &ghclient.CommitStatus{
 				Context:     "Acyl",
 				Status:      "success",
-				Description: models.DefaultCommitStatusTemplates["success"].Description,
+				Description: "The Acyl environment some-environment-name was created successfully.",
 				TargetURL:   models.DefaultCommitStatusTemplates["success"].TargetURL,
 			},
 		},
@@ -1336,7 +1336,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 			want: &ghclient.CommitStatus{
 				Context:     "Acyl",
 				Status:      "pending",
-				Description: models.DefaultCommitStatusTemplates["pending"].Description,
+				Description: "The Acyl environment some-environment-name is being created.",
 				TargetURL:   models.DefaultCommitStatusTemplates["pending"].TargetURL,
 			},
 		},
@@ -1352,7 +1352,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 			want: &ghclient.CommitStatus{
 				Context:     "Acyl",
 				Status:      "failure",
-				Description: models.DefaultCommitStatusTemplates["failure"].Description,
+				Description: "The Acyl environment some-environment-name failed.",
 				TargetURL:   models.DefaultCommitStatusTemplates["failure"].TargetURL,
 			},
 		},

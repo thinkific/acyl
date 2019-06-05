@@ -31,14 +31,8 @@ dependencies:
 commit_statuses:
   templates:
     success:
-      description: "Wow. Such success."
+      description: "The Acyl environment {{ .EnvName }} was created successfully"
       target_url: "https://{{ .EnvName }}-acyl.boogies.io"
-    pending:
-      description: "Wow. Much wait."
-      target_url: "https://giphy.com/gifs/happy-spongebob-squarepants-happiness-brHaCdJqCXijm"
-    failure:
-      description: "Wow. Much failure."
-      target_url: "https://giphy.com/gifs/windows-vaporwave-error-mq5y2jHRCAqMo"
 
 notifications:
   templates:
