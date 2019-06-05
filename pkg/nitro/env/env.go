@@ -150,7 +150,7 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 	}
 }
 
-func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevisionData, env *newEnv, ncs models.NitroCommitStatus) error {
+func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevisionData, env *newEnv, ncs models.NitroCommitStatus) (*ghclient.CommitStatus, error) {
 	var csTemplate models.CommitStatusTemplate
 	if userProvidedTemplate, ok := env.rc.CommitStatuses.Templates[ncs.Key()]; ok {
 		csTemplate = userProvidedTemplate
@@ -160,7 +160,7 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 	csData := models.CommitStatusData{env.env.Name}
 	renderedCSTemplate, err := csTemplate.Render(csData)
 	if err != nil {
-		return errors.Wrap(err, "error rendering template")
+		return nil, errors.Wrap(err, "error rendering template")
 	}
 	cs := &ghclient.CommitStatus{
 		Context:     "Acyl",
@@ -169,7 +169,10 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 		TargetURL:   renderedCSTemplate.TargetURL,
 	}
 	err = m.RC.SetStatus(ctx, rd.Repo, rd.SourceSHA, cs)
-	return err
+	if err != nil {
+		return nil, errors.Wrap(err, "error setting commit status")
+	}
+	return cs, nil
 }
 
 // lockingOperation sets up the lock and if successful executes f, releasing the lock afterward
