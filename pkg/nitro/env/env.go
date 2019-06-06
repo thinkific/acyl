@@ -157,7 +157,7 @@ func (m *Manager) getKubernetesNamespaceName(ctx context.Context, envName string
 
 func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevisionData, env *newEnv, ncs models.NitroCommitStatus, errmsg string) (*ghclient.CommitStatus, error) {
 	var csTemplate models.CommitStatusTemplate
-	if userProvidedTemplate, ok := env.rc.CommitStatuses.Templates[ncs.Key()]; ok {
+	if userProvidedTemplate, ok := env.rc.Notifications.GitHub.CommitStatuses.Templates[ncs.Key()]; ok {
 		csTemplate = userProvidedTemplate
 	} else {
 		csTemplate, _ = models.DefaultCommitStatusTemplates[ncs.Key()]

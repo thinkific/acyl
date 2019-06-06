@@ -1243,11 +1243,15 @@ func TestSetGithubCommitStatus(t *testing.T) {
 					Name: "some-environment-name",
 				},
 				rc: &models.RepoConfig{
-					CommitStatuses: models.CommitStatuses{
-						Templates: map[string]models.CommitStatusTemplate{
-							"success": models.CommitStatusTemplate{
-								Description: "An environment for {{ .EnvName }} has been created",
-								TargetURL:   "https://{{.EnvName}}.shave.io",
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"success": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} has been created",
+										TargetURL:   "https://{{.EnvName}}.shave.io",
+									},
+								},
 							},
 						},
 					},
@@ -1268,11 +1272,15 @@ func TestSetGithubCommitStatus(t *testing.T) {
 					Name: "some-environment-name",
 				},
 				rc: &models.RepoConfig{
-					CommitStatuses: models.CommitStatuses{
-						Templates: map[string]models.CommitStatusTemplate{
-							"pending": models.CommitStatusTemplate{
-								Description: "An environment for {{ .EnvName }} is being created",
-								TargetURL:   "https://{{ .EnvName }}.shave.io",
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"pending": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} is being created",
+										TargetURL:   "https://{{ .EnvName }}.shave.io",
+									},
+								},
 							},
 						},
 					},
@@ -1293,11 +1301,15 @@ func TestSetGithubCommitStatus(t *testing.T) {
 					Name: "some-environment-name",
 				},
 				rc: &models.RepoConfig{
-					CommitStatuses: models.CommitStatuses{
-						Templates: map[string]models.CommitStatusTemplate{
-							"failure": models.CommitStatusTemplate{
-								Description: "An environment for {{ .EnvName }} has failed",
-								TargetURL:   "https://{{ .EnvName }}.shave.io",
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"failure": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} has failed",
+										TargetURL:   "https://{{ .EnvName }}.shave.io",
+									},
+								},
 							},
 						},
 					},
@@ -1356,7 +1368,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 			want: &ghclient.CommitStatus{
 				Context:     "Acyl",
 				Status:      "failure",
-				Description: "The Acyl environment some-environment-name failed. Reason: {{ .ErrorMessage }}. Check the Acyl event log for more details.",
+				Description: "The Acyl environment some-environment-name failed. Reason: invalid helm chart. Check the Acyl event log for more details.",
 				TargetURL:   models.DefaultCommitStatusTemplates["failure"].TargetURL,
 			},
 		},
@@ -1367,11 +1379,15 @@ func TestSetGithubCommitStatus(t *testing.T) {
 					Name: "some-environment-name",
 				},
 				rc: &models.RepoConfig{
-					CommitStatuses: models.CommitStatuses{
-						Templates: map[string]models.CommitStatusTemplate{
-							"failure": models.CommitStatusTemplate{
-								Description: "The Acyl environment for {{ .EnvName }} failed. Reason: {{ .ErrorMessage }}",
-								TargetURL:   "",
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"failure": models.CommitStatusTemplate{
+										Description: "The Acyl environment for {{ .EnvName }} failed. Reason: {{ .ErrorMessage }}",
+										TargetURL:   "",
+									},
+								},
 							},
 						},
 					},

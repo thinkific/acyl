@@ -98,7 +98,6 @@ type RepoConfig struct {
 	Application    RepoConfigAppMetadata `yaml:"application" json:"application"`
 	Dependencies   DependencyDeclaration `yaml:"dependencies" json:"dependencies"`
 	Notifications  Notifications         `yaml:"notifications" json:"notifications"`
-	CommitStatuses CommitStatuses        `yaml:"commit_statuses" json:"commit_statuses"`
 }
 
 // RefMap generates RefMap for a particular environment
@@ -349,7 +348,8 @@ func (n *Notifications) FillMissingTemplates() {
 
 // GitHubNotifications models GitHub notification options
 type GitHubNotifications struct {
-	PRComments bool `yaml:"pr_comments" json:"pr_comments"`
+	PRComments     bool           `yaml:"pr_comments" json:"pr_comments"`
+	CommitStatuses CommitStatuses `yaml:"commit_statuses" json:"commit_statuses"`
 }
 
 // SlackNotifications models configuration for slack notifications in acyl.yml v2
