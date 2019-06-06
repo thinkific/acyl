@@ -30,7 +30,7 @@ func (ncs NitroCommitStatus) Key() string {
 	case CommitStatusFailure:
 		return "failure"
 	default:
-		return "<unknown>"
+		return "failure: unknown status"
 	}
 }
 
@@ -51,7 +51,7 @@ type RenderedCommitStatus struct {
 
 // CommitStatusData models the data available to commit status templates.
 type CommitStatusData struct {
-	EnvName string
+	EnvName, ErrorMessage, K8sNamespace string
 }
 
 // Render renders the commit status template using the supplied data.
@@ -94,7 +94,7 @@ var DefaultCommitStatusTemplates = map[string]CommitStatusTemplate{
 		TargetURL:   "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
 	},
 	"failure": CommitStatusTemplate{
-		Description: "The Acyl environment {{ .EnvName }} failed.",
+		Description: "The Acyl environment {{ .EnvName }} failed. Reason: {{ .ErrorMessage }}. Check the Acyl event log for more details.",
 		TargetURL:   "https://media.giphy.com/media/pyFsc5uv5WPXN9Ocki/giphy.gif",
 	},
 }

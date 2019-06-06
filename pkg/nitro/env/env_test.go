@@ -1221,16 +1221,19 @@ func TestProcessEnvConfig(t *testing.T) {
 }
 
 func TestSetGithubCommitStatus(t *testing.T) {
+	dl := persistence.NewFakeDataLayer()
 	m := &Manager{
 		RC: &ghclient.FakeRepoClient{
 			SetStatusFunc: func(context.Context, string, string, *ghclient.CommitStatus) error { return nil },
 		},
+		DL: dl,
 	}
 
 	tests := []struct {
 		name    string
 		env     *newEnv
 		inputCS models.NitroCommitStatus
+		errMsg  string
 		want    *ghclient.CommitStatus
 	}{
 		{
@@ -1243,7 +1246,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 					CommitStatuses: models.CommitStatuses{
 						Templates: map[string]models.CommitStatusTemplate{
 							"success": models.CommitStatusTemplate{
-								Description: "An environment for {{.EnvName}} has been created",
+								Description: "An environment for {{ .EnvName }} has been created",
 								TargetURL:   "https://{{.EnvName}}.shave.io",
 							},
 						},
@@ -1268,8 +1271,8 @@ func TestSetGithubCommitStatus(t *testing.T) {
 					CommitStatuses: models.CommitStatuses{
 						Templates: map[string]models.CommitStatusTemplate{
 							"pending": models.CommitStatusTemplate{
-								Description: "An environment for {{.EnvName}} is being created",
-								TargetURL:   "https://{{.EnvName}}.shave.io",
+								Description: "An environment for {{ .EnvName }} is being created",
+								TargetURL:   "https://{{ .EnvName }}.shave.io",
 							},
 						},
 					},
@@ -1293,8 +1296,8 @@ func TestSetGithubCommitStatus(t *testing.T) {
 					CommitStatuses: models.CommitStatuses{
 						Templates: map[string]models.CommitStatusTemplate{
 							"failure": models.CommitStatusTemplate{
-								Description: "An environment for {{.EnvName}} has failed",
-								TargetURL:   "https://{{.EnvName}}.shave.io",
+								Description: "An environment for {{ .EnvName }} has failed",
+								TargetURL:   "https://{{ .EnvName }}.shave.io",
 							},
 						},
 					},
@@ -1349,18 +1352,45 @@ func TestSetGithubCommitStatus(t *testing.T) {
 				rc: &models.RepoConfig{},
 			},
 			inputCS: models.CommitStatusFailure,
+			errMsg:  "invalid helm chart",
 			want: &ghclient.CommitStatus{
 				Context:     "Acyl",
 				Status:      "failure",
-				Description: "The Acyl environment some-environment-name failed.",
+				Description: "The Acyl environment some-environment-name failed. Reason: {{ .ErrorMessage }}. Check the Acyl event log for more details.",
 				TargetURL:   models.DefaultCommitStatusTemplates["failure"].TargetURL,
+			},
+		},
+		{
+			name: "Template - error message",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					CommitStatuses: models.CommitStatuses{
+						Templates: map[string]models.CommitStatusTemplate{
+							"failure": models.CommitStatusTemplate{
+								Description: "The Acyl environment for {{ .EnvName }} failed. Reason: {{ .ErrorMessage }}",
+								TargetURL:   "",
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusFailure,
+			errMsg:  "invalid helm chart",
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "failure",
+				Description: "The Acyl environment for some-environment-name failed. Reason: invalid helm chart",
+				TargetURL:   "",
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := m.setGithubCommitStatus(context.Background(), &models.RepoRevisionData{}, tt.env, tt.inputCS)
+			out, err := m.setGithubCommitStatus(context.Background(), &models.RepoRevisionData{}, tt.env, tt.inputCS, tt.errMsg)
 			if err != nil {
 				t.Errorf("Expected no error, got %v", err)
 			}

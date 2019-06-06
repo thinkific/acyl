@@ -103,16 +103,7 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 		m.log(ctx, "error getting commit message: %v", err)
 		cmsg = "<error getting commit message: " + err.Error() + ">"
 	}
-	var k8sns string
-	k8senv, err := m.DL.GetK8sEnv(ctx, env.env.Name)
-	switch {
-	case err != nil:
-		k8sns = fmt.Sprintf("<error getting namespace: %v>", err)
-	case k8senv == nil:
-		k8sns = "<k8s environment not found>"
-	default:
-		k8sns = k8senv.Namespace
-	}
+	k8sns := m.getKubernetesNamespaceName(ctx, env.env.Name)
 	if env.rc == nil {
 		env.rc = &models.RepoConfig{}
 	}
@@ -150,14 +141,32 @@ func (m *Manager) pushNotification(ctx context.Context, env *newEnv, event notif
 	}
 }
 
-func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevisionData, env *newEnv, ncs models.NitroCommitStatus) (*ghclient.CommitStatus, error) {
+func (m *Manager) getKubernetesNamespaceName(ctx context.Context, envName string) string {
+	var k8sns string
+	k8senv, err := m.DL.GetK8sEnv(ctx, envName)
+	switch {
+	case err != nil:
+		k8sns = fmt.Sprintf("<error getting namespace: %v>", err)
+	case k8senv == nil:
+		k8sns = "<k8s environment not found>"
+	default:
+		k8sns = k8senv.Namespace
+	}
+	return k8sns
+}
+
+func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevisionData, env *newEnv, ncs models.NitroCommitStatus, errmsg string) (*ghclient.CommitStatus, error) {
 	var csTemplate models.CommitStatusTemplate
 	if userProvidedTemplate, ok := env.rc.CommitStatuses.Templates[ncs.Key()]; ok {
 		csTemplate = userProvidedTemplate
 	} else {
 		csTemplate, _ = models.DefaultCommitStatusTemplates[ncs.Key()]
 	}
-	csData := models.CommitStatusData{env.env.Name}
+	csData := models.CommitStatusData{
+		EnvName:      env.env.Name,
+		K8sNamespace: m.getKubernetesNamespaceName(ctx, env.env.Name),
+		ErrorMessage: errmsg,
+	}
 	renderedCSTemplate, err := csTemplate.Render(csData)
 	if err != nil {
 		return nil, errors.Wrap(err, "error rendering template")
@@ -427,14 +436,15 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 			if err := m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Failure); err != nil {
 				m.log(ctx, "error setting environment status to failed: %v", err)
 			}
-			m.pushNotification(ctx, newenv, notifier.Failure, "error creating: "+err.Error())
-			m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusFailure)
+			errmsg := "error creating: " + err.Error()
+			m.pushNotification(ctx, newenv, notifier.Failure, errmsg)
+			m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusFailure, errmsg)
 			m.MC.Increment(mpfx+"create_errors", "triggering_repo:"+rd.Repo)
 			return
 		}
 		// metahelm.Manager sets the success status on QAEnvironment
 		m.pushNotification(ctx, newenv, notifier.Success, "")
-		m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusSuccess)
+		m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusSuccess, "")
 	}()
 	newenv, err = m.processEnvConfig(ctx, env, rd)
 	if err != nil {
@@ -447,7 +457,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 		break
 	}
 	m.pushNotification(ctx, newenv, notifier.CreateEnvironment, "")
-	m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusPending)
+	m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusPending, "")
 	td, cloc, err := m.fetchCharts(ctx, env.Name, newenv.rc)
 	if err != nil {
 		return "", errors.Wrap(err, "error fetching charts")
@@ -602,12 +612,12 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 				m.log(ctx, "error setting environment status to failed: %v", err)
 			}
 			m.pushNotification(ctx, ne, notifier.Failure, err.Error())
-			m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusFailure)
+			m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusFailure, err.Error())
 			return
 		}
 		// metahelm.Manager sets the success status on QAEnvironment
 		m.pushNotification(ctx, ne, notifier.Success, "")
-		m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusSuccess)
+		m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusSuccess, "")
 	}()
 	ne, err = m.processEnvConfig(ctx, env, rd)
 	if err != nil {
@@ -627,7 +637,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 		break
 	}
 	m.pushNotification(ctx, ne, notifier.UpdateEnvironment, "")
-	m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusPending)
+	m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusPending, "")
 	td, cloc, err := m.fetchCharts(ctx, env.Name, ne.rc)
 	if err != nil {
 		return "", errors.Wrap(err, "error fetching charts")
