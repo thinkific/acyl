@@ -29,12 +29,6 @@ dependencies:
       chart_vars_path: './.helm/charts/consul/values.yaml'
 
 notifications:
-  github:
-    commit_statuses:
-      templates:
-        success:
-          description: "The Acyl environment {{ .EnvName }} was created successfully in the namespace {{ .K8sNamespace }}"
-          target_url: "https://{{ .EnvName }}-acyl.boogies.io"
   templates:
     success:
       title: "🏁 Success"
