@@ -10,7 +10,7 @@ func TestRenderCommitStatusTemplates(t *testing.T) {
 	cases := []struct {
 		name           string
 		inputTemplate  CommitStatusTemplate
-		inputData      CommitStatusData
+		inputData      NotificationData
 		expectedOutput *RenderedCommitStatus
 	}{
 		{
@@ -19,7 +19,7 @@ func TestRenderCommitStatusTemplates(t *testing.T) {
 				Description: "Hello world",
 				TargetURL:   "https://google.com",
 			},
-			inputData: CommitStatusData{
+			inputData: NotificationData{
 				EnvName: "test",
 			},
 			expectedOutput: &RenderedCommitStatus{
@@ -33,7 +33,7 @@ func TestRenderCommitStatusTemplates(t *testing.T) {
 				Description: "Hello {{.EnvName}}",
 				TargetURL:   "https://{{.EnvName}}-google.com",
 			},
-			inputData: CommitStatusData{
+			inputData: NotificationData{
 				EnvName: "world",
 			},
 			expectedOutput: &RenderedCommitStatus{

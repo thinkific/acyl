@@ -7,12 +7,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-type NitroCommitStatus int
+// CommitStatus enumerates the statuses of commits that Nitro supports.
+type CommitStatus int
 
 // Valid commit statuses from Nitro's perspective
 const (
 	// CommitStatusSuccess occurs when a Nitro environment has been created.
-	CommitStatusSuccess NitroCommitStatus = iota
+	CommitStatusSuccess CommitStatus = iota
 	// CommitStatusPending occurs when Nitro is first creating an environment,
 	// or updating an existing environment
 	CommitStatusPending
@@ -21,7 +22,7 @@ const (
 	CommitStatusFailure
 )
 
-func (ncs NitroCommitStatus) Key() string {
+func (ncs CommitStatus) Key() string {
 	switch ncs {
 	case CommitStatusSuccess:
 		return "success"
@@ -49,13 +50,8 @@ type RenderedCommitStatus struct {
 	Description, TargetURL string
 }
 
-// CommitStatusData models the data available to commit status templates.
-type CommitStatusData struct {
-	EnvName, ErrorMessage, K8sNamespace string
-}
-
 // Render renders the commit status template using the supplied data.
-func (cs CommitStatusTemplate) Render(d CommitStatusData) (*RenderedCommitStatus, error) {
+func (cs CommitStatusTemplate) Render(d NotificationData) (*RenderedCommitStatus, error) {
 	desc, err := renderTemplate("description", cs.Description, d)
 	if err != nil {
 		return nil, errors.Wrap(err, "error rendering commit status description template")
@@ -70,7 +66,7 @@ func (cs CommitStatusTemplate) Render(d CommitStatusData) (*RenderedCommitStatus
 	}, nil
 }
 
-func renderTemplate(name, ts string, d CommitStatusData) (string, error) {
+func renderTemplate(name, ts string, d NotificationData) (string, error) {
 	tmpl, err := template.New(name).Parse(ts)
 	if err != nil {
 		return "", errors.Wrap(err, "error parsing template")
@@ -94,7 +90,7 @@ var DefaultCommitStatusTemplates = map[string]CommitStatusTemplate{
 		TargetURL:   "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
 	},
 	"failure": CommitStatusTemplate{
-		Description: "The Acyl environment {{ .EnvName }} failed. Reason: {{ .ErrorMessage }}. Check the Acyl event log for more details.",
+		Description: "The Acyl environment {{ .EnvName }} failed.",
 		TargetURL:   "https://media.giphy.com/media/pyFsc5uv5WPXN9Ocki/giphy.gif",
 	},
 }

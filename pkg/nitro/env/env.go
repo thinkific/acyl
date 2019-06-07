@@ -155,20 +155,31 @@ func (m *Manager) getKubernetesNamespaceName(ctx context.Context, envName string
 	return k8sns
 }
 
-func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevisionData, env *newEnv, ncs models.NitroCommitStatus, errmsg string) (*ghclient.CommitStatus, error) {
-	var csTemplate models.CommitStatusTemplate
-	if userProvidedTemplate, ok := env.rc.Notifications.GitHub.CommitStatuses.Templates[ncs.Key()]; ok {
-		csTemplate = userProvidedTemplate
-	} else {
-		csTemplate, _ = models.DefaultCommitStatusTemplates[ncs.Key()]
+func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevisionData, env *newEnv, ncs models.CommitStatus, errmsg string) (_ *ghclient.CommitStatus, err error) {
+	defer func() {
+		if err != nil {
+			m.log(ctx, "error setting github commit status: %v", err)
+		}
+	}()
+	cst, ok := env.rc.Notifications.GitHub.CommitStatuses.Templates[ncs.Key()]
+	if !ok {
+		cst = models.DefaultCommitStatusTemplates[ncs.Key()]
 	}
-	csData := models.CommitStatusData{
+	csData := models.NotificationData{
 		EnvName:      env.env.Name,
+		Repo:         env.env.Repo,
+		SourceBranch: env.env.SourceBranch,
+		SourceSHA:    env.env.SourceSHA,
+		BaseBranch:   env.env.BaseBranch,
+		BaseSHA:      env.env.BaseSHA,
+		User:         env.env.User,
+		PullRequest:  env.env.PullRequest,
 		K8sNamespace: m.getKubernetesNamespaceName(ctx, env.env.Name),
 		ErrorMessage: errmsg,
 	}
-	renderedCSTemplate, err := csTemplate.Render(csData)
+	renderedCSTemplate, err := cst.Render(csData)
 	if err != nil {
+
 		return nil, errors.Wrap(err, "error rendering template")
 	}
 	cs := &ghclient.CommitStatus{

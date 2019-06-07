@@ -16,13 +16,13 @@ notifications:
     commit_statuses:
       templates:
         success:
-          description: "The Acyl environment {{ .EnvName }} was created successfully in the namespace {{ .K8sNamespace }}"
+          description: "The Acyl environment {{ .EnvName }} was created successfully."
           target_url: "https://{{ .EnvName }}-acyl.boogies.io"
         failure:
-          description: "The Acyl environment {{ .EnvName }} was created successfully"
+          description: "The Acyl environment {{ .EnvName }} failed."
           target_url: "https://{{ .EnvName }}-acyl.boogies.io"
         pending:
-          description: "The Acyl environment {{ .EnvName }} is being created in the namespace {{ .K8sNamespace }}"
+          description: "The Acyl environment {{ .EnvName }} is being created."
           target_url: "https://{{ .EnvName }}-acyl.boogies.io"
   slack:
     # don't do direct messages to the GitHub user who opened the triggering PR (requires a GitHub user to Slack user mapping, see server settings)

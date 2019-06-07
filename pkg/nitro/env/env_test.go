@@ -1232,7 +1232,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 	tests := []struct {
 		name    string
 		env     *newEnv
-		inputCS models.NitroCommitStatus
+		inputCS models.CommitStatus
 		errMsg  string
 		want    *ghclient.CommitStatus
 	}{
@@ -1368,7 +1368,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 			want: &ghclient.CommitStatus{
 				Context:     "Acyl",
 				Status:      "failure",
-				Description: "The Acyl environment some-environment-name failed. Reason: invalid helm chart. Check the Acyl event log for more details.",
+				Description: "The Acyl environment some-environment-name failed.",
 				TargetURL:   models.DefaultCommitStatusTemplates["failure"].TargetURL,
 			},
 		},
