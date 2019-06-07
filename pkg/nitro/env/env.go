@@ -179,7 +179,6 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 	}
 	renderedCSTemplate, err := cst.Render(csData)
 	if err != nil {
-
 		return nil, errors.Wrap(err, "error rendering template")
 	}
 	cs := &ghclient.CommitStatus{
