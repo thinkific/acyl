@@ -225,6 +225,14 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  digest = "1:8a527a9a281d4bd2e09539f503ad99ee9cc4c0ae768243e706683ddca997d556"
+  name = "github.com/bradleyfalzon/ghinstallation"
+  packages = ["."]
+  pruneopts = ""
+  revision = "3f4e9b1898e6b65e31827d5dccb97d91d59feaa3"
+  version = "v0.1.2"
+
+[[projects]]
   digest = "1:0b2d5839372f6dc106fcaa70b6bd5832789a633c4e470540f76c2ec6c560e1c1"
   name = "github.com/census-instrumentation/opencensus-proto"
   packages = [
@@ -1111,6 +1119,15 @@
   version = "v0.1.1"
 
 [[projects]]
+  branch = "response-writer"
+  digest = "1:9fa518fc2daeb31b80181606a8ce53cdfe1adc31e30c9470a301db578d2d6fc7"
+  name = "github.com/palantir/go-githubapp"
+  packages = ["githubapp"]
+  pruneopts = ""
+  revision = "e0549ff678cc15bc835f33401e37d03a16e9fc9e"
+  source = "github.com/dollarshaveclub/go-githubapp"
+
+[[projects]]
   digest = "1:049b5bee78dfdc9628ee0e557219c41f683e5b06c5a5f20eaba0105ccc586689"
   name = "github.com/pelletier/go-buffruneio"
   packages = ["."]
@@ -1208,11 +1225,31 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:bc5884d890d71ae56382665a93d792af3602dae40fa98778170e4795598a7264"
+  name = "github.com/rcrowley/go-metrics"
+  packages = ["."]
+  pruneopts = ""
+  revision = "3113b8401b8a98917cde58f8bbd42a1b1c03b1fd"
+
+[[projects]]
+  branch = "master"
   digest = "1:0163b015525c4d71c41ec5df85ab406c1d0901050fd8c2ec75ac09f5c9a976ed"
   name = "github.com/rivo/tview"
   packages = ["."]
   pruneopts = ""
   revision = "e5e361b9d7908c94aa426e31c208e2c69df0d95d"
+
+[[projects]]
+  digest = "1:3b6d6b1b349b7a4e3325572853b9e1f95b7f87950be55ae3317f8c91fb878d00"
+  name = "github.com/rs/zerolog"
+  packages = [
+    ".",
+    "internal/cbor",
+    "internal/json",
+  ]
+  pruneopts = ""
+  revision = "acf3980132bfcdc48638724e6e3d9e5749b85999"
+  version = "v1.14.3"
 
 [[projects]]
   digest = "1:2761e287c811d0948d47d0252b82281eca3801eb3c9d5f9530956643d5b9f430"
@@ -1237,6 +1274,26 @@
   pruneopts = ""
   revision = "1744e2970ca51c86172c8190fadad617561ed6e7"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:cdb44822dab821fafd1330527e6613c139e51b9662df8d766822a1a90c69216e"
+  name = "github.com/shurcooL/githubv4"
+  packages = ["."]
+  pruneopts = ""
+  revision = "068505affed7d8555196a48eb3e0ed43410aa8e8"
+
+[[projects]]
+  branch = "master"
+  digest = "1:78e45028a7525b961abef663e19f631dd179fde7e11c7c6eeb57a778e490c916"
+  name = "github.com/shurcooL/graphql"
+  packages = [
+    ".",
+    "ident",
+    "internal/jsonutil",
+  ]
+  pruneopts = ""
+  revision = "d48a9a75455f6af30244670bc0c9d0e38e7392b5"
 
 [[projects]]
   digest = "1:9a3c631555e0351fdc4e696577bb63afd90c399d782a8462dba9d100d7021db3"
@@ -2224,6 +2281,7 @@
     "github.com/mitchellh/go-homedir",
     "github.com/newrelic/go-agent",
     "github.com/nlopes/slack",
+    "github.com/palantir/go-githubapp/githubapp",
     "github.com/pkg/errors",
     "github.com/rivo/tview",
     "github.com/spf13/afero",
