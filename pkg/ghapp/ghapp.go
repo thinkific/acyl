@@ -20,11 +20,10 @@ type GitHubApp struct {
 	prh *prEventHandler
 	es  spawner.EnvironmentSpawner
 	dl  persistence.DataLayer
-	lf  LogFunc
 }
 
 // NewGitHubApp returns a GitHubApp with the given private key, app ID and webhook secret, or error
-func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, es spawner.EnvironmentSpawner, dl persistence.DataLayer, lf LogFunc) (*GitHubApp, error) {
+func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, es spawner.EnvironmentSpawner, dl persistence.DataLayer) (*GitHubApp, error) {
 	if len(privateKeyPEM) == 0 {
 		return nil, errors.New("invalid private key")
 	}
@@ -33,6 +32,9 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, es spa
 	}
 	if len(webhookSecret) == 0 {
 		return nil, errors.New("invalid webhook secret")
+	}
+	if es == nil || dl == nil {
+		return nil, errors.New("DataLayer and EnvironmentSpawner are required")
 	}
 	c := githubapp.Config{}
 	c.App.IntegrationID = int(appID)
@@ -47,7 +49,6 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, es spa
 		cc:  cc,
 		es:  es,
 		dl:  dl,
-		lf:  lf,
 	}, nil
 }
 

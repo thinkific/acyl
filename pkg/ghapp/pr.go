@@ -43,11 +43,7 @@ func (prh *prEventHandler) Handles() []string {
 // Handle is called by the handler when an event is received
 // The PR event handler validates the incoming webhook and
 func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID string, payload []byte, w http.ResponseWriter) (status int, body []byte, err error) {
-	w.Header().Add("Content-Type", "application/json")
-
 	rootSpan := tracer.StartSpan("github_app_pr_event_handler")
-
-	errbody := func(msg string) []byte { return []byte(`{"error":"` + msg + `"}`) }
 
 	// We need to set this sampling priority tag in order to allow distributed tracing to work.
 	// This only needs to be done for the root level span as the value is propagated down.
@@ -56,17 +52,8 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 
 	var event github.PullRequestEvent
 	if err := json.Unmarshal(payload, &event); err != nil {
-		return http.StatusBadRequest, errbody("could not unmarshal payload into pull request event"), errors.Wrap(err, "error unmarshaling event")
+		return http.StatusBadRequest, []byte("could not unmarshal payload into pull request event"), errors.Wrap(err, "error unmarshaling event")
 	}
-
-	elogger, err := prh.getlogger(payload, event.GetRepo().GetName(), uint(event.GetPullRequest().GetNumber()))
-	if err != nil {
-		return http.StatusInternalServerError, errbody("could not get eventlogger"), errors.Wrap(err, "error getting event logger")
-	}
-
-	// Create a new context for the async action
-	log := elogger.Printf
-	ctx := eventlogger.NewEventLoggerContext(context.Background(), elogger)
 
 	rrd := models.RepoRevisionData{
 		BaseBranch:   event.GetPullRequest().GetBase().GetLabel(),
@@ -78,6 +65,16 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 		SourceSHA:    event.GetPullRequest().GetHead().GetSHA(),
 		User:         event.GetPullRequest().GetUser().GetName(),
 	}
+	action := event.GetAction()
+
+	elogger, err := prh.getlogger(payload, rrd.Repo, rrd.PullRequest)
+	if err != nil {
+		return http.StatusInternalServerError, []byte("could not get eventlogger"), errors.Wrap(err, "error getting event logger")
+	}
+	log := elogger.Printf
+
+	// Create a new independent context for the async action
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), elogger)
 
 	rootSpan.SetTag("base_branch", rrd.BaseBranch)
 	rootSpan.SetTag("base_sha", rrd.BaseSHA)
@@ -90,7 +87,7 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 
 	ctx = tracer.ContextWithSpan(ctx, rootSpan)
 
-	log("starting async processing for %v", event.GetAction())
+	log("starting async processing for %v", action)
 
 	async := func(f func(ctx context.Context) error) {
 		defer prh.wg.Done()
@@ -98,15 +95,15 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 		defer cf() // guarantee that any goroutines created with the ctx are cancelled
 		err := f(ctx)
 		if err != nil {
-			log("finished processing %v with error: %v", event.GetAction(), err)
+			log("finished processing %v with error: %v", action, err)
 			rootSpan.Finish(tracer.WithError(err))
 			return
 		}
 		rootSpan.Finish()
-		log("success processing %v event; done", event.GetAction())
+		log("success processing %v event; done", action)
 	}
 
-	switch event.GetAction() {
+	switch action {
 	case "opened":
 		fallthrough
 	case "reopened":
@@ -120,7 +117,7 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 		go async(func(ctx context.Context) error { return prh.es.Destroy(ctx, rrd, models.DestroyApiRequest) })
 	default:
 		rootSpan.Finish()
-		return http.StatusOK, []byte(`event not supported (ignored)`), nil
+		return http.StatusOK, []byte(`event not supported (` + action + `); ignored`), nil
 	}
 
 	rootSpan.Finish()

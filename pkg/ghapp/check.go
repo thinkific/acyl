@@ -7,6 +7,7 @@ import (
 	"github.com/palantir/go-githubapp/githubapp"
 )
 
+// checksEventHandler handles check events, stubbed out for now
 type checksEventHandler struct {
 	githubapp.ClientCreator
 }
