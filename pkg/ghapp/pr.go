@@ -9,11 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dollarshaveclub/acyl/pkg/persistence"
-
-	"github.com/dollarshaveclub/acyl/pkg/models"
-
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
+	ghactx "github.com/dollarshaveclub/acyl/pkg/ghapp/context"
+	"github.com/dollarshaveclub/acyl/pkg/models"
+	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 
 	"github.com/google/go-github/github"
@@ -75,6 +74,12 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 
 	// Create a new independent context for the async action
 	ctx := eventlogger.NewEventLoggerContext(context.Background(), elogger)
+
+	// Add the GitHub app client factory to the context
+	ctx, err = ghactx.NewGitHubClientContext(ctx, prh)
+	if err != nil {
+		return http.StatusInternalServerError, []byte("error getting GitHub app client"), errors.Wrap(err, "error getting GitHub app client")
+	}
 
 	rootSpan.SetTag("base_branch", rrd.BaseBranch)
 	rootSpan.SetTag("base_sha", rrd.BaseSHA)
