@@ -95,8 +95,6 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 
 	ctx = tracer.ContextWithSpan(ctx, rootSpan)
 
-	log("starting async processing for %v", action)
-
 	checkRelevancy := func(ctx context.Context) bool {
 		cfg, err := prh.rc.GetFileContents(ctx, rrd.Repo, prh.typePath, rrd.SourceRef)
 		if err != nil {
@@ -123,6 +121,7 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 
 	async := func(f func(ctx context.Context) error) {
 		defer prh.wg.Done()
+		log("starting async processing for %v", action)
 		ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 		defer cf() // guarantee that any goroutines created with the ctx are cancelled
 		// make sure that this is a relevant event
@@ -153,6 +152,7 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 		prh.wg.Add(1)
 		go async(func(ctx context.Context) error { return prh.es.Destroy(ctx, rrd, models.DestroyApiRequest) })
 	default:
+		log("unsupported action: %v", action)
 		rootSpan.Finish()
 		return http.StatusOK, []byte(`event not supported (` + action + `); ignored`), nil
 	}
