@@ -11,6 +11,7 @@ import (
 
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	ghactx "github.com/dollarshaveclub/acyl/pkg/ghapp/context"
+	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
@@ -32,6 +33,7 @@ type prEventHandler struct {
 	wg sync.WaitGroup
 	es spawner.EnvironmentSpawner
 	dl persistence.DataLayer
+	rc ghclient.RepoClient
 }
 
 // Handles specifies the type of events handled
@@ -55,11 +57,11 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 	}
 
 	rrd := models.RepoRevisionData{
-		BaseBranch:   event.GetPullRequest().GetBase().GetLabel(),
+		BaseBranch:   event.GetPullRequest().GetBase().GetRef(),
 		BaseSHA:      event.GetPullRequest().GetBase().GetSHA(),
 		PullRequest:  uint(event.GetPullRequest().GetNumber()),
 		Repo:         event.GetRepo().GetName(),
-		SourceBranch: event.GetPullRequest().GetHead().GetLabel(),
+		SourceBranch: event.GetPullRequest().GetHead().GetRef(),
 		SourceRef:    event.GetPullRequest().GetHead().GetRef(),
 		SourceSHA:    event.GetPullRequest().GetHead().GetSHA(),
 		User:         event.GetPullRequest().GetUser().GetName(),
@@ -94,10 +96,39 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 
 	log("starting async processing for %v", action)
 
+	checkRelevancy := func(ctx context.Context) bool {
+		cfg, err := prh.rc.GetFileContents(ctx, rrd.Repo, "acyl.yml", rrd.SourceRef)
+		if err != nil {
+			log("error getting acyl.yml: %v", err)
+			return false
+		}
+		qat := models.QAType{}
+		if err := qat.FromYAML(cfg); err != nil {
+			log("error unmarshaling acyl.yml: %v", err)
+			return false
+		}
+		if qat.TargetBranch != "" {
+			return qat.TargetBranch == rrd.BaseBranch
+		}
+		for _, tb := range qat.TargetBranches {
+			if tb == rrd.BaseBranch {
+				log("PR base branch found in target branches: %v", tb)
+				return true
+			}
+		}
+		log("PR base branch not found in target branches: %v", rrd.BaseBranch)
+		return false
+	}
+
 	async := func(f func(ctx context.Context) error) {
 		defer prh.wg.Done()
 		ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 		defer cf() // guarantee that any goroutines created with the ctx are cancelled
+		// make sure that this is a relevant event
+		if !checkRelevancy(ctx) {
+			log("event not relevant; ending processing")
+			return
+		}
 		err := f(ctx)
 		if err != nil {
 			log("finished processing %v with error: %v", action, err)
