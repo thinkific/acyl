@@ -30,10 +30,11 @@ var MaxAsyncActionTimeout = 30 * time.Minute
 // prEventHandler is a ClientCreator that handles PR webhook events
 type prEventHandler struct {
 	githubapp.ClientCreator
-	wg *sync.WaitGroup
-	es spawner.EnvironmentSpawner
-	dl persistence.DataLayer
-	rc ghclient.RepoClient
+	typePath string
+	wg       *sync.WaitGroup
+	es       spawner.EnvironmentSpawner
+	dl       persistence.DataLayer
+	rc       ghclient.RepoClient
 }
 
 // Handles specifies the type of events handled
@@ -97,7 +98,7 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 	log("starting async processing for %v", action)
 
 	checkRelevancy := func(ctx context.Context) bool {
-		cfg, err := prh.rc.GetFileContents(ctx, rrd.Repo, "acyl.yml", rrd.SourceRef)
+		cfg, err := prh.rc.GetFileContents(ctx, rrd.Repo, prh.typePath, rrd.SourceRef)
 		if err != nil {
 			log("error getting acyl.yml: %v", err)
 			return false

@@ -184,9 +184,11 @@ type VaultConfig struct {
 }
 
 type GithubConfig struct {
-	HookSecret string
-	Token      string
-	TypePath   string // relative path within repo to look for the QAType definition
+	HookSecret    string
+	Token         string
+	TypePath      string // relative path within repo to look for the QAType definition
+	AppID         uint
+	PrivateKeyPEM []byte
 }
 
 type BackendConfig struct {

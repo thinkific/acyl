@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/ghapp"
+
 	"github.com/dollarshaveclub/acyl/pkg/api"
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
@@ -277,6 +279,11 @@ func server(cmd *cobra.Command, args []string) {
 	}
 	ge := ghevent.NewGitHubEventWebhook(rc, githubConfig.HookSecret, githubConfig.TypePath, dl)
 
+	ghapp, err := ghapp.NewGitHubApp(githubConfig.PrivateKeyPEM, githubConfig.AppID, githubConfig.HookSecret, githubConfig.TypePath, rc, envspawner, dl)
+	if err != nil {
+		log.Fatalf("error creating GitHub app: %v", err)
+	}
+
 	if serverConfig.ReaperIntervalSecs > 0 {
 		log.Printf("starting reaper: %v sec interval", serverConfig.ReaperIntervalSecs)
 		reaper := reap.NewReaper(lp, dl, envspawner, rc, mc, serverConfig.GlobalEnvironmentLimit, logger)
@@ -313,12 +320,13 @@ func server(cmd *cobra.Command, args []string) {
 	httpapi := api.NewDispatcher(server)
 	apiServiceName := strings.Join([]string{datadogServiceName, "http"}, ".")
 	deps := &api.Dependencies{
-		DataLayer:          dl,
-		GitHubEventWebhook: ge,
-		EnvironmentSpawner: envspawner,
-		ServerConfig:       serverConfig,
-		Logger:             logger,
-		DatadogServiceName: apiServiceName,
+		DataLayer:               dl,
+		GitHubEventWebhook:      ge,
+		EnvironmentSpawner:      envspawner,
+		ServerConfig:            serverConfig,
+		Logger:                  logger,
+		DatadogServiceName:      apiServiceName,
+		GitHubAppHandlerFactory: ghapp,
 	}
 	regops := []api.RegisterOption{api.WithAPIKeys(serverConfig.APIKeys)}
 	if serverConfig.DebugEndpoints {

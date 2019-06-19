@@ -2,6 +2,8 @@ package secrets
 
 import (
 	"crypto/tls"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
@@ -16,6 +18,8 @@ const (
 	awsSecretAccessKeyid = "aws/secret_access_key"
 	githubHookSecretid   = "github/hook_secret"
 	githubTokenid        = "github/token"
+	githubAppID          = "github/app/id"
+	githubAppPK          = "github/app/private_key"
 	apiKeysid            = "api_keys"
 	slackTokenid         = "slack/token"
 	tlsCertid            = "tls/cert"
@@ -99,6 +103,23 @@ func (psf *PVCSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
 		return errors.Wrap(err, "error getting GitHub token")
 	}
 	gh.Token = string(s)
+	s, err = psf.sc.Get(githubAppID)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App ID")
+	}
+	appid, err := strconv.Atoi(string(s))
+	if err != nil {
+		return errors.Wrap(err, "app ID must be a valid integer")
+	}
+	if appid < 1 {
+		return fmt.Errorf("app id must be >= 1: %v", appid)
+	}
+	gh.AppID = uint(appid)
+	s, err = psf.sc.Get(githubAppPK)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App private key")
+	}
+	gh.PrivateKeyPEM = s
 	return nil
 }
 

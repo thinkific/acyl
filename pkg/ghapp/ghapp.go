@@ -18,16 +18,17 @@ type LogFunc func(string, ...interface{})
 
 // GitHubApp implements a GitHub app
 type GitHubApp struct {
-	cfg githubapp.Config
-	cc  githubapp.ClientCreator
-	prh *prEventHandler
-	rc  ghclient.RepoClient
-	es  spawner.EnvironmentSpawner
-	dl  persistence.DataLayer
+	typepath string
+	cfg      githubapp.Config
+	cc       githubapp.ClientCreator
+	prh      *prEventHandler
+	rc       ghclient.RepoClient
+	es       spawner.EnvironmentSpawner
+	dl       persistence.DataLayer
 }
 
 // NewGitHubApp returns a GitHubApp with the given private key, app ID and webhook secret, or error
-func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, rc ghclient.RepoClient, es spawner.EnvironmentSpawner, dl persistence.DataLayer) (*GitHubApp, error) {
+func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, typePath string, rc ghclient.RepoClient, es spawner.EnvironmentSpawner, dl persistence.DataLayer) (*GitHubApp, error) {
 	if len(privateKeyPEM) == 0 {
 		return nil, errors.New("invalid private key")
 	}
@@ -36,6 +37,9 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, rc ghc
 	}
 	if len(webhookSecret) == 0 {
 		return nil, errors.New("invalid webhook secret")
+	}
+	if typePath == "" {
+		return nil, errors.New("invalid type path")
 	}
 	if es == nil || dl == nil || rc == nil {
 		return nil, errors.New("RepoClient, DataLayer and EnvironmentSpawner are required")
@@ -49,11 +53,12 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, rc ghc
 		return nil, errors.Wrap(err, "error initializing github app default client")
 	}
 	return &GitHubApp{
-		cfg: c,
-		cc:  cc,
-		rc:  rc,
-		es:  es,
-		dl:  dl,
+		typepath: typePath,
+		cfg:      c,
+		cc:       cc,
+		rc:       rc,
+		es:       es,
+		dl:       dl,
 	}, nil
 }
 
@@ -63,6 +68,6 @@ func (gha *GitHubApp) Handler(wg *sync.WaitGroup) http.Handler {
 	if wg == nil {
 		wg = &sync.WaitGroup{}
 	}
-	gha.prh = &prEventHandler{ClientCreator: gha.cc, wg: wg, rc: gha.rc, es: gha.es, dl: gha.dl}
+	gha.prh = &prEventHandler{ClientCreator: gha.cc, typePath: gha.typepath, wg: wg, rc: gha.rc, es: gha.es, dl: gha.dl}
 	return githubapp.NewDefaultEventDispatcher(gha.cfg, gha.prh, &checksEventHandler{gha.cc})
 }
