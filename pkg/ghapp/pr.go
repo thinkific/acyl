@@ -30,7 +30,7 @@ var MaxAsyncActionTimeout = 30 * time.Minute
 // prEventHandler is a ClientCreator that handles PR webhook events
 type prEventHandler struct {
 	githubapp.ClientCreator
-	wg sync.WaitGroup
+	wg *sync.WaitGroup
 	es spawner.EnvironmentSpawner
 	dl persistence.DataLayer
 	rc ghclient.RepoClient

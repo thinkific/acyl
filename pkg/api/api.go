@@ -84,12 +84,13 @@ func (api *apiBase) forbiddenError(w http.ResponseWriter, msg string, options ..
 
 // Dependencies are the dependencies required for the API
 type Dependencies struct {
-	DataLayer          persistence.DataLayer
-	GitHubEventWebhook *ghevent.GitHubEventWebhook
-	EnvironmentSpawner spawner.EnvironmentSpawner
-	ServerConfig       config.ServerConfig
-	DatadogServiceName string
-	Logger             *log.Logger
+	DataLayer               persistence.DataLayer
+	GitHubEventWebhook      *ghevent.GitHubEventWebhook
+	EnvironmentSpawner      spawner.EnvironmentSpawner
+	ServerConfig            config.ServerConfig
+	DatadogServiceName      string
+	GitHubAppHandlerFactory WebhookHandlerFactory
+	Logger                  *log.Logger
 }
 
 // Manager describes an object capable of registering API versions and waiting on requests
@@ -196,6 +197,15 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		return fmt.Errorf("error registering api v2: %v", err)
 	}
 	d.waitgroups = append(d.waitgroups, &apiv2.wg)
+	apiv3, err := newV3API(deps.GitHubAppHandlerFactory, deps.Logger)
+	if err != nil {
+		return fmt.Errorf("error creating api v3: %v", err)
+	}
+	err = apiv3.register(r)
+	if err != nil {
+		return fmt.Errorf("error registering api v3: %v", err)
+	}
+	d.waitgroups = append(d.waitgroups, &apiv3.wg)
 
 	if ropts.debugEndpoints {
 		dbg := newDebugEndpoints()
