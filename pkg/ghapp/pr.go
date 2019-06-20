@@ -61,11 +61,11 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 		BaseBranch:   event.GetPullRequest().GetBase().GetRef(),
 		BaseSHA:      event.GetPullRequest().GetBase().GetSHA(),
 		PullRequest:  uint(event.GetPullRequest().GetNumber()),
-		Repo:         event.GetRepo().GetName(),
+		Repo:         event.GetRepo().GetFullName(),
 		SourceBranch: event.GetPullRequest().GetHead().GetRef(),
 		SourceRef:    event.GetPullRequest().GetHead().GetRef(),
 		SourceSHA:    event.GetPullRequest().GetHead().GetSHA(),
-		User:         event.GetPullRequest().GetUser().GetName(),
+		User:         event.GetPullRequest().GetUser().GetLogin(),
 	}
 	action := event.GetAction()
 
