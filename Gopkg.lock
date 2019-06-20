@@ -2284,6 +2284,7 @@
     "github.com/palantir/go-githubapp/githubapp",
     "github.com/pkg/errors",
     "github.com/rivo/tview",
+    "github.com/rs/zerolog",
     "github.com/spf13/afero",
     "github.com/spf13/cobra",
     "golang.org/x/crypto/sha3",

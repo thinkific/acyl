@@ -42,7 +42,7 @@ func (l *Logger) SetEnvName(name string) error {
 	return nil
 }
 
-// Printf writes the formatted log line to
+// Printf writes the formatted log line to the underlying Logger
 func (l *Logger) Printf(msg string, params ...interface{}) {
 	var idstr string
 	if !l.ExcludeID {
