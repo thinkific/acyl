@@ -115,6 +115,7 @@ func webhook(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("error creating http request: %v", err)
 	}
+	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("X-Hub-Signature", sig)
 	req.Header.Add("X-GitHub-Event", "pull_request")
 
