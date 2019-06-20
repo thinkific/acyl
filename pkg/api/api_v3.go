@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
+
+	"github.com/rs/zerolog"
 
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
 )
@@ -36,6 +39,11 @@ func (api *v3api) register(r *muxtrace.Router) error {
 		return fmt.Errorf("router is nil")
 	}
 	// GitHub app webhook handler
-	r.HandleFunc("/v3/github/webhook", middlewareChain(http.HandlerFunc(api.hf.Handler(&api.wg).ServeHTTP), waitMiddleware.waitOnRequest)).Methods("POST")
+	r.HandleFunc("/v3/github/webhook", middlewareChain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// allow request logging by bundling a zerolog logger into the request context
+		logger := zerolog.New(os.Stdout)
+		r = r.WithContext(logger.WithContext(r.Context()))
+		api.hf.Handler(&api.wg).ServeHTTP(w, r)
+	}), waitMiddleware.waitOnRequest)).Methods("POST")
 	return nil
 }
