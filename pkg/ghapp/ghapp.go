@@ -45,6 +45,8 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, typePa
 		return nil, errors.New("RepoClient, DataLayer and EnvironmentSpawner are required")
 	}
 	c := githubapp.Config{}
+	c.V3APIURL = "https://api.github.com/"
+	c.V4APIURL = "https://api.github.com/graphql"
 	c.App.IntegrationID = int(appID)
 	c.App.PrivateKey = string(privateKeyPEM)
 	c.App.WebhookSecret = webhookSecret
