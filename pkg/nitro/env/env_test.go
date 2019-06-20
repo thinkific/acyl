@@ -24,6 +24,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/s3"
 	metahelmlib "github.com/dollarshaveclub/metahelm/pkg/metahelm"
+	"github.com/google/go-cmp/cmp"
 	"github.com/nlopes/slack"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -1214,6 +1215,203 @@ func TestProcessEnvConfig(t *testing.T) {
 			}
 			if sha, ok := got.env.CommitSHAMap[env.Repo]; !ok || sha != env.SourceSHA {
 				t.Fatalf("missing or bad commit sha map entry: %v, %v", ok, sha)
+			}
+		})
+	}
+}
+
+func TestSetGithubCommitStatus(t *testing.T) {
+	dl := persistence.NewFakeDataLayer()
+	m := &Manager{
+		RC: &ghclient.FakeRepoClient{
+			SetStatusFunc: func(context.Context, string, string, *ghclient.CommitStatus) error { return nil },
+		},
+		DL: dl,
+	}
+
+	tests := []struct {
+		name    string
+		env     *newEnv
+		inputCS models.CommitStatus
+		errMsg  string
+		want    *ghclient.CommitStatus
+	}{
+		{
+			name: "Configured template - success",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"success": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} has been created",
+										TargetURL:   "https://{{.EnvName}}.shave.io",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusSuccess,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "success",
+				Description: "An environment for some-environment-name has been created",
+				TargetURL:   "https://some-environment-name.shave.io",
+			},
+		},
+		{
+			name: "Configured template - pending",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"pending": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} is being created",
+										TargetURL:   "https://{{ .EnvName }}.shave.io",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusPending,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "pending",
+				Description: "An environment for some-environment-name is being created",
+				TargetURL:   "https://some-environment-name.shave.io",
+			},
+		},
+		{
+			name: "Configured template - failure",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"failure": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} has failed",
+										TargetURL:   "https://{{ .EnvName }}.shave.io",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusFailure,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "failure",
+				Description: "An environment for some-environment-name has failed",
+				TargetURL:   "https://some-environment-name.shave.io",
+			},
+		},
+		{
+			name: "Default template - success",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{},
+			},
+			inputCS: models.CommitStatusSuccess,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "success",
+				Description: "The Acyl environment some-environment-name was created successfully.",
+				TargetURL:   models.DefaultCommitStatusTemplates["success"].TargetURL,
+			},
+		},
+		{
+			name: "Default template - pending",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{},
+			},
+			inputCS: models.CommitStatusPending,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "pending",
+				Description: "The Acyl environment some-environment-name is being created.",
+				TargetURL:   models.DefaultCommitStatusTemplates["pending"].TargetURL,
+			},
+		},
+		{
+			name: "Default template - failure",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{},
+			},
+			inputCS: models.CommitStatusFailure,
+			errMsg:  "invalid helm chart",
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "failure",
+				Description: "The Acyl environment some-environment-name failed.",
+				TargetURL:   models.DefaultCommitStatusTemplates["failure"].TargetURL,
+			},
+		},
+		{
+			name: "Template - error message",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"failure": models.CommitStatusTemplate{
+										Description: "The Acyl environment for {{ .EnvName }} failed. Reason: {{ .ErrorMessage }}",
+										TargetURL:   "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusFailure,
+			errMsg:  "invalid helm chart",
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "failure",
+				Description: "The Acyl environment for some-environment-name failed. Reason: invalid helm chart",
+				TargetURL:   "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := m.setGithubCommitStatus(context.Background(), &models.RepoRevisionData{}, tt.env, tt.inputCS, tt.errMsg)
+			if err != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
+			if diff := cmp.Diff(out, tt.want); diff != "" {
+				t.Errorf("setGithubCommitStatus() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
