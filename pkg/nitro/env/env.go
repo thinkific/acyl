@@ -697,48 +697,53 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 func (m *Manager) handleMetahelmError(ctx context.Context, env *newEnv, err error, msg string) error {
 	ce, ok := err.(metahelmlib.ChartError)
 	if !ok {
+		m.log(ctx, "metahelm returned an error but it's not a ChartError (type: %T): not producing a failure report", err)
 		return errors.Wrap(nitroerrors.UserError(err), msg)
 	}
 	if len(ce.FailedDeployments) == 0 && len(ce.FailedJobs) == 0 && len(ce.FailedDaemonSets) == 0 {
 		// if there's no failed resources, just return the inner helm error
+		m.log(ctx, "metahelm returned an error with no failed resources: not producing a failure report")
 		return nitroerrors.UserError(ce.HelmError)
 	}
 	m.MC.Increment(mpfx+"failure_reports", "triggering_repo:"+env.env.Repo)
 	// only push to S3 if bucket and region are defined
-	if m.S3Config.Bucket != "" && m.S3Config.Region != "" {
-		ftd := failureTemplateData{
-			EnvName:        env.env.Name,
-			PullRequestURL: fmt.Sprintf("https://github.com/%v/pull/%v", env.env.Repo, env.env.PullRequest),
-			StartedTime:    env.env.Created,
-			FailedTime:     time.Now().UTC(),
-			CError:         ce,
-		}
-		html, err2 := m.chartErrorRenderHTML(ftd)
-		if err2 != nil {
-			m.log(ctx, "error rendering failure template HTML: %v", err2)
-			return errors.Wrap(nitroerrors.SystemError(err), msg)
-		}
-		sm := &s3.StorageManager{
-			LogFunc: eventlogger.GetLogger(ctx).Printf,
-		}
-		sm.SetCredentials(m.AWSCreds.AccessKeyID, m.AWSCreds.SecretAccessKey)
-		m.log(ctx, "pushing environment failure report to S3")
-		end := m.MC.Timing(mpfx+"s3_failure_report_push", "triggering_repo:"+env.env.Repo)
-		link, err3 := sm.Push("text/html", bytes.NewBuffer(html), s3.Options{
-			Region:            m.S3Config.Region,
-			Bucket:            m.S3Config.Bucket,
-			Key:               m.S3Config.KeyPrefix + "envfailures/" + time.Now().UTC().Round(time.Minute).Format(time.RFC3339) + "/" + env.env.Name + ".html",
-			Concurrency:       10,
-			MaxRetries:        3,
-			PresignTTLMinutes: 60 * 24,
-		})
-		end()
-		if err3 != nil {
-			m.log(ctx, "error writing failure HTML to S3: %v", err3)
-			return errors.Wrap(nitroerrors.SystemError(err), msg)
-		}
-		m.pushNotification(context.Background(), env, notifier.Failure, "Environment Failure Log: "+link)
+	if m.S3Config.Bucket == "" && m.S3Config.Region == "" {
+		m.log(ctx, "S3 bucket and region aren't defined: not producing a failure report")
+		return errors.Wrap(nitroerrors.UserError(err), msg)
 	}
+	ftd := failureTemplateData{
+		EnvName:        env.env.Name,
+		PullRequestURL: fmt.Sprintf("https://github.com/%v/pull/%v", env.env.Repo, env.env.PullRequest),
+		StartedTime:    env.env.Created,
+		FailedTime:     time.Now().UTC(),
+		CError:         ce,
+	}
+	html, err2 := m.chartErrorRenderHTML(ftd)
+	if err2 != nil {
+		m.log(ctx, "error rendering failure template HTML: %v", err2)
+		return errors.Wrap(nitroerrors.SystemError(err), msg)
+	}
+	sm := &s3.StorageManager{
+		LogFunc: eventlogger.GetLogger(ctx).Printf,
+	}
+	sm.SetCredentials(m.AWSCreds.AccessKeyID, m.AWSCreds.SecretAccessKey)
+	m.log(ctx, "pushing environment failure report to S3")
+	end := m.MC.Timing(mpfx+"s3_failure_report_push", "triggering_repo:"+env.env.Repo)
+	link, err3 := sm.Push("text/html", bytes.NewBuffer(html), s3.Options{
+		Region:            m.S3Config.Region,
+		Bucket:            m.S3Config.Bucket,
+		Key:               m.S3Config.KeyPrefix + "envfailures/" + time.Now().UTC().Round(time.Minute).Format(time.RFC3339) + "/" + env.env.Name + ".html",
+		Concurrency:       10,
+		MaxRetries:        3,
+		PresignTTLMinutes: 60 * 24,
+	})
+	end()
+	if err3 != nil {
+		m.log(ctx, "error writing failure HTML to S3: %v", err3)
+		return errors.Wrap(nitroerrors.SystemError(err), msg)
+	}
+	m.log(ctx, "failure report URL: %v", link)
+	m.pushNotification(context.Background(), env, notifier.Failure, "Environment Failure Log: "+link)
 	return errors.Wrap(nitroerrors.UserError(err), msg)
 }
 
