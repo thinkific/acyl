@@ -35,6 +35,7 @@ type webhookOptions struct {
 	secret     string
 	endpoint   string
 	ignorecert bool
+	verbose    bool
 }
 
 var whOptions = &webhookOptions{}
@@ -52,6 +53,7 @@ func init() {
 	webhookCmd.PersistentFlags().StringVar(&whOptions.secret, "secret", "", "Hub signature secret (must match the secret expected by the Acyl host)")
 	webhookCmd.PersistentFlags().StringVar(&whOptions.endpoint, "endpoint", "/webhook", "acyl webhook endpoint")
 	webhookCmd.PersistentFlags().BoolVar(&whOptions.ignorecert, "ignore-cert", true, "Ignore TLS certificate validity (INSECURE)")
+	webhookCmd.PersistentFlags().BoolVarP(&whOptions.verbose, "verbose", "v", false, "print request headers and body to stdout")
 	RootCmd.AddCommand(webhookCmd)
 }
 
@@ -93,7 +95,14 @@ func webhook(cmd *cobra.Command, args []string) {
 			},
 		},
 	}
-	jb, err := json.Marshal(&event)
+
+	var jb []byte
+	var err error
+	if whOptions.verbose {
+		jb, err = json.MarshalIndent(&event, "", "    ")
+	} else {
+		jb, err = json.Marshal(&event)
+	}
 	if err != nil {
 		log.Fatalf("error marshaling event body: %v", err)
 	}
@@ -107,6 +116,17 @@ func webhook(cmd *cobra.Command, args []string) {
 		log.Fatalf("error creating http request: %v", err)
 	}
 	req.Header.Add("X-Hub-Signature", sig)
+	req.Header.Add("X-GitHub-Event", "pull_request")
+
+	if whOptions.verbose {
+		fmt.Printf("POST %v\n", url)
+		for k, v := range req.Header {
+			for _, h := range v {
+				fmt.Printf("%v: %v\n", k, h)
+			}
+		}
+		fmt.Printf("\n%v\n", string(jb))
+	}
 
 	var tr *http.Transport
 	if whOptions.ignorecert {
