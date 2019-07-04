@@ -634,30 +634,13 @@ func (ci ChartInstaller) GenerateCharts(ctx context.Context, ns string, newenv *
 		out.DependencyList = rcd.Requires
 		return out, nil
 	}
-	prc := models.RepoConfigDependency{Name: models.GetName(newenv.RC.Application.Repo), Repo: newenv.RC.Application.Repo, AppMetadata: newenv.RC.Application, Requires: []string{}}
-	dmap := map[string]struct{}{}
-	reqlist := []string{}
-	for i, d := range newenv.RC.Dependencies.All() {
-		dmap[d.Name] = struct{}{}
-		reqlist = append(reqlist, d.Requires...)
-		dc, err := genchart(i+1, d)
-		if err != nil {
-			return out, errors.Wrapf(err, "error generating chart: %v", d.Name)
-		}
-		out = append(out, dc)
-		prc.Requires = append(prc.Requires, d.Name)
+	var chartsGenerator QAEnvironmentChartsGenerator
+	if newenv.RC.Monorepo.Enabled {
+		chartsGenerator = MonorepoChartsGenerator{}
+	} else {
+		chartsGenerator = SingleAppRepoChartsGenerator{}
 	}
-	for _, r := range reqlist { // verify that everything referenced in 'requires' exists
-		if _, ok := dmap[r]; !ok {
-			return out, fmt.Errorf("unknown requires on chart: %v", r)
-		}
-	}
-	pc, err := genchart(0, prc)
-	if err != nil {
-		return out, errors.Wrap(err, "error generating primary application chart")
-	}
-	out = append(out, pc)
-	return out, nil
+	return chartsGenerator.Generate(ctx, ns, newenv, cloc, genchart)
 }
 
 const (

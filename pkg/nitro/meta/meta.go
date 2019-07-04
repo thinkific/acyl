@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
@@ -18,7 +17,6 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	nitroerrors "github.com/dollarshaveclub/acyl/pkg/nitro/errors"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 	billy "gopkg.in/src-d/go-billy.v4"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -62,9 +60,15 @@ func (g DataGetter) GetAcylYAML(ctx context.Context, rc *models.RepoConfig, repo
 	if rc.Version < 2 {
 		return ErrUnsupportedVersion
 	}
-	rc.Application.SetValueDefaults()
-	rc.Application.Repo = repo
-	rc.Application.Ref = ref
+	if rc.Monorepo.Enabled {
+		rc.Monorepo.SetValueDefaults()
+		rc.Monorepo.SetRepo(repo)
+		rc.Monorepo.SetRef(ref)
+	} else {
+		rc.Application.SetValueDefaults()
+		rc.Application.Repo = repo
+		rc.Application.Ref = ref
+	}
 	return nil
 }
 
@@ -194,6 +198,8 @@ func (g DataGetter) Get(ctx context.Context, rd models.RepoRevisionData) (*model
 	var processDep func(d, parent, ancestor *models.RepoConfigDependency) (err error)
 	processDep = func(d, parent, ancestor *models.RepoConfigDependency) (err error) {
 		switch {
+		case d.MonorepoAppMetadata.Enabled:
+			return errors.New("processDep: cannot yet use monorepo as a dependency")
 		case d == nil:
 			return errors.New("processDep: d is nil")
 		case parent == nil:
@@ -311,8 +317,14 @@ func (g DataGetter) Get(ctx context.Context, rd models.RepoRevisionData) (*model
 		return nil, errors.Wrap(err, "error processing target repo acyl.yml")
 	}
 	repomap[rd.Repo] = struct{}{}
-	rc.Application.Branch = rd.SourceBranch
-	parent := &models.RepoConfigDependency{AppMetadata: rc.Application}
+	parent := &models.RepoConfigDependency{}
+	if rc.Monorepo.Enabled {
+		rc.Monorepo.SetBranch(rd.SourceBranch)
+		parent.MonorepoAppMetadata = rc.Monorepo
+	} else {
+		rc.Application.Branch = rd.SourceBranch
+		parent.AppMetadata = rc.Application
+	}
 	for i := range rc.Dependencies.Direct {
 		d := &rc.Dependencies.Direct[i]
 		if err := processDep(d, parent, d); err != nil {
@@ -498,44 +510,11 @@ func (g DataGetter) FetchCharts(ctx context.Context, rc *models.RepoConfig, base
 		}
 		return out, nil
 	}
-	name := models.GetName(rc.Application.Repo)
-	loc, err := fetchChartAndVars(0, models.RepoConfigDependency{Name: name, AppMetadata: rc.Application})
-	if err != nil || loc == nil {
-		return nil, errors.Wrap(err, "error getting primary repo chart")
+	var fetcher QAEnvironmentChartsFetcher
+	if rc.Monorepo.Enabled {
+		fetcher = MonorepoChartsFetcher{}
+	} else {
+		fetcher = SingleAppRepoChartsFetcher{}
 	}
-	out := map[string]ChartLocation{name: *loc}
-	ctx, cf := context.WithTimeout(ctx, 2*time.Minute)
-	defer cf()
-	eg, _ := errgroup.WithContext(ctx)
-	couts := make([]ChartLocation, rc.Dependencies.Count())
-	offsetmap := make(map[int]*models.RepoConfigDependency, rc.Dependencies.Count())
-	for i, d := range rc.Dependencies.All() {
-		d := d
-		i := i
-		offsetmap[i] = &d
-		eg.Go(func() error {
-			loc, err = fetchChartAndVars(i+1, d)
-			if err != nil || loc == nil {
-				return errors.Wrapf(err, "error getting dependency chart: %v", d.Name)
-			}
-			couts[i] = *loc
-			return nil
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		return nil, errors.Wrap(err, "error fetching charts")
-	}
-	for i := 0; i < rc.Dependencies.Count(); i++ {
-		loc := couts[i]
-		d := offsetmap[i]
-		for _, v := range d.ValueOverrides { // Dependency value_overrides override anything in the application metadata
-			vsl := strings.Split(v, "=")
-			if len(vsl) != 2 {
-				return nil, fmt.Errorf("malformed value override: %v", v)
-			}
-			loc.ValueOverrides[vsl[0]] = vsl[1]
-		}
-		out[d.Name] = loc
-	}
-	return out, nil
+	return fetcher.Fetch(ctx, rc, basePath, fetchChartAndVars)
 }

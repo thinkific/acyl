@@ -1,0 +1,18 @@
+---
+version: 2
+
+target_branches:
+  - master
+
+monrepo:
+  applications:
+    - chart_path: '.helm/charts/app1'
+      chart_vars_path: '.helm/releases/app1/qa.yml'
+      image: quay.io/dollarshaveclub/app1
+      value_overrides:
+        - "foo=bar"
+    - chart_path: '.helm/charts/app2'
+      chart_vars_path: '.helm/releases/app2/qa.yml'
+      image: quay.io/dollarshaveclub/app2
+      value_overrides:
+        - "foo=baz"

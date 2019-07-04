@@ -15,18 +15,19 @@ import (
 
 // RepoConfigDependency models a dependency repo for an environment
 type RepoConfigDependency struct {
-	Name               string                `yaml:"name" json:"name"`                       // Unique name for the dependency
-	Repo               string                `yaml:"repo" json:"repo"`                       // Repo indicates a GitHub repository which contains a top-level acyl.yml
-	ChartPath          string                `yaml:"chart_path" json:"chart_path"`           // Path to the chart within the triggering repository
-	ChartRepoPath      string                `yaml:"chart_repo_path" json:"chart_repo_path"` // GitHub repo and path to chart (no acyl.yml)
-	ChartVarsPath      string                `yaml:"chart_vars_path" json:"chart_vars_path"`
-	ChartVarsRepoPath  string                `yaml:"chart_vars_repo_path" json:"chart_vars_repo_path"`
-	DisableBranchMatch bool                  `yaml:"disable_branch_match" json:"disable_branch_match"`
-	DefaultBranch      string                `yaml:"default_branch" json:"default_branch"`
-	Requires           []string              `yaml:"requires" json:"requires"`
-	ValueOverrides     []string              `yaml:"value_overrides" json:"value_overrides"`
-	AppMetadata        RepoConfigAppMetadata `yaml:"-" json:"app_metadata"` // set by nitro
-	Parent             string                `yaml:"-" json:"-"`            // Name of the parent dependency if this is a transitive dep, set by nitro
+	Name                string                    `yaml:"name" json:"name"`                       // Unique name for the dependency
+	Repo                string                    `yaml:"repo" json:"repo"`                       // Repo indicates a GitHub repository which contains a top-level acyl.yml
+	ChartPath           string                    `yaml:"chart_path" json:"chart_path"`           // Path to the chart within the triggering repository
+	ChartRepoPath       string                    `yaml:"chart_repo_path" json:"chart_repo_path"` // GitHub repo and path to chart (no acyl.yml)
+	ChartVarsPath       string                    `yaml:"chart_vars_path" json:"chart_vars_path"`
+	ChartVarsRepoPath   string                    `yaml:"chart_vars_repo_path" json:"chart_vars_repo_path"`
+	DisableBranchMatch  bool                      `yaml:"disable_branch_match" json:"disable_branch_match"`
+	DefaultBranch       string                    `yaml:"default_branch" json:"default_branch"`
+	Requires            []string                  `yaml:"requires" json:"requires"`
+	ValueOverrides      []string                  `yaml:"value_overrides" json:"value_overrides"`
+	AppMetadata         RepoConfigAppMetadata     `yaml:"-" json:"app_metadata"`      // set by nitro
+	MonorepoAppMetadata MonorepoConfigAppMetadata `yaml:"-" json:"monorepo_metadata"` // set by nitro
+	Parent              string                    `yaml:"-" json:"-"`                 // Name of the parent dependency if this is a transitive dep, set by nitro
 }
 
 // BranchMatchable indicates whether the depencency can participate in branch matching and can be found in RefMap
@@ -90,14 +91,64 @@ func (ram *RepoConfigAppMetadata) SetValueDefaults() {
 	}
 }
 
+// MonorepoAppsMetadata models the app-specific metadata for the primary
+// applications within the monorepo.
+type MonorepoConfigAppMetadata struct {
+	Enabled      bool                    `yaml:"enabled" json:"enabled"`
+	repo         string                  `yaml:"-" json:"repo"`   // set by nitro
+	ref          string                  `yaml:"-" json:"ref"`    // set by nitro
+	branch       string                  `yaml:"-" json:"branch"` // set by nitro
+	Applications []RepoConfigAppMetadata `yaml:"applications" json:"applications"`
+}
+
+func (mcam *MonorepoConfigAppMetadata) Branch() string {
+	return mcam.branch
+}
+
+func (mcam *MonorepoConfigAppMetadata) SetBranch(branch string) {
+	mcam.branch = branch
+	for _, app := range mcam.Applications {
+		app.Branch = branch
+	}
+}
+
+func (mcam *MonorepoConfigAppMetadata) Repo() string {
+	return mcam.repo
+}
+
+func (mcam *MonorepoConfigAppMetadata) SetRepo(repo string) {
+	mcam.repo = repo
+	for _, app := range mcam.Applications {
+		app.Repo = repo
+	}
+}
+
+func (mcam *MonorepoConfigAppMetadata) Ref() string {
+	return mcam.ref
+}
+
+func (mcam *MonorepoConfigAppMetadata) SetRef(ref string) {
+	mcam.ref = ref
+	for _, app := range mcam.Applications {
+		app.Ref = ref
+	}
+}
+
+func (mcam *MonorepoConfigAppMetadata) SetValueDefaults() {
+	for _, app := range mcam.Applications {
+		app.SetValueDefaults()
+	}
+}
+
 // RepoConfig models the config retrieved from the repository via acyl.yml (version >= 2)
 type RepoConfig struct {
-	Version        uint                  `yaml:"version" json:"version"`
-	TargetBranches []string              `yaml:"target_branches" json:"target_branches"`
-	TrackBranches  []string              `json:"track_branches" yaml:"track_branches"`
-	Application    RepoConfigAppMetadata `yaml:"application" json:"application"`
-	Dependencies   DependencyDeclaration `yaml:"dependencies" json:"dependencies"`
-	Notifications  Notifications         `yaml:"notifications" json:"notifications"`
+	Version        uint                      `yaml:"version" json:"version"`
+	TargetBranches []string                  `yaml:"target_branches" json:"target_branches"`
+	TrackBranches  []string                  `json:"track_branches" yaml:"track_branches"`
+	Application    RepoConfigAppMetadata     `yaml:"application" json:"application"`
+	Dependencies   DependencyDeclaration     `yaml:"dependencies" json:"dependencies"`
+	Notifications  Notifications             `yaml:"notifications" json:"notifications"`
+	Monorepo       MonorepoConfigAppMetadata `yaml:"monorepo" json:"monorepo"`
 }
 
 // RefMap generates RefMap for a particular environment
