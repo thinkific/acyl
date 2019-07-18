@@ -37,7 +37,7 @@ func (mcf MonorepoChartsFetcher) Fetch(
 	chartCount := 0
 	for _, app := range rc.Monorepo.Applications {
 		eg.Go(func() error {
-			loc, err := fetch(chartCount, models.RepoConfigDependency{Name: name, AppMetadata: app})
+			loc, err := fetch(chartCount, models.RepoConfigDependency{Name: name, AppMetadata: *app})
 			if err != nil || loc == nil {
 				return errors.Wrapf(err, "error getting primary application chart: %v, %v", name, app.ChartRepoPath)
 			}

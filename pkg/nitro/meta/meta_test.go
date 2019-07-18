@@ -30,6 +30,73 @@ func readFiles() (map[string][]byte, error) {
 	return out, nil
 }
 
+func TestMetaGetterGetV2Monorepo(t *testing.T) {
+	fd, err := readFiles()
+	if err != nil {
+		t.Fatalf("error reading files: %v", err)
+	}
+	rc := &ghclient.FakeRepoClient{
+		GetFileContentsFunc: func(ctx context.Context, repo, path, ref string) ([]byte, error) {
+			switch repo {
+			case "foo/monorepo":
+				switch path {
+				case "acyl.yml":
+					return fd["acyl-v2-monorepo.yml"], nil
+				default:
+					if strings.HasPrefix(repo, ".helm") {
+						return fd["chart.yaml"], nil
+					}
+					return nil, fmt.Errorf("foo/monorepo: unknown path: %v", path)
+				}
+			default:
+				return nil, fmt.Errorf("unknown repo: %v", repo)
+			}
+		},
+	}
+
+	rd := models.RepoRevisionData{
+		SourceBranch: "foo",
+		BaseBranch:   "master",
+		SourceSHA:    "zzzzz",
+		BaseSHA:      "1234",
+		PullRequest:  1,
+		Repo:         "foo/monorepo",
+	}
+	g := DataGetter{
+		RC: rc,
+	}
+
+	rcfg, err := g.Get(context.Background(), rd)
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if !rcfg.Monorepo.Enabled {
+		t.Fatalf("Expected monorepo to be enabled")
+	}
+	if len(rcfg.Monorepo.Applications) != 2 {
+		t.Fatalf("Expected 2 applications within the monorepo, got %v", len(rcfg.Monorepo.Applications))
+	}
+	if rcfg.Monorepo.Applications[0].ChartPath != ".helm/charts/app1" {
+		t.Fatalf("Expected applications to be processed in order and have proper chart path")
+	}
+	if rcfg.Monorepo.Applications[1].ChartPath != ".helm/charts/app2" {
+		t.Fatalf("Expected applications to be processed in order and have proper chart path")
+	}
+
+	// Ensure metadata is properly passed down to all applications.
+	for _, app := range rcfg.Monorepo.Applications {
+		if app.Ref != rcfg.Monorepo.Ref() {
+			t.Fatalf("Got ref %v, expected %v", app.Ref, rcfg.Monorepo.Ref())
+		}
+		if app.Repo != rcfg.Monorepo.Repo() {
+			t.Fatalf("Got repo %v, expected %v", app.Repo, rcfg.Monorepo.Repo())
+
+		}
+		if app.Branch != rcfg.Monorepo.Branch() {
+			t.Fatalf("Got branch %v, expected %v", app.Branch, rcfg.Monorepo.Branch())
+		}
+	}
+}
 func TestMetaGetterGetV2(t *testing.T) {
 	fd, err := readFiles()
 	if err != nil {

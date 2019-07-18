@@ -4,7 +4,8 @@ version: 2
 target_branches:
   - master
 
-monrepo:
+monorepo:
+  enabled: true
   applications:
     - chart_path: '.helm/charts/app1'
       chart_vars_path: '.helm/releases/app1/qa.yml'

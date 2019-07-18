@@ -94,11 +94,11 @@ func (ram *RepoConfigAppMetadata) SetValueDefaults() {
 // MonorepoAppsMetadata models the app-specific metadata for the primary
 // applications within the monorepo.
 type MonorepoConfigAppMetadata struct {
-	Enabled      bool                    `yaml:"enabled" json:"enabled"`
-	repo         string                  `yaml:"-" json:"repo"`   // set by nitro
-	ref          string                  `yaml:"-" json:"ref"`    // set by nitro
-	branch       string                  `yaml:"-" json:"branch"` // set by nitro
-	Applications []RepoConfigAppMetadata `yaml:"applications" json:"applications"`
+	Enabled      bool                     `yaml:"enabled" json:"enabled"`
+	repo         string                   `yaml:"-" json:"repo"`   // set by nitro
+	ref          string                   `yaml:"-" json:"ref"`    // set by nitro
+	branch       string                   `yaml:"-" json:"branch"` // set by nitro
+	Applications []*RepoConfigAppMetadata `yaml:"applications" json:"applications"`
 }
 
 func (mcam *MonorepoConfigAppMetadata) Branch() string {
