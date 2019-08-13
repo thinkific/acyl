@@ -32,7 +32,7 @@ func (mcg MonorepoChartsGenerator) Generate(
 	// Create slice of primary applications in order to maintain DAG.
 	var primaryApps []models.RepoConfigDependency
 	for _, app := range newenv.RC.Monorepo.Applications {
-		rcd := models.RepoConfigDependency{Name: models.GetName(newenv.RC.Monorepo.Repo()), Repo: newenv.RC.Monorepo.Repo(), AppMetadata: app, Requires: []string{}}
+		rcd := models.RepoConfigDependency{Name: models.GetName(newenv.RC.Monorepo.Repo()), Repo: newenv.RC.Monorepo.Repo(), AppMetadata: *app, Requires: []string{}}
 		primaryApps = append(primaryApps, rcd)
 	}
 
@@ -54,8 +54,6 @@ func (mcg MonorepoChartsGenerator) Generate(
 		}
 	}
 	for _, app := range primaryApps {
-		// TODO (mk): Doesn't seem like "i" in the currently supplied genAppChart does anything except provide metadata when logging.
-		// Should we just set as 0 or continue having a unique "i" for each chart.
 		pc, err := genAppChart(0, app)
 		if err != nil {
 			return out, errors.Wrap(err, "error generating primary application chart")

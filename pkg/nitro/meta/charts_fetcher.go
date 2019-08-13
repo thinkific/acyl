@@ -31,7 +31,7 @@ func (mcf MonorepoChartsFetcher) Fetch(
 	fetch func(i int, rc models.RepoConfigDependency) (*ChartLocation, error),
 ) (ChartLocations, error) {
 	// Fetch charts for all applications
-	name := models.GetName(rc.Monorepo.Repo())
+	name := models.GetName(rc.Monorepo.Repo()) // TODO(mk): We should probably include an application name as a requirement in the rpepo config.
 	out := map[string]ChartLocation{}
 	eg, _ := errgroup.WithContext(ctx)
 	chartCount := 0

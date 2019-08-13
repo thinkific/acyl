@@ -44,6 +44,10 @@ func chartMap(charts []metahelm.Chart) map[string]metahelm.Chart {
 	return out
 }
 
+func TestMetahelmGenerateChartsMonorepo(t *testing.T) {
+
+}
+
 func TestMetahelmGenerateCharts(t *testing.T) {
 	cases := []struct {
 		name, inputNS, inputEnvName string

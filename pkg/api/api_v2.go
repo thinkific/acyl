@@ -117,7 +117,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	if r == nil {
 		return fmt.Errorf("router is nil")
 	}
-	// v2 routes
+	// v2 routesapi
 	r.HandleFunc("/v2/envs/_search", middlewareChain(api.envSearchHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/envs/{name}", middlewareChain(api.envDetailHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/eventlog/{id}", middlewareChain(api.eventLogHandler, authMiddleware.authRequest)).Methods("GET")
