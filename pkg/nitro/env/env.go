@@ -324,7 +324,7 @@ func (m *Manager) generateNewEnv(ctx context.Context, rd *models.RepoRevisionDat
 		env = &envs[len(envs)-1]
 		m.log(ctx, "reusing environment db record: %v", env.Name)
 		// update relevant fields
-		if err := m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Spawned); err != nil {
+		if err := m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Spawned); err != nil {
 			return nil, errors.Wrap(err, "error setting environment status")
 		}
 		m.DL.AddEvent(ctx, env.Name, fmt.Sprintf("reusing environment record for webhook event %v", eventlogger.GetLogger(ctx).ID.String()))
@@ -443,7 +443,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 	newenv := &newEnv{env: env}
 	defer func() {
 		if err != nil {
-			if err := m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Failure); err != nil {
+			if err := m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Failure); err != nil {
 				m.log(ctx, "error setting environment status to failed: %v", err)
 			}
 			errmsg := "error creating: " + err.Error()
@@ -537,7 +537,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 			if len(envs) > 0 {
 				for _, e := range envs {
 					m.log(ctx, "setting %v to status destroyed", e.Name)
-					if err := m.DL.SetQAEnvironmentStatus(ctx, e.Name, models.Destroyed); err != nil {
+					if err := m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), e.Name, models.Destroyed); err != nil {
 						m.log(ctx, "error setting status to destroyed for environment: %v: %v", e.Name, err)
 					}
 				}
@@ -580,7 +580,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		return errors.Wrap(err, "error deleting namespace")
 	}
 	dnend()
-	err = m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Destroyed)
+	err = m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Destroyed)
 	return errors.Wrap(nitroerrors.SystemError(err), "error setting environment status")
 }
 
@@ -618,7 +618,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 	ne := &newEnv{env: env}
 	defer func() {
 		if err != nil {
-			if err := m.DL.SetQAEnvironmentStatus(ctx, env.Name, models.Failure); err != nil {
+			if err := m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Failure); err != nil {
 				m.log(ctx, "error setting environment status to failed: %v", err)
 			}
 			m.pushNotification(ctx, ne, notifier.Failure, err.Error())

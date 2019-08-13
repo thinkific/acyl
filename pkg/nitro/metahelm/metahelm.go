@@ -297,7 +297,7 @@ func (ci ChartInstaller) installOrUpgradeIntoExisting(ctx context.Context, env *
 	if ci.kc == nil {
 		return nitroerrors.SystemError(errors.New("k8s client is nil"))
 	}
-	ci.dl.SetQAEnvironmentStatus(ctx, env.Env.Name, models.Updating)
+	ci.dl.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Env.Name, models.Updating)
 	defer func() {
 		if err != nil {
 			if !nitroerrors.IsUserError(err) {
@@ -308,12 +308,12 @@ func (ci ChartInstaller) installOrUpgradeIntoExisting(ctx context.Context, env *
 			if err2 != nil {
 				ci.log(ctx, "error cleaning up namespace: %v", err2)
 			}
-			ci.dl.SetQAEnvironmentStatus(ctx, env.Env.Name, models.Failure)
+			ci.dl.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Env.Name, models.Failure)
 			span.Finish(tracer.WithError(err))
 			return
 		}
 		span.Finish()
-		ci.dl.SetQAEnvironmentStatus(ctx, env.Env.Name, models.Success)
+		ci.dl.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Env.Name, models.Success)
 	}()
 	csl, err := ci.GenerateCharts(ctx, k8senv.Namespace, env, cl)
 	if err != nil {
@@ -359,9 +359,9 @@ func (ci ChartInstaller) BuildAndInstallCharts(ctx context.Context, newenv *EnvI
 			if err2 != nil {
 				ci.log(ctx, "error cleaning up namespace: %v", err2)
 			}
-			ci.dl.SetQAEnvironmentStatus(ctx, newenv.Env.Name, models.Failure)
+			ci.dl.SetQAEnvironmentStatus(context.Background(), newenv.Env.Name, models.Failure)
 		} else {
-			ci.dl.SetQAEnvironmentStatus(ctx, newenv.Env.Name, models.Success)
+			ci.dl.SetQAEnvironmentStatus(context.Background(), newenv.Env.Name, models.Success)
 		}
 	}()
 	if err := ci.writeK8sEnvironment(ctx, newenv, ns); err != nil {
