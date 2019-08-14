@@ -187,7 +187,7 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 		Description: renderedCSTemplate.Description,
 		TargetURL:   renderedCSTemplate.TargetURL,
 	}
-	err = m.RC.SetStatus(ctx, rd.Repo, rd.SourceSHA, cs)
+	err = m.RC.SetStatus(context.Background(), rd.Repo, rd.SourceSHA, cs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error setting commit status")
 	}

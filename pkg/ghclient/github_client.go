@@ -137,6 +137,7 @@ func (ghc *GitHubClient) GetTags(ctx context.Context, repo string) ([]BranchInfo
 }
 
 // SetStatus creates or updates a status on repo at commit sha
+// Note that the github client CreateStatus function will bail if the context was canceled. It is often recommended to pass a fresh context to this function.
 func (ghc *GitHubClient) SetStatus(ctx context.Context, repo string, sha string, status *CommitStatus) error {
 	rs := strings.Split(repo, "/")
 	if len(rs) != 2 {
