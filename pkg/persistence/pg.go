@@ -279,7 +279,8 @@ func (p *PGLayer) GetQAEnvironmentsByUser(ctx context.Context, user string) ([]Q
 	return p.collectRows(p.db.QueryContext(ctx, `SELECT `+models.QAEnvironment{}.Columns()+` from qa_environments WHERE username = $1;`, user))
 }
 
-// SetQAEnvironmentStatus sets a specific QAEnvironment's status
+// SetQAEnvironmentStatus sets a specific QAEnvironment's status.
+// Note that this will bail if the context was canceled. It is often recommended to pass a fresh context to this function.
 func (p *PGLayer) SetQAEnvironmentStatus(ctx context.Context, name string, status EnvironmentStatus) error {
 	if isCancelled(ctx.Done()) {
 		return errors.Wrap(ctx.Err(), "error setting qa environment status")

@@ -814,7 +814,7 @@ func (qs *QASpawner) updateQAMetadata(ctx context.Context, name string, status E
 	if err != nil {
 		return nil, fmt.Errorf("error setting created: %v: %v", name, err)
 	}
-	err = qs.dl.SetQAEnvironmentStatus(ctx, name, status)
+	err = qs.dl.SetQAEnvironmentStatus(context.Background(), name, status)
 	if err != nil {
 		return nil, fmt.Errorf("error setting status: %v: %v", name, err)
 	}
@@ -986,7 +986,7 @@ func (qs *QASpawner) create(ctx context.Context, rd RepoRevisionData, updating b
 				qs.logger.Printf("error setting Github failure status: %v", err2)
 			}
 			if name != "" && !qs.isDestroyed(ctx, name) {
-				err2 = qs.dl.SetQAEnvironmentStatus(ctx, name, Failure)
+				err2 = qs.dl.SetQAEnvironmentStatus(context.Background(), name, Failure)
 				if err2 != nil {
 					qs.logger.Printf("error setting environment to failed: %v", err2)
 				}
@@ -1068,7 +1068,7 @@ func (qs *QASpawner) destroyQA(ctx context.Context, qae *QAEnvironment) error {
 		qs.logger.Printf("error terminating Amino environment: %v", err)
 	}
 
-	return qs.dl.SetQAEnvironmentStatus(ctx, qae.Name, Destroyed)
+	return qs.dl.SetQAEnvironmentStatus(context.Background(), qae.Name, Destroyed)
 }
 
 func (qs *QASpawner) destroy(ctx context.Context, rd RepoRevisionData, reason QADestroyReason, notify bool) (result []string, resultError error) {
@@ -1127,7 +1127,7 @@ func (qs *QASpawner) DestroyExplicitly(ctx context.Context, qa *QAEnvironment, r
 }
 
 func (qs *QASpawner) finalize(ctx context.Context, name string, state EnvironmentStatus, status string, desc string, failureMessage string) error {
-	err := qs.dl.SetQAEnvironmentStatus(ctx, name, state)
+	err := qs.dl.SetQAEnvironmentStatus(context.Background(), name, state)
 	if err != nil {
 		return err
 	}
