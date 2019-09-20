@@ -1,13 +1,13 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{NAME}}
+  name: acyl-manual-test
 spec:
   template:
     spec:
       containers:
       - name: acyl-integration
-        image: quay.io/dollarshaveclub/acyl:{{TAG}}
+        image: quay.io/dollarshaveclub/acyl:ghapp-integration
         imagePullPolicy: Always
         command:
           - "/go/bin/acyl"
@@ -23,5 +23,15 @@ spec:
               secretKeyRef:
                 name: acyl-integration
                 key: github_token
+          - name: "GITHUB_APP_PRIVATE_KEY"
+            valueFrom:
+              secretKeyRef:
+                name: acyl-integration
+                key: github_app_private_key
+          - name: "GITHUB_APP_ID"
+            valueFrom:
+              secretKeyRef:
+                name: acyl-integration
+                key: github_app_id
       restartPolicy: Never
   backoffLimit: 0

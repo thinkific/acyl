@@ -1,10 +1,10 @@
-FROM golang:1.11-alpine
+FROM golang:1.12-alpine
 
 COPY . /go/src/github.com/dollarshaveclub/acyl
 RUN cd /go/src/github.com/dollarshaveclub/acyl && \
 CGO_ENABLED=0 go install github.com/dollarshaveclub/acyl
 
-FROM alpine:3.9
+FROM alpine:3.10
 
 RUN mkdir -p /go/bin/ /opt/integration /opt/html /opt/migrations && \
 apk --no-cache add ca-certificates

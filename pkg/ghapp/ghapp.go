@@ -1,10 +1,12 @@
 package ghapp
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
+	"github.com/dollarshaveclub/acyl/pkg/models"
 
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
@@ -55,6 +57,7 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, typePa
 		return nil, errors.Wrap(err, "error initializing github app default client")
 	}
 	return &GitHubApp{
+		prh:      &prEventHandler{ClientCreator: cc, typePath: typePath, rc: rc, es: es, dl: dl},
 		typepath: typePath,
 		cfg:      c,
 		cc:       cc,
@@ -70,6 +73,21 @@ func (gha *GitHubApp) Handler(wg *sync.WaitGroup) http.Handler {
 	if wg == nil {
 		wg = &sync.WaitGroup{}
 	}
-	gha.prh = &prEventHandler{ClientCreator: gha.cc, typePath: gha.typepath, wg: wg, rc: gha.rc, es: gha.es, dl: gha.dl}
+	gha.prh.wg = wg
 	return githubapp.NewDefaultEventDispatcher(gha.cfg, gha.prh, &checksEventHandler{gha.cc})
+}
+
+// EventProcessor describes an object that processes raw webhooks and returns a context preloaded with eventlogger and GitHub app ClientCreator, the parsed event data and action or error
+type EventProcessor interface {
+	ProcessEvent(ctx context.Context, payload []byte) (_ context.Context, rrd models.RepoRevisionData, action string, err error)
+}
+
+// WebhookHandler returns the underlying webhook handler
+func (gha *GitHubApp) WebhookProcessor() EventProcessor {
+	return gha.prh
+}
+
+// ClientCreator returns the embedded ClientCreator
+func (gha *GitHubApp) ClientCreator() githubapp.ClientCreator {
+	return gha.cc
 }

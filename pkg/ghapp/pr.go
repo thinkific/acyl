@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +43,41 @@ func (prh *prEventHandler) Handles() []string {
 	return []string{"pull_request"}
 }
 
+// ProcessEvent processes an incoming payload and returns the context loaded with an eventlogger and GitHup app client, the parsed event data and action string or error
+func (prh *prEventHandler) ProcessEvent(ctx context.Context, payload []byte) (_ context.Context, rrd models.RepoRevisionData, action string, err error) {
+	var event github.PullRequestEvent
+	if err := json.Unmarshal(payload, &event); err != nil {
+		return ctx, models.RepoRevisionData{}, "", errors.Wrap(err, "error unmarshaling event")
+	}
+
+	rrd = models.RepoRevisionData{
+		BaseBranch:   event.GetPullRequest().GetBase().GetRef(),
+		BaseSHA:      event.GetPullRequest().GetBase().GetSHA(),
+		PullRequest:  uint(event.GetPullRequest().GetNumber()),
+		Repo:         event.GetRepo().GetFullName(),
+		SourceBranch: event.GetPullRequest().GetHead().GetRef(),
+		SourceRef:    event.GetPullRequest().GetHead().GetRef(),
+		SourceSHA:    event.GetPullRequest().GetHead().GetSHA(),
+		User:         event.GetPullRequest().GetUser().GetLogin(),
+	}
+	action = event.GetAction()
+
+	elogger, err := prh.getlogger(payload, rrd.Repo, rrd.PullRequest)
+	if err != nil {
+		return ctx, rrd, action, errors.Wrap(err, "error getting event logger")
+	}
+
+	// Create a new independent context for the async action
+	ctx = eventlogger.NewEventLoggerContext(ctx, elogger)
+
+	// Add the GitHub app client factory to the context
+	ctx, err = ghactx.NewGitHubClientContext(ctx, prh)
+	if err != nil {
+		return ctx, rrd, action, errors.Wrap(err, "error getting GitHub app client")
+	}
+	return ctx, rrd, action, nil
+}
+
 // Handle is called by the handler when an event is received
 // The PR event handler validates the incoming webhook and
 func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID string, payload []byte, w http.ResponseWriter) (status int, body []byte, err error) {
@@ -52,37 +88,14 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 	// https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing
 	rootSpan.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
 
-	var event github.PullRequestEvent
-	if err := json.Unmarshal(payload, &event); err != nil {
-		return http.StatusBadRequest, []byte("could not unmarshal payload into pull request event"), errors.Wrap(err, "error unmarshaling event")
-	}
-
-	rrd := models.RepoRevisionData{
-		BaseBranch:   event.GetPullRequest().GetBase().GetRef(),
-		BaseSHA:      event.GetPullRequest().GetBase().GetSHA(),
-		PullRequest:  uint(event.GetPullRequest().GetNumber()),
-		Repo:         event.GetRepo().GetFullName(),
-		SourceBranch: event.GetPullRequest().GetHead().GetRef(),
-		SourceRef:    event.GetPullRequest().GetHead().GetRef(),
-		SourceSHA:    event.GetPullRequest().GetHead().GetSHA(),
-		User:         event.GetPullRequest().GetUser().GetLogin(),
-	}
-	action := event.GetAction()
-
-	elogger, err := prh.getlogger(payload, rrd.Repo, rrd.PullRequest)
+	ctx, rrd, action, err := prh.ProcessEvent(syncctx, payload)
 	if err != nil {
-		return http.StatusInternalServerError, []byte("could not get eventlogger"), errors.Wrap(err, "error getting event logger")
+		if strings.HasPrefix(err.Error(), "error unmarshaling event") {
+			return http.StatusBadRequest, []byte{}, errors.Wrap(err, "error processing event")
+		}
+		return http.StatusInternalServerError, []byte{}, errors.Wrap(err, "error processing event")
 	}
-	log := elogger.Printf
-
-	// Create a new independent context for the async action
-	ctx := eventlogger.NewEventLoggerContext(context.Background(), elogger)
-
-	// Add the GitHub app client factory to the context
-	ctx, err = ghactx.NewGitHubClientContext(ctx, prh)
-	if err != nil {
-		return http.StatusInternalServerError, []byte("error getting GitHub app client"), errors.Wrap(err, "error getting GitHub app client")
-	}
+	log := eventlogger.GetLogger(ctx).Printf
 
 	rootSpan.SetTag("base_branch", rrd.BaseBranch)
 	rootSpan.SetTag("base_sha", rrd.BaseSHA)
@@ -159,7 +172,7 @@ func (prh *prEventHandler) Handle(syncctx context.Context, eventType, deliveryID
 
 	rootSpan.Finish()
 	w.Header().Add("Content-Type", "application/json")
-	return http.StatusAccepted, []byte(fmt.Sprintf(`{"event_log_id": "%v"}`, elogger.ID.String())), nil
+	return http.StatusAccepted, []byte(fmt.Sprintf(`{"event_log_id": "%v"}`, eventlogger.GetLogger(ctx).ID.String())), nil
 }
 
 func (prh *prEventHandler) getlogger(body []byte, repo string, pr uint) (*eventlogger.Logger, error) {
