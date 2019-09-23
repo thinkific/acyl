@@ -57,6 +57,11 @@ service:
 ingress:
   argo: true
   argo_host: foo.bar.com
+  traefik:
+    entry_point: web
+    enabled: false
+    ingress_class: 'traefik'
+    host: foo.bar.com
 rbac:
   cluster_role: cluster-admin
   cluster_role_binding:

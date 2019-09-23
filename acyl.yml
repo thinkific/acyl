@@ -6,7 +6,7 @@ target_branches:
 
 application:
   chart_path: '.helm/charts/acyl'
-  chart_vars_repo_path: 'dollarshaveclub/helm-charts@master:releases/kube-uw2-110/acyl/dqa.yml'
+  chart_vars_repo_path: 'dollarshaveclub/helm-charts@traefic-ingress:releases/kube-uw2-110/acyl/dqa.yml'
   image: quay.io/dollarshaveclub/acyl
   # local:
   # value_overrides:
@@ -34,5 +34,5 @@ notifications:
       title: "🏁 Success"
       sections:
         - title: "{{ .EnvName }}"
-          text: "{{ .Repo }} PR #{{ .PullRequest }} {{ .SourceBranch }}\nK8s Namespace: {{ .K8sNamespace }}\nhttps://{{ .EnvName }}-acyl.boogies.io"
+          text: "{{ .Repo }} PR #{{ .PullRequest }} {{ .SourceBranch }}\nK8s Namespace: {{ .K8sNamespace }}\nhttps://{{ .EnvName }}-acyl.dqa.email"
           style: 'good'
