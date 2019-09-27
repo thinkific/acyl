@@ -34,5 +34,5 @@ notifications:
       title: "🏁 Success"
       sections:
         - title: "{{ .EnvName }}"
-          text: "{{ .Repo }} PR #{{ .PullRequest }} {{ .SourceBranch }}\nK8s Namespace: {{ .K8sNamespace }}\nhttps://{{ .EnvName }}-acyl.boogies.io"
+          text: "{{ .Repo }} PR #{{ .PullRequest }} {{ .SourceBranch }}\nK8s Namespace: {{ .K8sNamespace }}\nhttps://{{ .EnvName }}-acyl.dqa.email"
           style: 'good'
