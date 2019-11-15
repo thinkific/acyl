@@ -799,6 +799,7 @@ func TestDelete(t *testing.T) {
 				CI: ci,
 			}
 			err := m.Delete(context.Background(), &c.inputRDD, models.DestroyApiRequest)
+			time.Sleep(10*time.Millisecond) // give time for async delete to complete
 			c.verifyFunc(err, t)
 		})
 	}

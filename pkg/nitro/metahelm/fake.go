@@ -98,5 +98,8 @@ func (fi FakeInstaller) DeleteReleases(ctx context.Context, k8senv *models.Kuber
 	return nil
 }
 func (fi FakeInstaller) DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error {
+	if fi.DL != nil {
+		return fi.DL.DeleteK8sEnv(ctx, k8senv.EnvName)
+	}
 	return nil
 }
