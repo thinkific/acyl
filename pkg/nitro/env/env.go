@@ -572,14 +572,32 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 	if k8senv == nil {
 		return errors.New("missing k8s environment")
 	}
-	dnend := m.MC.Timing(mpfx+"delete_namespace_duration", "triggering_repo:"+rd.Repo)
-	if err = m.CI.DeleteReleases(ctx, k8senv); err != nil {
-		return errors.Wrap(err, "error deleting helm releases")
-	}
-	if err = m.CI.DeleteNamespace(ctx, k8senv); err != nil {
-		return errors.Wrap(err, "error deleting namespace")
-	}
-	dnend()
+	// Delete k8s resources asynchronously with retries
+	go func() {
+		// new context with independent timeout
+		ctx2, cf := context.WithTimeout(context.Background(), 10 * time.Minute)
+		defer cf()
+
+		// use existing context for logging so messages go to proper eventlogs
+		m.log(ctx, "beginning k8s delete for env: %v", k8senv.EnvName)
+
+		dnend := m.MC.Timing(mpfx+"delete_namespace_duration", "triggering_repo:"+rd.Repo)
+		
+		// delete helm releases from DB only
+		if _, err := m.DL.DeleteHelmReleasesForEnv(ctx2, k8senv.EnvName); err != nil {
+			m.log(ctx, "error deleting helm releases from DB: %v", err)
+		}
+		// delete NS with retry
+		for i := 0; i < 3 ; i++ {
+			if err = m.CI.DeleteNamespace(ctx2, k8senv); err != nil {
+				m.log(ctx, "error deleting namespace (try: %v): %v", i, err)
+				continue
+			}
+			break
+		}
+		dnend()
+		m.log(ctx, "completed k8s delete for env: %v", k8senv.EnvName)
+	}()
 	err = m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Destroyed)
 	return errors.Wrap(nitroerrors.SystemError(err), "error setting environment status")
 }
