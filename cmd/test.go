@@ -355,7 +355,7 @@ func testConfigSetup() (*nitroenv.Manager, context.Context, *models.RepoRevision
 		ServerConnectRetries:    10,
 		ServerConnectRetryDelay: 2 * time.Second,
 	}
-	ci, err := metahelm.NewChartInstallerWithClientsetFromContext(ib, dl, fs, mc, testEnvCfg.k8sCfg.GroupBindings, k8sConfig.PrivilegedRepoWhitelist, testEnvCfg.k8sCfg.SecretInjections, tcfg, testEnvCfg.kubeCfgPath, testEnvCfg.kubeCtx)
+	ci, err := metahelm.NewChartInstallerWithClientsetFromContext(ib, dl, fs, mc, testEnvCfg.k8sCfg.GroupBindings, testEnvCfg.k8sCfg.PrivilegedRepoWhitelist, testEnvCfg.k8sCfg.SecretInjections, tcfg, testEnvCfg.kubeCfgPath, testEnvCfg.kubeCtx)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error getting chart installer")
 	}
