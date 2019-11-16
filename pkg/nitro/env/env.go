@@ -582,7 +582,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		m.log(ctx, "beginning k8s delete for env: %v", k8senv.EnvName)
 
 		dnend := m.MC.Timing(mpfx+"delete_namespace_duration", "triggering_repo:"+rd.Repo)
-		
+
 		// delete helm releases from DB only
 		if _, err := m.DL.DeleteHelmReleasesForEnv(ctx2, k8senv.EnvName); err != nil {
 			m.log(ctx, "error deleting helm releases from DB: %v", err)
