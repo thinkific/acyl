@@ -26,6 +26,7 @@ import (
 	billy "gopkg.in/src-d/go-billy.v4"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -993,13 +994,17 @@ func (ci ChartInstaller) DeleteReleases(ctx context.Context, k8senv *models.Kube
 	return nil
 }
 
+// cleanUpNamespace deletes an environment's namespace and ClusterRoleBinding, if they exist
 func (ci ChartInstaller) cleanUpNamespace(ctx context.Context, ns, envname string, privileged bool) error {
 	var zero int64
 	// Delete in background so that we can release the lock as soon as possible
 	bg := meta.DeletePropagationBackground
 	ci.log(ctx, "deleting namespace: %v", ns)
 	if err := ci.kc.CoreV1().Namespaces().Delete(ns, &meta.DeleteOptions{GracePeriodSeconds: &zero, PropagationPolicy: &bg}); err != nil {
-		return errors.Wrap(err, "error deleting namespace")
+		// If the namespace is not found, we do not need to return the error as there is nothing to delete
+		if !k8serrors.IsNotFound(err) {
+			return errors.Wrap(err, "error deleting namespace")
+		}
 	}
 	if privileged {
 		ci.log(ctx, "deleting privileged ClusterRoleBinding: %v", clusterRoleBindingName(envname))
@@ -1010,8 +1015,12 @@ func (ci ChartInstaller) cleanUpNamespace(ctx context.Context, ns, envname strin
 	return nil
 }
 
-// DeleteNamespace deletes the kubernetes namespace and removes k8senv from the database
+// DeleteNamespace deletes the kubernetes namespace and removes k8senv from the database if they exist
 func (ci ChartInstaller) DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error {
+	if k8senv == nil {
+		ci.log(ctx, "unable to delete namespace because k8s env is nil")
+		return nil
+	}
 	if err := ci.cleanUpNamespace(ctx, k8senv.Namespace, k8senv.EnvName, k8senv.Privileged); err != nil {
 		return errors.Wrap(err, "error cleaning up namespace")
 	}
