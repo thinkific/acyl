@@ -3,7 +3,6 @@ package locker
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 )
@@ -140,11 +139,12 @@ func TestPreemptiveLockerCancelledContext(t *testing.T) {
 
 	// should fail to acquire the lock because context is cancelled
 	_, err = ftl2.Lock(ctx2)
-	if err == nil {
-		t.Fatalf("should have returned a context cancelled error")
-	}
-	if !strings.Contains(err.Error(), "context was cancelled") {
-		t.Fatalf("unexpected error: %v", err)
+	switch err.(type) {
+	default:
+		t.Fatalf("wanted ContextCancelledError, got %q", err)
+	case *ContextCancelledError:
+		// success
+		t.Log(err)
 	}
 }
 
@@ -324,11 +324,12 @@ func TestPreemptiveLockerMultiPreemption(t *testing.T) {
 		// always get cancelled.
 		defer cf2()
 		_, err := ftl2.Lock(ctx2)
-		if err == nil {
-			t.Fatalf("second lock should have returned a preempted error")
-		}
-		if !strings.Contains(err.Error(), "preempted") {
-			t.Fatalf("unexpected error: %v", err)
+		switch err.(type) {
+		default:
+			t.Fatalf("expected PreemptedLockError, got %q", err)
+		case *PreemptedLockError:
+			// success
+			t.Log(err)
 		}
 	}()
 
