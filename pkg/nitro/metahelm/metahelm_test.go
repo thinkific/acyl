@@ -466,18 +466,9 @@ func TestMetahelmInstallTiller(t *testing.T) {
 			PodIP: ip,
 		},
 	}
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultTillerDeploymentName,
-			Namespace: "foo",
-		},
-		Status: appsv1.DeploymentStatus{
-			AvailableReplicas: 1,
-			Replicas:          1,
-		},
-	}
-	fkc := fake.NewSimpleClientset(pod, deployment)
+	fkc := fake.NewSimpleClientset(pod)
 	dl := persistence.NewFakeDataLayer()
+	dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{Name: "foo-bar"})
 	ci := ChartInstaller{
 		kc: fkc,
 		dl: dl,
@@ -493,14 +484,13 @@ func TestMetahelmInstallTiller(t *testing.T) {
 	if podip != ln.Addr().String() {
 		t.Fatalf("bad pod ip (expected %v): %v", ip, podip)
 	}
-	deployment.Status.AvailableReplicas = 0
 	pod.Status.ContainerStatuses = make([]v1.ContainerStatus, 1)
 	pod.Status.ContainerStatuses[0].State = v1.ContainerState{
 		Waiting: &v1.ContainerStateWaiting{
 			Reason: "ImagePullBackOff",
 		},
 	}
-	fkc = fake.NewSimpleClientset(pod, deployment)
+	fkc = fake.NewSimpleClientset()
 	ci = ChartInstaller{kc: fkc, dl: dl}
 	_, err = ci.installTiller(context.Background(), "foo-bar", "foo")
 	if err == nil {
@@ -912,16 +902,6 @@ func TestMetahelmBuildAndInstallCharts(t *testing.T) {
 			PodIP: ip,
 		},
 	}
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultTillerDeploymentName,
-			Namespace: "foo",
-		},
-		Status: appsv1.DeploymentStatus{
-			AvailableReplicas: 1,
-			Replicas:          1,
-		},
-	}
 	cl := ChartLocations{
 		"foo": ChartLocation{ChartPath: "foo/bar"},
 		"bar": ChartLocation{ChartPath: "bar/baz"},
@@ -931,7 +911,7 @@ func TestMetahelmBuildAndInstallCharts(t *testing.T) {
 		metahelm.Chart{Title: "bar", Location: "bar/baz", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "bar"},
 	}
 	tobjs := gentestobjs(charts)
-	tobjs = append(tobjs, pod, deployment)
+	tobjs = append(tobjs, pod)
 	fkc := fake.NewSimpleClientset(tobjs...)
 	ib := &images.FakeImageBuilder{BatchCompletedFunc: func(envname, repo string) (bool, error) { return true, nil }}
 	rc := &models.RepoConfig{
