@@ -26,12 +26,11 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/klog"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
-	kubeadmapiv1beta1 "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/constants"
+	"k8s.io/kubernetes/cmd/kubeadm/app/features"
 	"k8s.io/kubernetes/cmd/kubeadm/app/images"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
-	nodeutil "k8s.io/kubernetes/pkg/util/node"
-	"k8s.io/kubernetes/pkg/util/procfs"
+	"k8s.io/kubernetes/cmd/kubeadm/app/util/initsystem"
 	utilsexec "k8s.io/utils/exec"
 )
 
@@ -41,40 +40,46 @@ type kubeletFlagsOpts struct {
 	pauseImage               string
 	registerTaintsUsingFlags bool
 	execer                   utilsexec.Interface
-	pidOfFunc                func(string) ([]int, error)
+	isServiceActiveFunc      func(string) (bool, error)
 	defaultHostname          string
 }
 
 // WriteKubeletDynamicEnvFile writes an environment file with dynamic flags to the kubelet.
 // Used at "kubeadm init" and "kubeadm join" time.
-func WriteKubeletDynamicEnvFile(cfg *kubeadmapi.InitConfiguration, registerTaintsUsingFlags bool, kubeletDir string) error {
-	hostName, err := nodeutil.GetHostname("")
+func WriteKubeletDynamicEnvFile(cfg *kubeadmapi.ClusterConfiguration, nodeReg *kubeadmapi.NodeRegistrationOptions, registerTaintsUsingFlags bool, kubeletDir string) error {
+	hostName, err := kubeadmutil.GetHostname("")
 	if err != nil {
 		return err
 	}
 
 	flagOpts := kubeletFlagsOpts{
-		nodeRegOpts:              &cfg.NodeRegistration,
+		nodeRegOpts:              nodeReg,
 		featureGates:             cfg.FeatureGates,
-		pauseImage:               images.GetPauseImage(&cfg.ClusterConfiguration),
+		pauseImage:               images.GetPauseImage(cfg),
 		registerTaintsUsingFlags: registerTaintsUsingFlags,
 		execer:                   utilsexec.New(),
-		pidOfFunc:                procfs.PidOf,
-		defaultHostname:          hostName,
+		isServiceActiveFunc: func(name string) (bool, error) {
+			initSystem, err := initsystem.GetInitSystem()
+			if err != nil {
+				return false, err
+			}
+			return initSystem.ServiceIsActive(name), nil
+		},
+		defaultHostname: hostName,
 	}
 	stringMap := buildKubeletArgMap(flagOpts)
-	argList := kubeadmutil.BuildArgumentListFromMap(stringMap, cfg.NodeRegistration.KubeletExtraArgs)
-	envFileContent := fmt.Sprintf("%s=%s\n", constants.KubeletEnvFileVariableName, strings.Join(argList, " "))
+	argList := kubeadmutil.BuildArgumentListFromMap(stringMap, nodeReg.KubeletExtraArgs)
+	envFileContent := fmt.Sprintf("%s=%q\n", constants.KubeletEnvFileVariableName, strings.Join(argList, " "))
 
 	return writeKubeletFlagBytesToDisk([]byte(envFileContent), kubeletDir)
 }
 
-// buildKubeletArgMap takes a InitConfiguration object and builds based on that a string-string map with flags
+// buildKubeletArgMap takes a kubeletFlagsOpts object and builds based on that a string-string map with flags
 // that should be given to the local kubelet daemon.
 func buildKubeletArgMap(opts kubeletFlagsOpts) map[string]string {
 	kubeletFlags := map[string]string{}
 
-	if opts.nodeRegOpts.CRISocket == kubeadmapiv1beta1.DefaultCRISocket {
+	if opts.nodeRegOpts.CRISocket == constants.DefaultDockerCRISocket {
 		// These flags should only be set when running docker
 		kubeletFlags["network-plugin"] = "cni"
 		driver, err := kubeadmutil.GetCgroupDriverDocker(opts.execer)
@@ -100,8 +105,11 @@ func buildKubeletArgMap(opts kubeletFlagsOpts) map[string]string {
 		kubeletFlags["register-with-taints"] = strings.Join(taintStrs, ",")
 	}
 
-	if pids, _ := opts.pidOfFunc("systemd-resolved"); len(pids) > 0 {
-		// procfs.PidOf only returns an error if the regex is empty or doesn't compile, so we can ignore it
+	ok, err := opts.isServiceActiveFunc("systemd-resolved")
+	if err != nil {
+		klog.Warningf("cannot determine if systemd-resolved is active: %v\n", err)
+	}
+	if ok {
 		kubeletFlags["resolv-conf"] = "/run/systemd/resolve/resolv.conf"
 	}
 
@@ -112,6 +120,12 @@ func buildKubeletArgMap(opts kubeletFlagsOpts) map[string]string {
 	}
 
 	// TODO: Conditionally set `--cgroup-driver` to either `systemd` or `cgroupfs` for CRI other than Docker
+
+	// TODO: The following code should be remvoved after dual-stack is GA.
+	// Note: The user still retains the ability to explicitly set feature-gates and that value will overwrite this base value.
+	if enabled, present := opts.featureGates[features.IPv6DualStack]; present {
+		kubeletFlags["feature-gates"] = fmt.Sprintf("%s=%t", features.IPv6DualStack, enabled)
+	}
 
 	return kubeletFlags
 }

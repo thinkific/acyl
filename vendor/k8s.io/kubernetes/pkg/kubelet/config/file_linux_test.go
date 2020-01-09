@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -131,11 +130,10 @@ func TestWatchFileChanged(t *testing.T) {
 }
 
 type testCase struct {
-	lock       *sync.Mutex
-	desc       string
-	linkedFile string
-	pod        runtime.Object
-	expected   kubetypes.PodUpdate
+	lock     *sync.Mutex
+	desc     string
+	pod      runtime.Object
+	expected kubetypes.PodUpdate
 }
 
 func getTestCases(hostname types.NodeName) []*testCase {
@@ -428,7 +426,7 @@ func writeFile(filename string, data []byte) error {
 func changeFileName(dir, from, to string, t *testing.T) {
 	fromPath := filepath.Join(dir, from)
 	toPath := filepath.Join(dir, to)
-	if err := exec.Command("mv", fromPath, toPath).Run(); err != nil {
+	if err := os.Rename(fromPath, toPath); err != nil {
 		t.Errorf("Fail to change file name: %s", err)
 	}
 }

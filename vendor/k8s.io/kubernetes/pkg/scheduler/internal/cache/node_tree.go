@@ -32,7 +32,7 @@ type NodeTree struct {
 	tree      map[string]*nodeArray // a map from zone (region-zone) to an array of nodes in the zone.
 	zones     []string              // a list of all the zones in the tree (keys)
 	zoneIndex int
-	NumNodes  int
+	numNodes  int
 	mu        sync.RWMutex
 }
 
@@ -63,7 +63,7 @@ func newNodeTree(nodes []*v1.Node) *NodeTree {
 		tree: make(map[string]*nodeArray),
 	}
 	for _, n := range nodes {
-		nt.AddNode(n)
+		nt.addNode(n)
 	}
 	return nt
 }
@@ -81,7 +81,7 @@ func (nt *NodeTree) addNode(n *v1.Node) {
 	if na, ok := nt.tree[zone]; ok {
 		for _, nodeName := range na.nodes {
 			if nodeName == n.Name {
-				klog.Warningf("node %v already exist in the NodeTree", n.Name)
+				klog.Warningf("node %q already exist in the NodeTree", n.Name)
 				return
 			}
 		}
@@ -90,8 +90,8 @@ func (nt *NodeTree) addNode(n *v1.Node) {
 		nt.zones = append(nt.zones, zone)
 		nt.tree[zone] = &nodeArray{nodes: []string{n.Name}, lastIndex: 0}
 	}
-	klog.V(5).Infof("Added node %v in group %v to NodeTree", n.Name, zone)
-	nt.NumNodes++
+	klog.V(2).Infof("Added node %q in group %q to NodeTree", n.Name, zone)
+	nt.numNodes++
 }
 
 // RemoveNode removes a node from the NodeTree.
@@ -110,14 +110,14 @@ func (nt *NodeTree) removeNode(n *v1.Node) error {
 				if len(na.nodes) == 0 {
 					nt.removeZone(zone)
 				}
-				klog.V(5).Infof("Removed node %v in group %v from NodeTree", n.Name, zone)
-				nt.NumNodes--
+				klog.V(2).Infof("Removed node %q in group %q from NodeTree", n.Name, zone)
+				nt.numNodes--
 				return nil
 			}
 		}
 	}
-	klog.Errorf("Node %v in group %v was not found", n.Name, zone)
-	return fmt.Errorf("node %v in group %v was not found", n.Name, zone)
+	klog.Errorf("Node %q in group %q was not found", n.Name, zone)
+	return fmt.Errorf("node %q in group %q was not found", n.Name, zone)
 }
 
 // removeZone removes a zone from tree.
@@ -127,6 +127,7 @@ func (nt *NodeTree) removeZone(zone string) {
 	for i, z := range nt.zones {
 		if z == zone {
 			nt.zones = append(nt.zones[:i], nt.zones[i+1:]...)
+			return
 		}
 	}
 }
@@ -183,4 +184,11 @@ func (nt *NodeTree) Next() string {
 			return nodeName
 		}
 	}
+}
+
+// NumNodes returns the number of nodes.
+func (nt *NodeTree) NumNodes() int {
+	nt.mu.RLock()
+	defer nt.mu.RUnlock()
+	return nt.numNodes
 }

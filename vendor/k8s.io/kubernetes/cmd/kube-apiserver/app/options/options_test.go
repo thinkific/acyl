@@ -27,11 +27,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	utilflag "k8s.io/apiserver/pkg/util/flag"
 	auditbuffered "k8s.io/apiserver/plugin/pkg/audit/buffered"
+	auditdynamic "k8s.io/apiserver/plugin/pkg/audit/dynamic"
 	audittruncate "k8s.io/apiserver/plugin/pkg/audit/truncate"
 	restclient "k8s.io/client-go/rest"
-	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	cliflag "k8s.io/component-base/cli/flag"
 	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
@@ -94,9 +94,9 @@ func TestAddFlags(t *testing.T) {
 		"--cloud-provider=azure",
 		"--cors-allowed-origins=10.10.10.100,10.10.10.200",
 		"--contention-profiling=true",
+		"--egress-selector-config-file=/var/run/kubernetes/egress-selector/connectivity.yaml",
 		"--enable-aggregator-routing=true",
 		"--enable-logs-handler=false",
-		"--enable-swagger-ui=true",
 		"--endpoint-reconciler-type=" + string(reconcilers.LeaseEndpointReconcilerType),
 		"--etcd-keyfile=/var/run/kubernetes/etcd.key",
 		"--etcd-certfile=/var/run/kubernetes/etcdce.crt",
@@ -118,7 +118,7 @@ func TestAddFlags(t *testing.T) {
 	// This is a snapshot of expected options parsed by args.
 	expected := &ServerRunOptions{
 		ServiceNodePortRange:   kubeoptions.DefaultServiceNodePortRange,
-		ServiceClusterIPRange:  kubeoptions.DefaultServiceIPCIDR,
+		ServiceClusterIPRanges: kubeoptions.DefaultServiceIPCIDR.String(),
 		MasterCount:            5,
 		EndpointReconcilerType: string(reconcilers.LeaseEndpointReconcilerType),
 		AllowPrivileged:        false,
@@ -129,6 +129,8 @@ func TestAddFlags(t *testing.T) {
 			MaxMutatingRequestsInFlight: 200,
 			RequestTimeout:              time.Duration(2) * time.Minute,
 			MinRequestTimeout:           1800,
+			JSONPatchMaxCopyBytes:       int64(3 * 1024 * 1024),
+			MaxRequestBodyBytes:         int64(3 * 1024 * 1024),
 		},
 		Admission: &kubeoptions.AdmissionOptions{
 			GenericAdmission: &apiserveroptions.AdmissionOptions{
@@ -137,16 +139,20 @@ func TestAddFlags(t *testing.T) {
 				EnablePlugins:          []string{"AlwaysDeny"},
 				ConfigFile:             "/admission-control-config",
 				Plugins:                s.Admission.GenericAdmission.Plugins,
+				Decorators:             s.Admission.GenericAdmission.Decorators,
 			},
 		},
 		Etcd: &apiserveroptions.EtcdOptions{
 			StorageConfig: storagebackend.Config{
-				Type:                  "etcd3",
-				ServerList:            nil,
+				Type: "etcd3",
+				Transport: storagebackend.TransportConfig{
+					ServerList: nil,
+					KeyFile:    "/var/run/kubernetes/etcd.key",
+					CAFile:     "/var/run/kubernetes/etcdca.crt",
+					CertFile:   "/var/run/kubernetes/etcdce.crt",
+				},
+				Paging:                true,
 				Prefix:                "/registry",
-				KeyFile:               "/var/run/kubernetes/etcd.key",
-				CAFile:                "/var/run/kubernetes/etcdca.crt",
-				CertFile:              "/var/run/kubernetes/etcdce.crt",
 				CompactionInterval:    storagebackend.DefaultCompactInterval,
 				CountMetricPollPeriod: time.Minute,
 			},
@@ -181,7 +187,7 @@ func TestAddFlags(t *testing.T) {
 				string(kapi.NodeExternalDNS),
 				string(kapi.NodeExternalIP),
 			},
-			EnableHttps: true,
+			EnableHTTPS: true,
 			HTTPTimeout: time.Duration(5) * time.Second,
 			TLSClientConfig: restclient.TLSClientConfig{
 				CertFile: "/var/run/kubernetes/ceserver.crt",
@@ -240,10 +246,12 @@ func TestAddFlags(t *testing.T) {
 				InitialBackoff:     2 * time.Second,
 				GroupVersionString: "audit.k8s.io/v1alpha1",
 			},
+			DynamicOptions: apiserveroptions.AuditDynamicOptions{
+				BatchConfig: auditdynamic.NewDefaultWebhookBatchConfig(),
+			},
 			PolicyFile: "/policy",
 		},
 		Features: &apiserveroptions.FeatureOptions{
-			EnableSwaggerUI:           true,
 			EnableProfiling:           true,
 			EnableContentionProfiling: true,
 		},
@@ -283,12 +291,11 @@ func TestAddFlags(t *testing.T) {
 			CloudConfigFile: "/cloud-config",
 			CloudProvider:   "azure",
 		},
-		StorageSerialization: &kubeoptions.StorageSerializationOptions{
-			StorageVersions:        kubeoptions.ToPreferredVersionString(legacyscheme.Scheme.PreferredVersionAllGroups()),
-			DefaultStorageVersions: kubeoptions.ToPreferredVersionString(legacyscheme.Scheme.PreferredVersionAllGroups()),
-		},
 		APIEnablement: &apiserveroptions.APIEnablementOptions{
-			RuntimeConfig: utilflag.ConfigurationMap{},
+			RuntimeConfig: cliflag.ConfigurationMap{},
+		},
+		EgressSelector: &apiserveroptions.EgressSelectorOptions{
+			ConfigFile: "/var/run/kubernetes/egress-selector/connectivity.yaml",
 		},
 		EnableLogsHandler:       false,
 		EnableAggregatorRouting: true,

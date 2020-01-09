@@ -26,7 +26,8 @@ import (
 	rls "k8s.io/helm/pkg/proto/hapi/services"
 )
 
-const cmInputTemplate = `kind: ConfigMap
+const (
+	cmInputTemplate = `kind: ConfigMap
 apiVersion: v1
 metadata:
   name: example
@@ -34,7 +35,7 @@ data:
   Release:
 {{.Release | toYaml | indent 4}}
 `
-const cmOutputTemplate = `
+	cmOutputTemplate = `
 ---
 # Source: installChart/templates/cm.yaml
 kind: ConfigMap
@@ -53,6 +54,7 @@ data:
       seconds: 242085845
     
 `
+)
 
 var installChart *chart.Chart
 
@@ -442,6 +444,78 @@ func TestFakeClient_UpdateReleaseFromChart(t *testing.T) {
 			}
 			if !reflect.DeepEqual(c.Rels, tt.relsAfter) {
 				t.Errorf("FakeClient.UpdateReleaseFromChart() rels =\n%v\nwant\n%v", c.Rels, tt.relsAfter)
+			}
+		})
+	}
+}
+
+func TestFakeClient_ReleaseHistory(t *testing.T) {
+	relName := "angry-dolphin"
+	rels := []*release.Release{
+		ReleaseMock(&MockReleaseOptions{Name: relName, Version: 1}),
+		ReleaseMock(&MockReleaseOptions{Name: relName, Version: 2}),
+		ReleaseMock(&MockReleaseOptions{Name: relName, Version: 3}),
+		ReleaseMock(&MockReleaseOptions{Name: relName, Version: 4}),
+	}
+
+	type fields struct {
+		Rels []*release.Release
+	}
+	type args struct {
+		rlsName string
+		opts    []HistoryOption
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *rls.GetHistoryResponse
+		wantErr bool
+	}{
+		{
+			name: "Get all revisions of a release",
+			fields: fields{
+				Rels: rels,
+			},
+			args: args{
+				rlsName: relName,
+				opts:    nil,
+			},
+			want: &rls.GetHistoryResponse{
+				Releases: rels,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Get only 2 revisions of a release",
+			fields: fields{
+				Rels: rels,
+			},
+			args: args{
+				rlsName: relName,
+				opts: []HistoryOption{
+					WithMaxHistory(2),
+				},
+			},
+			want: &rls.GetHistoryResponse{
+				Releases: rels[:2],
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &FakeClient{
+				Rels: tt.fields.Rels,
+			}
+			got, err := c.ReleaseHistory(tt.args.rlsName, tt.args.opts...)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("FakeClient.ReleaseHistory() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FakeClient.ReleaseHistory() = %v, want %v", got, tt.want)
 			}
 		})
 	}

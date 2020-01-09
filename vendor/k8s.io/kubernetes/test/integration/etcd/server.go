@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	genericapiserveroptions "k8s.io/apiserver/pkg/server/options"
-	cacheddiscovery "k8s.io/client-go/discovery/cached"
+	cacheddiscovery "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -54,7 +54,7 @@ import (
 )
 
 // StartRealMasterOrDie starts an API master that is appropriate for use in tests that require one of every resource
-func StartRealMasterOrDie(t *testing.T) *Master {
+func StartRealMasterOrDie(t *testing.T, configFuncs ...func(*options.ServerRunOptions)) *Master {
 	certDir, err := ioutil.TempDir("", t.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -74,21 +74,22 @@ func StartRealMasterOrDie(t *testing.T) *Master {
 	kubeAPIServerOptions.InsecureServing.BindPort = 0
 	kubeAPIServerOptions.SecureServing.Listener = listener
 	kubeAPIServerOptions.SecureServing.ServerCert.CertDirectory = certDir
-	kubeAPIServerOptions.Etcd.StorageConfig.ServerList = []string{framework.GetEtcdURL()}
+	kubeAPIServerOptions.Etcd.StorageConfig.Transport.ServerList = []string{framework.GetEtcdURL()}
 	kubeAPIServerOptions.Etcd.DefaultStorageMediaType = runtime.ContentTypeJSON // force json we can easily interpret the result in etcd
-	kubeAPIServerOptions.ServiceClusterIPRange = *defaultServiceClusterIPRange
+	kubeAPIServerOptions.ServiceClusterIPRanges = defaultServiceClusterIPRange.String()
 	kubeAPIServerOptions.Authorization.Modes = []string{"RBAC"}
 	kubeAPIServerOptions.Admission.GenericAdmission.DisablePlugins = []string{"ServiceAccount"}
+	kubeAPIServerOptions.APIEnablement.RuntimeConfig["api/all"] = "true"
+	for _, f := range configFuncs {
+		f(kubeAPIServerOptions)
+	}
 	completedOptions, err := app.Complete(kubeAPIServerOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := completedOptions.APIEnablement.RuntimeConfig.Set("api/all=true"); err != nil {
-		t.Fatal(err)
-	}
 
 	// get etcd client before starting API server
-	rawClient, kvClient, err := integration.GetEtcdClients(completedOptions.Etcd.StorageConfig)
+	rawClient, kvClient, err := integration.GetEtcdClients(completedOptions.Etcd.StorageConfig.Transport)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +117,7 @@ func StartRealMasterOrDie(t *testing.T) *Master {
 		t.Fatal(err)
 	}
 
-	kubeClientConfig := restclient.CopyConfig(kubeAPIServer.LoopbackClientConfig)
+	kubeClientConfig := restclient.CopyConfig(kubeAPIServer.GenericAPIServer.LoopbackClientConfig)
 
 	// we make lots of requests, don't be slow
 	kubeClientConfig.QPS = 99999
@@ -132,19 +133,29 @@ func StartRealMasterOrDie(t *testing.T) *Master {
 			}
 		}()
 
-		if err := kubeAPIServer.PrepareRun().Run(stopCh); err != nil {
+		prepared, err := kubeAPIServer.PrepareRun()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := prepared.Run(stopCh); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	lastHealth := ""
+	attempt := 0
 	if err := wait.PollImmediate(time.Second, time.Minute, func() (done bool, err error) {
 		// wait for the server to be healthy
 		result := kubeClient.RESTClient().Get().AbsPath("/healthz").Do()
 		content, _ := result.Raw()
 		lastHealth = string(content)
 		if errResult := result.Error(); errResult != nil {
-			t.Log(errResult)
+			attempt++
+			if attempt < 10 {
+				t.Log("waiting for server to be healthy")
+			} else {
+				t.Log(errResult)
+			}
 			return false, nil
 		}
 		var status int

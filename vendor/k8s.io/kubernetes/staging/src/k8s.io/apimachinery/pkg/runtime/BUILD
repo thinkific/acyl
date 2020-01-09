@@ -9,11 +9,13 @@ load(
 go_test(
     name = "go_default_test",
     srcs = [
+        "codec_test.go",
         "conversion_test.go",
         "converter_test.go",
         "embedded_test.go",
         "extension_test.go",
         "local_scheme_test.go",
+        "mapper_test.go",
         "scheme_test.go",
         "swagger_doc_generator_test.go",
     ],
@@ -47,6 +49,7 @@ go_library(
         "generated.pb.go",
         "helper.go",
         "interfaces.go",
+        "mapper.go",
         "register.go",
         "scheme.go",
         "scheme_builder.go",

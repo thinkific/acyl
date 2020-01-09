@@ -1,3 +1,5 @@
+// +build !providerless
+
 /*
 Copyright 2014 The Kubernetes Authors.
 
@@ -20,23 +22,24 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	volumehelpers "k8s.io/cloud-provider/volume/helpers"
 	"k8s.io/klog"
-	gcecloud "k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
 	"k8s.io/kubernetes/pkg/features"
-	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 	"k8s.io/kubernetes/pkg/util/mount"
-	kstrings "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
+	gcecloud "k8s.io/legacy-cloud-providers/gce"
+	utilstrings "k8s.io/utils/strings"
 )
 
 // ProbeVolumePlugins is the primary entrypoint for volume plugins.
@@ -62,17 +65,16 @@ const (
 // The constants are used to map from the machine type (number of CPUs) to the limit of
 // persistent disks that can be attached to an instance. Please refer to gcloud doc
 // https://cloud.google.com/compute/docs/disks/#increased_persistent_disk_limits
+// These constants are all the documented attach limit minus one because the
+// node boot disk is considered an attachable disk so effective attach limit is
+// one less.
 const (
-	OneCPU         = 1
-	EightCPUs      = 8
-	VolumeLimit16  = 16
-	VolumeLimit32  = 32
-	VolumeLimit64  = 64
-	VolumeLimit128 = 128
+	volumeLimitSmall = 15
+	VolumeLimitBig   = 127
 )
 
 func getPath(uid types.UID, volName string, host volume.VolumeHost) string {
-	return host.GetPodVolumeDir(uid, kstrings.EscapeQualifiedNameForDisk(gcePersistentDiskPluginName), volName)
+	return host.GetPodVolumeDir(uid, utilstrings.EscapeQualifiedName(gcePersistentDiskPluginName), volName)
 }
 
 func (plugin *gcePersistentDiskPlugin) Init(host volume.VolumeHost) error {
@@ -98,6 +100,11 @@ func (plugin *gcePersistentDiskPlugin) CanSupport(spec *volume.Spec) bool {
 		(spec.Volume != nil && spec.Volume.GCEPersistentDisk != nil)
 }
 
+func (plugin *gcePersistentDiskPlugin) IsMigratedToCSI() bool {
+	return utilfeature.DefaultFeatureGate.Enabled(features.CSIMigration) &&
+		utilfeature.DefaultFeatureGate.Enabled(features.CSIMigrationGCE)
+}
+
 func (plugin *gcePersistentDiskPlugin) RequiresRemount() bool {
 	return false
 }
@@ -107,7 +114,7 @@ func (plugin *gcePersistentDiskPlugin) SupportsMountOption() bool {
 }
 
 func (plugin *gcePersistentDiskPlugin) SupportsBulkVolumeVerification() bool {
-	return false
+	return true
 }
 
 func (plugin *gcePersistentDiskPlugin) GetAccessModes() []v1.PersistentVolumeAccessMode {
@@ -119,7 +126,7 @@ func (plugin *gcePersistentDiskPlugin) GetAccessModes() []v1.PersistentVolumeAcc
 
 func (plugin *gcePersistentDiskPlugin) GetVolumeLimits() (map[string]int64, error) {
 	volumeLimits := map[string]int64{
-		util.GCEVolumeLimitKey: VolumeLimit16,
+		util.GCEVolumeLimitKey: volumeLimitSmall,
 	}
 	cloud := plugin.host.GetCloudProvider()
 
@@ -146,22 +153,12 @@ func (plugin *gcePersistentDiskPlugin) GetVolumeLimits() (map[string]int64, erro
 		klog.Errorf("Failed to get instance type from GCE cloud provider")
 		return volumeLimits, nil
 	}
-	if strings.HasPrefix(instanceType, "n1-") {
-		splits := strings.Split(instanceType, "-")
-		if len(splits) < 3 {
-			return volumeLimits, nil
-		}
-		last := splits[2]
-		if num, err := strconv.Atoi(last); err == nil {
-			if num == OneCPU {
-				volumeLimits[util.GCEVolumeLimitKey] = VolumeLimit32
-			} else if num < EightCPUs {
-				volumeLimits[util.GCEVolumeLimitKey] = VolumeLimit64
-			} else {
-				volumeLimits[util.GCEVolumeLimitKey] = VolumeLimit128
-			}
-		}
+	if strings.HasPrefix(instanceType, "n1-") || strings.HasPrefix(instanceType, "custom-") {
+		volumeLimits[util.GCEVolumeLimitKey] = VolumeLimitBig
+	} else {
+		volumeLimits[util.GCEVolumeLimitKey] = volumeLimitSmall
 	}
+
 	return volumeLimits, nil
 }
 
@@ -284,17 +281,33 @@ func (plugin *gcePersistentDiskPlugin) ExpandVolumeDevice(
 	return updatedQuantity, nil
 }
 
-func (plugin *gcePersistentDiskPlugin) ExpandFS(spec *volume.Spec, devicePath, deviceMountPath string, _, _ resource.Quantity) error {
-	_, err := util.GenericResizeFS(plugin.host, plugin.GetPluginName(), devicePath, deviceMountPath)
-	return err
+func (plugin *gcePersistentDiskPlugin) NodeExpand(resizeOptions volume.NodeResizeOptions) (bool, error) {
+	fsVolume, err := util.CheckVolumeModeFilesystem(resizeOptions.VolumeSpec)
+	if err != nil {
+		return false, fmt.Errorf("error checking VolumeMode: %v", err)
+	}
+	// if volume is not a fs file system, there is nothing for us to do here.
+	if !fsVolume {
+		return true, nil
+	}
+	_, err = util.GenericResizeFS(plugin.host, plugin.GetPluginName(), resizeOptions.DevicePath, resizeOptions.DeviceMountPath)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
-var _ volume.FSResizableVolumePlugin = &gcePersistentDiskPlugin{}
+var _ volume.NodeExpandableVolumePlugin = &gcePersistentDiskPlugin{}
 
 func (plugin *gcePersistentDiskPlugin) ConstructVolumeSpec(volumeName, mountPath string) (*volume.Spec, error) {
 	mounter := plugin.host.GetMounter(plugin.GetPluginName())
-	pluginDir := plugin.host.GetPluginDir(plugin.GetPluginName())
-	sourceName, err := mounter.GetDeviceNameFromMount(mountPath, pluginDir)
+	kvh, ok := plugin.host.(volume.KubeletVolumeHost)
+	if !ok {
+		return nil, fmt.Errorf("plugin volume host does not implement KubeletVolumeHost interface")
+	}
+	hu := kvh.GetHostUtil()
+	pluginMntDir := util.GetPluginMountDir(plugin.host, plugin.GetPluginName())
+	sourceName, err := hu.GetDeviceNameFromMount(mounter, mountPath, pluginMntDir)
 	if err != nil {
 		return nil, err
 	}
@@ -359,12 +372,12 @@ func (b *gcePersistentDiskMounter) CanMount() error {
 }
 
 // SetUp bind mounts the disk global mount to the volume path.
-func (b *gcePersistentDiskMounter) SetUp(fsGroup *int64) error {
-	return b.SetUpAt(b.GetPath(), fsGroup)
+func (b *gcePersistentDiskMounter) SetUp(mounterArgs volume.MounterArgs) error {
+	return b.SetUpAt(b.GetPath(), mounterArgs)
 }
 
 // SetUp bind mounts the disk global mount to the give volume path.
-func (b *gcePersistentDiskMounter) SetUpAt(dir string, fsGroup *int64) error {
+func (b *gcePersistentDiskMounter) SetUpAt(dir string, mounterArgs volume.MounterArgs) error {
 	// TODO: handle failed mounts here.
 	notMnt, err := b.mounter.IsLikelyNotMountPoint(dir)
 	klog.V(4).Infof("GCE PersistentDisk set up: Dir (%s) PD name (%q) Mounted (%t) Error (%v), ReadOnly (%t)", dir, b.pdName, !notMnt, err, b.readOnly)
@@ -376,9 +389,12 @@ func (b *gcePersistentDiskMounter) SetUpAt(dir string, fsGroup *int64) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(dir, 0750); err != nil {
-		klog.Errorf("mkdir failed on disk %s (%v)", dir, err)
-		return err
+	if runtime.GOOS != "windows" {
+		// in windows, we will use mklink to mount, will MkdirAll in Mount func
+		if err := os.MkdirAll(dir, 0750); err != nil {
+			klog.Errorf("mkdir failed on disk %s (%v)", dir, err)
+			return err
+		}
 	}
 
 	// Perform a bind mount to the full path to allow duplicate mounts of the same PD.
@@ -421,7 +437,7 @@ func (b *gcePersistentDiskMounter) SetUpAt(dir string, fsGroup *int64) error {
 	}
 
 	if !b.readOnly {
-		volume.SetVolumeOwnership(b, fsGroup)
+		volume.SetVolumeOwnership(b, mounterArgs.FsGroup)
 	}
 
 	klog.V(4).Infof("Successfully mounted %s", dir)
@@ -429,7 +445,7 @@ func (b *gcePersistentDiskMounter) SetUpAt(dir string, fsGroup *int64) error {
 }
 
 func makeGlobalPDName(host volume.VolumeHost, devName string) string {
-	return path.Join(host.GetPluginDir(gcePersistentDiskPluginName), mount.MountsInGlobalPDPath, devName)
+	return filepath.Join(host.GetPluginDir(gcePersistentDiskPluginName), util.MountsInGlobalPDPath, devName)
 }
 
 func (b *gcePersistentDiskMounter) GetPath() string {
@@ -454,7 +470,7 @@ func (c *gcePersistentDiskUnmounter) TearDown() error {
 
 // TearDownAt unmounts the bind mount
 func (c *gcePersistentDiskUnmounter) TearDownAt(dir string) error {
-	return util.UnmountPath(dir, c.mounter)
+	return mount.CleanupMountPoint(dir, c.mounter, false)
 }
 
 type gcePersistentDiskDeleter struct {
@@ -539,8 +555,8 @@ func (c *gcePersistentDiskProvisioner) Provision(selectedNode *v1.Node, allowedT
 		for k, v := range labels {
 			pv.Labels[k] = v
 			var values []string
-			if k == kubeletapis.LabelZoneFailureDomain {
-				values, err = util.LabelZonesToList(v)
+			if k == v1.LabelZoneFailureDomain {
+				values, err = volumehelpers.LabelZonesToList(v)
 				if err != nil {
 					return nil, fmt.Errorf("failed to convert label string for Zone: %s to a List: %v", v, err)
 				}
@@ -551,7 +567,7 @@ func (c *gcePersistentDiskProvisioner) Provision(selectedNode *v1.Node, allowedT
 		}
 	}
 
-	if utilfeature.DefaultFeatureGate.Enabled(features.VolumeScheduling) && len(requirements) > 0 {
+	if len(requirements) > 0 {
 		pv.Spec.NodeAffinity = new(v1.VolumeNodeAffinity)
 		pv.Spec.NodeAffinity.Required = new(v1.NodeSelector)
 		pv.Spec.NodeAffinity.Required.NodeSelectorTerms = make([]v1.NodeSelectorTerm, 1)
