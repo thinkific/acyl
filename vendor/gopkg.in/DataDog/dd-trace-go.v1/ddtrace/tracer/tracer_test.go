@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package tracer
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,10 +22,19 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/internal"
+	"gopkg.in/DataDog/dd-trace-go.v1/internal/log"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 )
+
+// forceFlush forces a flush of data (traces and services) to the agent
+// synchronously.
+func (t *tracer) forceFlush() {
+	confirm := make(chan struct{})
+	t.flushChan <- confirm
+	<-confirm
+}
 
 func (t *tracer) newEnvSpan(service, env string) *span {
 	return t.StartSpan("test.op", SpanType("test"), ServiceName(service), ResourceName("/"), Tag(ext.Environment, env)).(*span)
@@ -132,7 +147,6 @@ func TestTracerStart(t *testing.T) {
 	t.Run("deadlock/direct", func(t *testing.T) {
 		tr, _, stop := startTestTracer()
 		defer stop()
-		go tr.worker()
 		tr.forceFlush() // blocks until worker is started
 		select {
 		case <-tr.stopped:
@@ -172,6 +186,44 @@ func TestTracerStartSpan(t *testing.T) {
 		tracer := newTracer()
 		span := tracer.StartSpan("web.request", Tag(ext.SamplingPriority, ext.PriorityUserKeep)).(*span)
 		assert.Equal(t, float64(ext.PriorityUserKeep), span.Metrics[keySamplingPriority])
+	})
+
+	t.Run("name", func(t *testing.T) {
+		tracer := newTracer()
+		span := tracer.StartSpan("/home/user", Tag(ext.SpanName, "db.query")).(*span)
+		assert.Equal(t, "db.query", span.Name)
+		assert.Equal(t, "/home/user", span.Resource)
+	})
+}
+
+func TestTracerRuntimeMetrics(t *testing.T) {
+	t.Run("on", func(t *testing.T) {
+		tp := new(testLogger)
+		tracer := newTracer(WithRuntimeMetrics(), WithLogger(tp), WithDebugMode(true))
+		defer tracer.Stop()
+		assert.Contains(t, tp.Lines()[0], "DEBUG: Runtime metrics enabled")
+	})
+
+	t.Run("off", func(t *testing.T) {
+		tp := new(testLogger)
+		tracer := newTracer(WithLogger(tp), WithDebugMode(true))
+		defer tracer.Stop()
+		assert.Len(t, tp.Lines(), 0)
+		s := tracer.StartSpan("op").(*span)
+		_, ok := s.Meta["language"]
+		assert.False(t, ok)
+	})
+
+	t.Run("spans", func(t *testing.T) {
+		tracer := newTracer(WithRuntimeMetrics(), WithServiceName("main"))
+		defer tracer.Stop()
+
+		s := tracer.StartSpan("op").(*span)
+		assert.Equal(t, s.Meta["language"], "go")
+
+		s = tracer.StartSpan("op", ServiceName("secondary")).(*span)
+		_, ok := s.Meta["language"]
+		assert.False(t, ok)
 	})
 }
 
@@ -295,8 +347,7 @@ func TestPropagationDefaults(t *testing.T) {
 	assert.Equal(ctx.traceID, pctx.traceID)
 	assert.Equal(ctx.spanID, pctx.spanID)
 	assert.Equal(ctx.baggage, pctx.baggage)
-	assert.Equal(ctx.priority, -1)
-	assert.True(ctx.hasPriority)
+	assert.Equal(*ctx.trace.priority, -1.)
 
 	// ensure a child can be created
 	child := tracer.StartSpan("db.query", ChildOf(propagated)).(*span)
@@ -305,8 +356,7 @@ func TestPropagationDefaults(t *testing.T) {
 	assert.NotEqual(uint64(0), child.SpanID)
 	assert.Equal(root.SpanID, child.ParentID)
 	assert.Equal(root.TraceID, child.ParentID)
-	assert.Equal(child.context.priority, -1)
-	assert.True(child.context.hasPriority)
+	assert.Equal(*child.context.trace.priority, -1.)
 }
 
 func TestTracerSamplingPriorityPropagation(t *testing.T) {
@@ -316,10 +366,8 @@ func TestTracerSamplingPriorityPropagation(t *testing.T) {
 	child := tracer.StartSpan("db.query", ChildOf(root.Context())).(*span)
 	assert.EqualValues(2, root.Metrics[keySamplingPriority])
 	assert.EqualValues(2, child.Metrics[keySamplingPriority])
-	assert.EqualValues(2, root.context.priority)
-	assert.EqualValues(2, child.context.priority)
-	assert.True(root.context.hasPriority)
-	assert.True(child.context.hasPriority)
+	assert.EqualValues(2., *root.context.trace.priority)
+	assert.EqualValues(2., *child.context.trace.priority)
 }
 
 func TestTracerBaggageImmutability(t *testing.T) {
@@ -819,36 +867,28 @@ func TestWorker(t *testing.T) {
 	}
 }
 
-func newTracerChannels() *tracer {
-	return &tracer{
-		payload:        newPayload(),
-		payloadQueue:   make(chan []*span, payloadQueueSize),
-		errorBuffer:    make(chan error, errorBufferSize),
-		flushTracesReq: make(chan struct{}, 1),
-		flushErrorsReq: make(chan struct{}, 1),
-	}
-}
-
 func TestPushPayload(t *testing.T) {
-	tracer := newTracerChannels()
+	tracer := newUnstartedTracer()
 	s := newBasicSpan("3MB")
 	s.Meta["key"] = strings.Repeat("X", payloadSizeLimit/2+10)
 
 	// half payload size reached, we have 1 item, no flush request
 	tracer.pushPayload([]*span{s})
 	assert.Equal(t, tracer.payload.itemCount(), 1)
-	assert.Len(t, tracer.flushTracesReq, 0)
+	assert.Len(t, tracer.flushChan, 0)
 
 	// payload size exceeded, we have 2 items and a flush request
 	tracer.pushPayload([]*span{s})
 	assert.Equal(t, tracer.payload.itemCount(), 2)
-	assert.Len(t, tracer.flushTracesReq, 1)
+	assert.Len(t, tracer.flushChan, 1)
 }
 
 func TestPushTrace(t *testing.T) {
 	assert := assert.New(t)
 
-	tracer := newTracerChannels()
+	tp := new(testLogger)
+	log.UseLogger(tp)
+	tracer := newUnstartedTracer()
 	trace := []*span{
 		&span{
 			Name:     "pylons.request",
@@ -863,44 +903,19 @@ func TestPushTrace(t *testing.T) {
 	}
 	tracer.pushTrace(trace)
 
-	assert.Len(tracer.payloadQueue, 1)
-	assert.Len(tracer.flushTracesReq, 0, "no flush requested yet")
+	assert.Len(tracer.payloadChan, 1)
+	assert.Len(tracer.flushChan, 0, "no flush requested yet")
 
-	t0 := <-tracer.payloadQueue
+	t0 := <-tracer.payloadChan
 	assert.Equal(trace, t0)
 
 	many := payloadQueueSize + 2
 	for i := 0; i < many; i++ {
 		tracer.pushTrace(make([]*span, i))
 	}
-	assert.Len(tracer.payloadQueue, payloadQueueSize)
-	assert.Len(tracer.errorBuffer, 2)
-}
-
-func TestPushErr(t *testing.T) {
-	assert := assert.New(t)
-
-	tracer := newTracerChannels()
-
-	err := fmt.Errorf("ooops")
-	tracer.pushError(err)
-
-	assert.Len(tracer.errorBuffer, 1, "there should be data in channel")
-	assert.Len(tracer.flushErrorsReq, 0, "no flush requested yet")
-
-	pushed := <-tracer.errorBuffer
-	assert.Equal(err, pushed)
-
-	many := errorBufferSize/2 + 1
-	for i := 0; i < many; i++ {
-		tracer.pushError(fmt.Errorf("err %d", i))
-	}
-	assert.Len(tracer.errorBuffer, many, "all errs should be in the channel, not yet blocking")
-	assert.Len(tracer.flushErrorsReq, 1, "a err flush should have been requested")
-	for i := 0; i < cap(tracer.errorBuffer); i++ {
-		tracer.pushError(fmt.Errorf("err %d", i))
-	}
-	// if we reach this, means pushError is not blocking, which is what we want to double-check
+	assert.Len(tracer.payloadChan, payloadQueueSize)
+	log.Flush()
+	assert.True(len(tp.Lines()) >= 2)
 }
 
 func TestTracerFlush(t *testing.T) {
@@ -943,6 +958,47 @@ func TestTracerFlush(t *testing.T) {
 	})
 }
 
+func TestTracerReportsHostname(t *testing.T) {
+	t.Run("enabled", func(t *testing.T) {
+		os.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
+		defer os.Unsetenv("DD_TRACE_REPORT_HOSTNAME")
+
+		tracer, _, stop := startTestTracer()
+		defer stop()
+
+		root := tracer.StartSpan("root").(*span)
+		child := tracer.StartSpan("child", ChildOf(root.Context())).(*span)
+		child.Finish()
+		root.Finish()
+
+		assert := assert.New(t)
+
+		name, ok := root.Meta[keyHostname]
+		assert.True(ok)
+		assert.Equal(name, tracer.hostname)
+
+		_, ok = child.Meta[keyHostname]
+		assert.False(ok)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		tracer, _, stop := startTestTracer()
+		defer stop()
+
+		root := tracer.StartSpan("root").(*span)
+		child := tracer.StartSpan("child", ChildOf(root.Context())).(*span)
+		child.Finish()
+		root.Finish()
+
+		assert := assert.New(t)
+
+		_, ok := root.Meta[keyHostname]
+		assert.False(ok)
+		_, ok = child.Meta[keyHostname]
+		assert.False(ok)
+	})
+}
+
 // BenchmarkConcurrentTracing tests the performance of spawning a lot of
 // goroutines where each one creates a trace with a parent and a child.
 func BenchmarkConcurrentTracing(b *testing.B) {
@@ -971,6 +1027,22 @@ func BenchmarkTracerAddSpans(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		span := tracer.StartSpan("pylons.request", ServiceName("pylons"), ResourceName("/"))
 		span.Finish()
+	}
+}
+
+func BenchmarkStartSpan(b *testing.B) {
+	tracer, _, stop := startTestTracer(WithSampler(NewRateSampler(0)))
+	defer stop()
+	root := tracer.StartSpan("pylons.request", ServiceName("pylons"), ResourceName("/"))
+	ctx := ContextWithSpan(context.TODO(), root)
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		s, ok := SpanFromContext(ctx)
+		if !ok {
+			b.Fatal("no span")
+		}
+		StartSpan("op", ChildOf(s.Context()))
 	}
 }
 
@@ -1068,5 +1140,46 @@ func cpspan(s *span) *span {
 		TraceID:  s.TraceID,
 		ParentID: s.ParentID,
 		Error:    s.Error,
+	}
+}
+
+func TestTakeStackTrace(t *testing.T) {
+	t.Run("n=12", func(t *testing.T) {
+		val := takeStacktrace(12, 0)
+		// top frame should be runtime.main or runtime.goexit, in case of tests that's goexit
+		assert.Contains(t, val, "runtime.goexit")
+		assert.Contains(t, val, "testing.tRunner")
+		assert.Contains(t, val, "tracer.TestTakeStackTrace")
+	})
+
+	t.Run("n=15,skip=2", func(t *testing.T) {
+		val := takeStacktrace(3, 2)
+		// top frame should be runtime.main or runtime.goexit, in case of tests that's goexit
+		assert.Contains(t, val, "runtime.goexit")
+		numFrames := strings.Count(val, "\n\t")
+		assert.Equal(t, 1, numFrames)
+	})
+
+	t.Run("n=1", func(t *testing.T) {
+		val := takeStacktrace(1, 0)
+		assert.Contains(t, val, "tracer.TestTakeStackTrace", "should contain this function")
+		// each frame consists of two strings separated by \n\t, thus number of frames == number of \n\t
+		numFrames := strings.Count(val, "\n\t")
+		assert.Equal(t, 1, numFrames)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		assert.Empty(t, takeStacktrace(100, 115))
+	})
+}
+
+// BenchmarkTracerStackFrames tests the performance of taking stack trace.
+func BenchmarkTracerStackFrames(b *testing.B) {
+	tracer, _, stop := startTestTracer(WithSampler(NewRateSampler(0)))
+	defer stop()
+
+	for n := 0; n < b.N; n++ {
+		span := tracer.StartSpan("test")
+		span.Finish(StackFrames(64, 0))
 	}
 }

@@ -1,22 +1,27 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package tracer
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/internal/version"
 )
 
 var (
-	// TODO(gbbr): find a more effective way to keep this up to date,
-	// e.g. via `go generate`
-	tracerVersion = "v1.10.0"
-
 	// We copy the transport to avoid using the default one, as it might be
 	// augmented with tracing and we don't want these calls to be recorded.
 	// See https://golang.org/pkg/net/http/#DefaultTransport .
@@ -84,8 +89,15 @@ func newHTTPTransport(addr string, roundTripper http.RoundTripper) *httpTranspor
 		"Datadog-Meta-Lang":             "go",
 		"Datadog-Meta-Lang-Version":     strings.TrimPrefix(runtime.Version(), "go"),
 		"Datadog-Meta-Lang-Interpreter": runtime.Compiler + "-" + runtime.GOARCH + "-" + runtime.GOOS,
-		"Datadog-Meta-Tracer-Version":   tracerVersion,
+		"Datadog-Meta-Tracer-Version":   version.Tag,
 		"Content-Type":                  "application/msgpack",
+	}
+	f, err := os.Open("/proc/self/cgroup")
+	if err == nil {
+		if id, ok := readContainerID(f); ok {
+			defaultHeaders["Datadog-Container-ID"] = id
+		}
+		f.Close()
 	}
 	return &httpTransport{
 		traceURL: fmt.Sprintf("http://%s/v0.4/traces", resolveAddr(addr)),
@@ -97,8 +109,30 @@ func newHTTPTransport(addr string, roundTripper http.RoundTripper) *httpTranspor
 	}
 }
 
+var (
+	// expLine matches a line in the /proc/self/cgroup file. It has a submatch for the last element (path), which contains the container ID.
+	expLine = regexp.MustCompile(`^\d+:[^:]*:(.+)$`)
+	// expContainerID matches contained IDs and sources. Source: https://github.com/Qard/container-info/blob/master/index.js
+	expContainerID = regexp.MustCompile(`([0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}|[0-9a-f]{64})(?:.scope)?$`)
+)
+
+// readContainerID finds the first container ID reading from r and returns it.
+func readContainerID(r io.Reader) (id string, ok bool) {
+	scn := bufio.NewScanner(r)
+	for scn.Scan() {
+		path := expLine.FindStringSubmatch(scn.Text())
+		if len(path) != 2 {
+			// invalid entry, continue
+			continue
+		}
+		if id := expContainerID.FindString(path[1]); id != "" {
+			return id, true
+		}
+	}
+	return "", false
+}
+
 func (t *httpTransport) send(p *payload) (body io.ReadCloser, err error) {
-	// prepare the client and send the payload
 	req, err := http.NewRequest("POST", t.traceURL, p)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create http request: %v", err)
@@ -112,6 +146,7 @@ func (t *httpTransport) send(p *payload) (body io.ReadCloser, err error) {
 	if err != nil {
 		return nil, err
 	}
+	p.waitClose()
 	if code := response.StatusCode; code >= 400 {
 		// error, check the body for context information and
 		// return a nice error.

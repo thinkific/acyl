@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package redis
 
 import (
@@ -11,6 +16,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig"
 
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
@@ -240,4 +246,111 @@ func TestError(t *testing.T) {
 		assert.Equal("6379", span.Tag(ext.TargetPort))
 		assert.Equal("get non_existent_key: ", span.Tag("redis.raw_command"))
 	})
+}
+func TestAnalyticsSettings(t *testing.T) {
+	assertRate := func(t *testing.T, mt mocktracer.Tracer, rate interface{}, opts ...ClientOption) {
+		client := NewClient(&redis.Options{Addr: "127.0.0.1:6379"}, opts...)
+		client.Set("test_key", "test_value", 0)
+		pipeline := client.Pipeline()
+		pipeline.Expire("pipeline_counter", time.Hour)
+		pipeline.(*Pipeliner).ExecWithContext(context.Background())
+
+		spans := mt.FinishedSpans()
+		assert.Len(t, spans, 2)
+		for _, s := range spans {
+			assert.Equal(t, rate, s.Tag(ext.EventSampleRate))
+		}
+	}
+
+	t.Run("defaults", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		assertRate(t, mt, nil)
+	})
+
+	t.Run("global", func(t *testing.T) {
+		t.Skip("global flag disabled")
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		rate := globalconfig.AnalyticsRate()
+		defer globalconfig.SetAnalyticsRate(rate)
+		globalconfig.SetAnalyticsRate(0.4)
+
+		assertRate(t, mt, 0.4)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		assertRate(t, mt, 1.0, WithAnalytics(true))
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		assertRate(t, mt, nil, WithAnalytics(false))
+	})
+
+	t.Run("override", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		rate := globalconfig.AnalyticsRate()
+		defer globalconfig.SetAnalyticsRate(rate)
+		globalconfig.SetAnalyticsRate(0.4)
+
+		assertRate(t, mt, 0.23, WithAnalyticsRate(0.23))
+	})
+
+	t.Run("zero", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		assertRate(t, mt, 0.0, WithAnalyticsRate(0.0))
+	})
+}
+
+func TestWithContext(t *testing.T) {
+	opts := &redis.Options{Addr: "127.0.0.1:6379"}
+	assert := assert.New(t)
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	client1 := NewClient(opts, WithServiceName("my-redis"))
+	s1, ctx1 := tracer.StartSpanFromContext(context.Background(), "span1.name")
+	client1 = client1.WithContext(ctx1)
+	s2, ctx2 := tracer.StartSpanFromContext(context.Background(), "span2.name")
+	client2 := client1.WithContext(ctx2)
+	client1.Set("test_key", "test_value", 0)
+	client2.Get("test_key")
+	s1.Finish()
+	s2.Finish()
+
+	spans := mt.FinishedSpans()
+	assert.Len(spans, 4)
+	var span1, span2, setSpan, getSpan mocktracer.Span
+	for _, s := range spans {
+		switch s.Tag(ext.ResourceName) {
+		case "span1.name":
+			span1 = s
+		case "span2.name":
+			span2 = s
+		case "set":
+			setSpan = s
+		case "get":
+			getSpan = s
+		}
+	}
+	assert.Equal(ctx1, client1.Context())
+	assert.Equal(ctx2, client2.Context())
+	assert.NotNil(span1)
+	assert.NotNil(span2)
+	assert.NotNil(setSpan)
+	assert.NotNil(getSpan)
+	assert.Equal(span1.SpanID(), setSpan.ParentID())
+	assert.Equal(span2.SpanID(), getSpan.ParentID())
 }

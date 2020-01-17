@@ -52,12 +52,12 @@
   version = "v0.3.0"
 
 [[projects]]
-  digest = "1:b801fcfde3e5b0b997919941238438a7eb5ca43e431467e19540b59626908e18"
+  digest = "1:c787145f09e0eaaede71dabe2cbc7c44a401f91f0cab299f863abc035e9c3c47"
   name = "github.com/DataDog/datadog-go"
   packages = ["statsd"]
   pruneopts = ""
-  revision = "0ddda6bee21174ef6c4873647cb0d6ec9cba996f"
-  version = "1.1.0"
+  revision = "f965411cb1094bacec60a92cfd4f4258fef1990c"
+  version = "v3.3.1"
 
 [[projects]]
   branch = "master"
@@ -1532,6 +1532,17 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:9d4ac09a835404ae9306c6e1493cf800ecbb0f3f828f4333b3e055de4c962eea"
+  name = "golang.org/x/xerrors"
+  packages = [
+    ".",
+    "internal",
+  ]
+  pruneopts = ""
+  revision = "9bdfabe68543c54f90421aeb9a60ef8061b5b544"
+
+[[projects]]
+  branch = "master"
   digest = "1:57d85b33db0f1af1fabdcb4cf150dc657a3cf54dc8fd13681f59e50b8ee43d34"
   name = "gonum.org/v1/gonum"
   packages = [
@@ -1638,7 +1649,7 @@
   version = "v1.11.3"
 
 [[projects]]
-  digest = "1:dfa85ea7e0f402e82727c055cec1a7dfc95ffa7754ba417f672876e4baf497db"
+  digest = "1:749bdca38407248869e381d18069ba9e7c3257ec28d64d1170a15caa5443c15c"
   name = "gopkg.in/DataDog/dd-trace-go.v1"
   packages = [
     "contrib/database/sql",
@@ -1655,10 +1666,13 @@
     "ddtrace/ext",
     "ddtrace/internal",
     "ddtrace/tracer",
+    "internal/globalconfig",
+    "internal/log",
+    "internal/version",
   ]
   pruneopts = ""
-  revision = "fd9dc1465a7f279ce06639563428b56b01c3b146"
-  version = "v1.10.0"
+  revision = "2f7a709793b4012f66af44f5eb3f0b8495271292"
+  version = "v1.20.1"
 
 [[projects]]
   branch = "v1"
@@ -2460,6 +2474,7 @@
     "k8s.io/client-go/plugin/pkg/client/auth",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/clientcmd",
+    "k8s.io/client-go/transport",
     "k8s.io/helm/cmd/helm/installer",
     "k8s.io/helm/pkg/helm",
     "k8s.io/helm/pkg/helm/portforwarder",

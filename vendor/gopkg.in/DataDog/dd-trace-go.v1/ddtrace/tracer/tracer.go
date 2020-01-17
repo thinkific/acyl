@@ -1,15 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package tracer
 
 import (
-	"errors"
-	"log"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/internal"
+	"gopkg.in/DataDog/dd-trace-go.v1/internal/log"
+
+	"github.com/DataDog/datadog-go/statsd"
 )
 
 var _ ddtrace.Tracer = (*tracer)(nil)
@@ -26,16 +33,24 @@ type tracer struct {
 	*config
 	*payload
 
-	flushAllReq    chan chan<- struct{}
-	flushTracesReq chan struct{}
-	flushErrorsReq chan struct{}
-	exitReq        chan struct{}
+	// flushChan triggers a flush of the buffered payload. If the sent channel is
+	// not nil (only in tests), it will receive confirmation of a finished flush.
+	flushChan chan chan<- struct{}
 
-	payloadQueue chan []*span
-	errorBuffer  chan error
+	// exitChan requests that the tracer stops.
+	exitChan chan struct{}
+
+	// payloadChan receives traces to be added to the payload.
+	payloadChan chan []*span
 
 	// stopped is a channel that will be closed when the worker has exited.
 	stopped chan struct{}
+
+	// stopOnce ensures the tracer is stopped exactly once.
+	stopOnce sync.Once
+
+	// wg waits for all goroutines to exit when stopping.
+	wg sync.WaitGroup
 
 	// syncPush is used for testing. When non-nil, it causes pushTrace to become
 	// a synchronous (blocking) operation, meaning that it will only return after
@@ -44,12 +59,23 @@ type tracer struct {
 
 	// prioritySampling holds an instance of the priority sampler.
 	prioritySampling *prioritySampler
+
+	// pid of the process
+	pid string
+
+	// These integers track metrics about spans and traces as they are started,
+	// finished, and dropped
+	spansStarted, spansFinished, tracesDropped int64
 }
 
 const (
 	// flushInterval is the interval at which the payload contents will be flushed
 	// to the transport.
 	flushInterval = 2 * time.Second
+
+	// statsInterval is the interval at which health metrics will be sent with the
+	// statsd client.
+	statsInterval = 10 * time.Second
 
 	// payloadMaxLimit is the maximum payload size allowed and should indicate the
 	// maximum size of the package that the agent can receive.
@@ -73,6 +99,7 @@ func Start(opts ...StartOption) {
 // Stop stops the started tracer. Subsequent calls are valid but become no-op.
 func Stop() {
 	internal.SetGlobalTracer(&internal.NoopTracer{})
+	log.Flush()
 }
 
 // Span is an alias for ddtrace.Span. It is here to allow godoc to group methods returning
@@ -100,15 +127,10 @@ func Inject(ctx ddtrace.SpanContext, carrier interface{}) error {
 	return internal.GetGlobalTracer().Inject(ctx, carrier)
 }
 
-const (
-	// payloadQueueSize is the buffer size of the trace channel.
-	payloadQueueSize = 1000
+// payloadQueueSize is the buffer size of the trace channel.
+const payloadQueueSize = 1000
 
-	// errorBufferSize is the buffer size of the error channel.
-	errorBufferSize = 200
-)
-
-func newTracer(opts ...StartOption) *tracer {
+func newUnstartedTracer(opts ...StartOption) *tracer {
 	c := new(config)
 	defaults(c)
 	for _, fn := range opts {
@@ -120,51 +142,97 @@ func newTracer(opts ...StartOption) *tracer {
 	if c.propagator == nil {
 		c.propagator = NewPropagator(nil)
 	}
-	t := &tracer{
+	if c.logger != nil {
+		log.UseLogger(c.logger)
+	}
+	if c.debug {
+		log.SetLevel(log.LevelDebug)
+	}
+	if c.statsd == nil {
+		client, err := statsd.New(c.dogstatsdAddr, statsd.WithMaxMessagesPerPayload(40), statsd.WithTags(statsTags(c)))
+		if err != nil {
+			log.Warn("Runtime and health metrics disabled: %v", err)
+			c.statsd = &statsd.NoOpClient{}
+		} else {
+			c.statsd = client
+		}
+	}
+	return &tracer{
 		config:           c,
 		payload:          newPayload(),
-		flushAllReq:      make(chan chan<- struct{}),
-		flushTracesReq:   make(chan struct{}, 1),
-		flushErrorsReq:   make(chan struct{}, 1),
-		exitReq:          make(chan struct{}),
-		payloadQueue:     make(chan []*span, payloadQueueSize),
-		errorBuffer:      make(chan error, errorBufferSize),
+		flushChan:        make(chan chan<- struct{}, 1),
+		exitChan:         make(chan struct{}),
+		payloadChan:      make(chan []*span, payloadQueueSize),
 		stopped:          make(chan struct{}),
 		prioritySampling: newPrioritySampler(),
+		pid:              strconv.Itoa(os.Getpid()),
 	}
+}
 
-	go t.worker()
+func newTracer(opts ...StartOption) *tracer {
+	t := newUnstartedTracer(opts...)
+	c := t.config
+	t.config.statsd.Incr("datadog.tracer.started", nil, 1)
+	if c.runtimeMetrics {
+		log.Debug("Runtime metrics enabled.")
+		t.wg.Add(1)
+		go func() {
+			defer t.wg.Done()
+			t.reportRuntimeMetrics(defaultMetricsReportInterval)
+		}()
+	}
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		t.worker()
+	}()
 
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		t.reportHealthMetrics(statsInterval)
+	}()
 	return t
 }
 
 // worker receives finished traces to be added into the payload, as well
 // as periodically flushes traces to the transport.
 func (t *tracer) worker() {
-	defer close(t.stopped)
+	defer t.config.statsd.Close()
 	ticker := time.NewTicker(flushInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case trace := <-t.payloadQueue:
+		case trace := <-t.payloadChan:
 			t.pushPayload(trace)
 
 		case <-ticker.C:
-			t.flush()
+			t.config.statsd.Incr("datadog.tracer.flush_triggered", []string{"reason:scheduled"}, 1)
+			t.flushPayload()
 
-		case done := <-t.flushAllReq:
-			t.flush()
-			done <- struct{}{}
+		case confirm := <-t.flushChan:
+			t.config.statsd.Incr("datadog.tracer.flush_triggered", []string{"reason:size"}, 1)
+			t.flushPayload()
+			if confirm != nil {
+				confirm <- struct{}{}
+			}
 
-		case <-t.flushTracesReq:
-			t.flushTraces()
-
-		case <-t.flushErrorsReq:
-			t.flushErrors()
-
-		case <-t.exitReq:
-			t.flush()
+		case <-t.exitChan:
+		loop:
+			// the loop ensures that the payload channel is fully drained
+			// before the final flush to ensure no traces are lost (see #526)
+			for {
+				select {
+				case trace := <-t.payloadChan:
+					t.pushPayload(trace)
+				default:
+					break loop
+				}
+			}
+			t.config.statsd.Incr("datadog.tracer.flush_triggered", []string{"reason:shutdown"}, 1)
+			t.flushPayload()
+			t.config.statsd.Incr("datadog.tracer.stopped", nil, 1)
 			return
 		}
 	}
@@ -177,38 +245,13 @@ func (t *tracer) pushTrace(trace []*span) {
 	default:
 	}
 	select {
-	case t.payloadQueue <- trace:
+	case t.payloadChan <- trace:
 	default:
-		t.pushError(&dataLossError{
-			context: errors.New("payload queue full, dropping trace"),
-			count:   len(trace),
-		})
+		log.Error("payload queue full, dropping %d traces", len(trace))
 	}
 	if t.syncPush != nil {
 		// only in tests
 		<-t.syncPush
-	}
-}
-
-func (t *tracer) pushError(err error) {
-	select {
-	case <-t.stopped:
-		return
-	default:
-	}
-	if len(t.errorBuffer) >= cap(t.errorBuffer)/2 { // starts being full, anticipate, try and flush soon
-		select {
-		case t.flushErrorsReq <- struct{}{}:
-		default: // a flush was already requested, skip
-		}
-	}
-	select {
-	case t.errorBuffer <- err:
-	default:
-		// OK, if we get this, our error error buffer is full,
-		// we can assume it is filled with meaningful messages which
-		// are going to be logged and hopefully read, nothing better
-		// we can do, blocking would make things worse.
 	}
 }
 
@@ -239,19 +282,17 @@ func (t *tracer) StartSpan(operationName string, options ...ddtrace.StartSpanOpt
 		Name:     operationName,
 		Service:  t.config.serviceName,
 		Resource: operationName,
-		Meta:     map[string]string{},
-		Metrics:  map[string]float64{},
 		SpanID:   id,
 		TraceID:  id,
-		ParentID: 0,
 		Start:    startTime,
+		taskEnd:  startExecutionTracerTask(operationName),
 	}
 	if context != nil {
 		// this is a child span
 		span.TraceID = context.traceID
 		span.ParentID = context.spanID
 		if context.hasSamplingPriority() {
-			span.Metrics[keySamplingPriority] = float64(context.samplingPriority())
+			span.setMetric(keySamplingPriority, float64(context.samplingPriority()))
 		}
 		if context.span != nil {
 			// local parent, inherit service
@@ -262,14 +303,22 @@ func (t *tracer) StartSpan(operationName string, options ...ddtrace.StartSpanOpt
 			// remote parent
 			if context.origin != "" {
 				// mark origin
-				span.Meta[keyOrigin] = context.origin
+				span.setMeta(keyOrigin, context.origin)
 			}
 		}
 	}
 	span.context = newSpanContext(span, context)
 	if context == nil || context.span == nil {
 		// this is either a root span or it has a remote parent, we should add the PID.
-		span.SetTag(ext.Pid, strconv.Itoa(os.Getpid()))
+		span.setMeta(ext.Pid, t.pid)
+		if t.hostname != "" {
+			span.setMeta(keyHostname, t.hostname)
+		}
+		if _, ok := opts.Tags[ext.ServiceName]; !ok && t.config.runtimeMetrics {
+			// this is a root span in the global service; runtime metrics should
+			// be linked to it:
+			span.setMeta("language", "go")
+		}
 	}
 	// add tags from options
 	for k, v := range opts.Tags {
@@ -288,13 +337,11 @@ func (t *tracer) StartSpan(operationName string, options ...ddtrace.StartSpanOpt
 
 // Stop stops the tracer.
 func (t *tracer) Stop() {
-	select {
-	case <-t.stopped:
-		return
-	default:
-		t.exitReq <- struct{}{}
-		<-t.stopped
-	}
+	t.stopOnce.Do(func() {
+		close(t.exitChan)
+		t.wg.Wait()
+		close(t.stopped)
+	})
 }
 
 // Inject uses the configured or default TextMap Propagator.
@@ -307,54 +354,41 @@ func (t *tracer) Extract(carrier interface{}) (ddtrace.SpanContext, error) {
 	return t.config.propagator.Extract(carrier)
 }
 
-// flushTraces will push any currently buffered traces to the server.
-func (t *tracer) flushTraces() {
+// flush will push any currently buffered traces to the server.
+func (t *tracer) flushPayload() {
 	if t.payload.itemCount() == 0 {
 		return
 	}
+	defer func(start time.Time) {
+		t.config.statsd.Timing("datadog.tracer.flush_duration", time.Since(start), nil, 1)
+	}(time.Now())
 	size, count := t.payload.size(), t.payload.itemCount()
-	if t.config.debug {
-		log.Printf("Sending payload: size: %d traces: %d\n", size, count)
-	}
+	log.Debug("Sending payload: size: %d traces: %d\n", size, count)
 	rc, err := t.config.transport.send(t.payload)
 	if err != nil {
-		t.pushError(&dataLossError{context: err, count: count})
-	}
-	if err == nil {
-		t.prioritySampling.readRatesJSON(rc) // TODO: handle error?
+		t.config.statsd.Count("datadog.tracer.traces_dropped", int64(count), []string{"reason:send_failed"}, 1)
+		log.Error("lost %d traces: %v", count, err)
+	} else {
+		t.config.statsd.Count("datadog.tracer.flush_bytes", int64(size), nil, 1)
+		t.config.statsd.Count("datadog.tracer.flush_traces", int64(count), nil, 1)
+		if t.prioritySampling.readRatesJSON(rc) != nil {
+			t.config.statsd.Incr("datadog.tracer.decode_error", nil, 1)
+		}
 	}
 	t.payload.reset()
-}
-
-// flushErrors will process log messages that were queued
-func (t *tracer) flushErrors() {
-	logErrors(t.errorBuffer)
-}
-
-func (t *tracer) flush() {
-	t.flushTraces()
-	t.flushErrors()
-}
-
-// forceFlush forces a flush of data (traces and services) to the agent.
-// Flushes are done by a background task on a regular basis, so you never
-// need to call this manually, mostly useful for testing and debugging.
-func (t *tracer) forceFlush() {
-	done := make(chan struct{})
-	t.flushAllReq <- done
-	<-done
 }
 
 // pushPayload pushes the trace onto the payload. If the payload becomes
 // larger than the threshold as a result, it sends a flush request.
 func (t *tracer) pushPayload(trace []*span) {
 	if err := t.payload.push(trace); err != nil {
-		t.pushError(&traceEncodingError{context: err})
+		t.config.statsd.Incr("datadog.tracer.traces_dropped", []string{"reason:encoding_error"}, 1)
+		log.Error("error encoding msgpack: %v", err)
 	}
 	if t.payload.size() > payloadSizeLimit {
 		// getting large
 		select {
-		case t.flushTracesReq <- struct{}{}:
+		case t.flushChan <- nil:
 		default:
 			// flush already queued
 		}
@@ -370,7 +404,7 @@ const sampleRateMetricKey = "_sample_rate"
 
 // Sample samples a span with the internal sampler.
 func (t *tracer) sample(span *span) {
-	if span.context.hasPriority {
+	if span.context.hasSamplingPriority() {
 		// sampling decision was already made
 		return
 	}
@@ -380,7 +414,7 @@ func (t *tracer) sample(span *span) {
 		return
 	}
 	if rs, ok := sampler.(RateSampler); ok && rs.Rate() < 1 {
-		span.Metrics[sampleRateMetricKey] = rs.Rate()
+		span.setMetric(sampleRateMetricKey, rs.Rate())
 	}
 	t.prioritySampling.apply(span)
 }

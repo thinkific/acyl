@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package mocktracer // import "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 
 import (
@@ -61,7 +66,10 @@ func newSpan(t *mocktracer, operationName string, cfg *ddtrace.StartSpanConfig) 
 	} else {
 		s.startTime = cfg.StartTime
 	}
-	id := nextID()
+	id := cfg.SpanID
+	if id == 0 {
+		id = nextID()
+	}
 	s.context = &spanContext{spanID: id, traceID: id, span: s}
 	if ctx, ok := cfg.Parent.(*spanContext); ok {
 		if ctx.span != nil && s.tags[ext.ServiceName] == nil {

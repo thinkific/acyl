@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package http
 
 import (
@@ -10,6 +15,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig"
 )
 
 func TestRoundTripper(t *testing.T) {
@@ -65,4 +71,106 @@ func TestWrapClient(t *testing.T) {
 	assert.Equal(t, c, http.DefaultClient)
 	_, ok := c.Transport.(*roundTripper)
 	assert.True(t, ok)
+}
+
+func TestRoundTripperAnalyticsSettings(t *testing.T) {
+	assertRate := func(t *testing.T, mt mocktracer.Tracer, rate interface{}, opts ...RoundTripperOption) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer srv.Close()
+
+		rt := WrapRoundTripper(http.DefaultTransport, opts...)
+
+		client := &http.Client{Transport: rt}
+		client.Get(srv.URL + "/hello/world")
+		spans := mt.FinishedSpans()
+		assert.Len(t, spans, 1)
+		s := spans[0]
+		assert.Equal(t, rate, s.Tag(ext.EventSampleRate))
+	}
+
+	t.Run("defaults", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		assertRate(t, mt, nil)
+	})
+
+	t.Run("global", func(t *testing.T) {
+		t.Skip("global flag disabled")
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		rate := globalconfig.AnalyticsRate()
+		defer globalconfig.SetAnalyticsRate(rate)
+		globalconfig.SetAnalyticsRate(0.4)
+
+		assertRate(t, mt, 0.4)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		assertRate(t, mt, 1.0, RTWithAnalytics(true))
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		assertRate(t, mt, nil, RTWithAnalytics(false))
+	})
+
+	t.Run("override", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+
+		rate := globalconfig.AnalyticsRate()
+		defer globalconfig.SetAnalyticsRate(rate)
+		globalconfig.SetAnalyticsRate(0.4)
+
+		assertRate(t, mt, 0.23, RTWithAnalyticsRate(0.23))
+	})
+}
+
+func TestServiceName(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello World"))
+	}))
+	defer s.Close()
+
+	t.Run("option", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+		serviceName := "testServer"
+		rt := WrapRoundTripper(http.DefaultTransport, RTWithServiceName(serviceName))
+		client := &http.Client{
+			Transport: rt,
+		}
+		client.Get(s.URL + "/hello/world")
+		spans := mt.FinishedSpans()
+		assert.Len(t, spans, 1)
+		assert.Equal(t, serviceName, spans[0].Tag(ext.ServiceName))
+	})
+
+	t.Run("override", func(t *testing.T) {
+		mt := mocktracer.Start()
+		defer mt.Stop()
+		serviceName := "testServer"
+		rt := WrapRoundTripper(http.DefaultTransport,
+			RTWithServiceName("wrongServiceName"),
+			WithBefore(func(_ *http.Request, span ddtrace.Span) {
+				span.SetTag(ext.ServiceName, serviceName)
+			}),
+		)
+		client := &http.Client{
+			Transport: rt,
+		}
+		client.Get(s.URL + "/hello/world")
+		spans := mt.FinishedSpans()
+		assert.Len(t, spans, 1)
+		assert.Equal(t, serviceName, spans[0].Tag(ext.ServiceName))
+	})
 }

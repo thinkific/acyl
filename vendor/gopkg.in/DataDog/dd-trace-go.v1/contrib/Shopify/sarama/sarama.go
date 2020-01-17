@@ -1,7 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // Package sarama provides functions to trace the Shopify/sarama package (https://github.com/Shopify/sarama).
 package sarama // import "gopkg.in/DataDog/dd-trace-go.v1/contrib/Shopify/sarama"
 
 import (
+	"math"
+
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -43,6 +50,9 @@ func WrapPartitionConsumer(pc sarama.PartitionConsumer, opts ...Option) sarama.P
 				tracer.SpanType(ext.SpanTypeMessageConsumer),
 				tracer.Tag("partition", msg.Partition),
 				tracer.Tag("offset", msg.Offset),
+			}
+			if !math.IsNaN(cfg.analyticsRate) {
+				opts = append(opts, tracer.Tag(ext.EventSampleRate, cfg.analyticsRate))
 			}
 			// kafka supports headers, so try to extract a span context
 			carrier := NewConsumerMessageCarrier(msg)
@@ -238,6 +248,9 @@ func startProducerSpan(cfg *config, version sarama.KafkaVersion, msg *sarama.Pro
 		tracer.ServiceName(cfg.serviceName),
 		tracer.ResourceName("Produce Topic " + msg.Topic),
 		tracer.SpanType(ext.SpanTypeMessageProducer),
+	}
+	if !math.IsNaN(cfg.analyticsRate) {
+		opts = append(opts, tracer.Tag(ext.EventSampleRate, cfg.analyticsRate))
 	}
 	// if there's a span context in the headers, use that as the parent
 	if spanctx, err := tracer.Extract(carrier); err == nil {

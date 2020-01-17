@@ -1,7 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package tracer
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -128,6 +135,21 @@ func TestSpanFinishWithErrorNoDebugStack(t *testing.T) {
 	assert.Empty(span.Meta[ext.ErrorStack])
 }
 
+func TestSpanFinishWithErrorStackFrames(t *testing.T) {
+	assert := assert.New(t)
+
+	err := errors.New("test error")
+	span := newBasicSpan("web.request")
+	span.Finish(WithError(err), StackFrames(2, 1))
+
+	assert.Equal(int32(1), span.Error)
+	assert.Equal("test error", span.Meta[ext.ErrorMsg])
+	assert.Equal("*errors.errorString", span.Meta[ext.ErrorType])
+	assert.Contains(span.Meta[ext.ErrorStack], "tracer.TestSpanFinishWithErrorStackFrames")
+	assert.Contains(span.Meta[ext.ErrorStack], "tracer.(*span).Finish")
+	assert.Equal(strings.Count(span.Meta[ext.ErrorStack], "\n\t"), 2)
+}
+
 func TestSpanSetTag(t *testing.T) {
 	assert := assert.New(t)
 
@@ -161,6 +183,24 @@ func TestSpanSetTag(t *testing.T) {
 
 	span.SetTag(ext.SamplingPriority, 2)
 	assert.Equal(float64(2), span.Metrics[keySamplingPriority])
+
+	span.SetTag(ext.AnalyticsEvent, true)
+	assert.Equal(1.0, span.Metrics[ext.EventSampleRate])
+
+	span.SetTag(ext.AnalyticsEvent, false)
+	assert.Equal(0.0, span.Metrics[ext.EventSampleRate])
+
+	span.SetTag(ext.ManualDrop, true)
+	assert.Equal(-1., span.Metrics[keySamplingPriority])
+
+	span.SetTag(ext.ManualKeep, true)
+	assert.Equal(2., span.Metrics[keySamplingPriority])
+
+	span.SetTag("some.bool", true)
+	assert.Equal("true", span.Meta["some.bool"])
+
+	span.SetTag("some.other.bool", false)
+	assert.Equal("false", span.Meta["some.other.bool"])
 }
 
 func TestSpanSetDatadogTags(t *testing.T) {
@@ -195,26 +235,61 @@ func TestSpanString(t *testing.T) {
 	assert.NotEqual("", span.String())
 }
 
+const (
+	intUpperLimit = int64(1) << 53
+	intLowerLimit = -intUpperLimit
+)
+
 func TestSpanSetMetric(t *testing.T) {
-	assert := assert.New(t)
-	tracer := newTracer(withTransport(newDefaultTransport()))
-	span := tracer.newRootSpan("pylons.request", "pylons", "/")
-
-	// check the map is properly initialized
-	span.SetTag("bytes", 1024.42)
-	assert.Equal(3, len(span.Metrics))
-	assert.Equal(1024.42, span.Metrics["bytes"])
-	_, ok := span.Metrics[keySamplingPriority]
-	assert.True(ok)
-	_, ok = span.Metrics[keySamplingPriorityRate]
-	assert.True(ok)
-
-	// operating on a finished span is a no-op
-	span.Finish()
-	span.SetTag("finished.test", 1337)
-	assert.Equal(3, len(span.Metrics))
-	_, ok = span.Metrics["finished.test"]
-	assert.False(ok)
+	for name, tt := range map[string]func(assert *assert.Assertions, span *span){
+		"init": func(assert *assert.Assertions, span *span) {
+			assert.Equal(2, len(span.Metrics))
+			_, ok := span.Metrics[keySamplingPriority]
+			assert.True(ok)
+			_, ok = span.Metrics[keySamplingPriorityRate]
+			assert.True(ok)
+		},
+		"float": func(assert *assert.Assertions, span *span) {
+			span.SetTag("temp", 72.42)
+			assert.Equal(72.42, span.Metrics["temp"])
+		},
+		"int": func(assert *assert.Assertions, span *span) {
+			span.SetTag("bytes", 1024)
+			assert.Equal(1024.0, span.Metrics["bytes"])
+		},
+		"max": func(assert *assert.Assertions, span *span) {
+			span.SetTag("bytes", intUpperLimit-1)
+			assert.Equal(float64(intUpperLimit-1), span.Metrics["bytes"])
+		},
+		"min": func(assert *assert.Assertions, span *span) {
+			span.SetTag("bytes", intLowerLimit+1)
+			assert.Equal(float64(intLowerLimit+1), span.Metrics["bytes"])
+		},
+		"toobig": func(assert *assert.Assertions, span *span) {
+			span.SetTag("bytes", intUpperLimit)
+			assert.Equal(0.0, span.Metrics["bytes"])
+			assert.Equal(fmt.Sprint(intUpperLimit), span.Meta["bytes"])
+		},
+		"toosmall": func(assert *assert.Assertions, span *span) {
+			span.SetTag("bytes", intLowerLimit)
+			assert.Equal(0.0, span.Metrics["bytes"])
+			assert.Equal(fmt.Sprint(intLowerLimit), span.Meta["bytes"])
+		},
+		"finished": func(assert *assert.Assertions, span *span) {
+			span.Finish()
+			span.SetTag("finished.test", 1337)
+			assert.Equal(2, len(span.Metrics))
+			_, ok := span.Metrics["finished.test"]
+			assert.False(ok)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+			tracer := newTracer(withTransport(newDefaultTransport()))
+			span := tracer.newRootSpan("http.request", "mux.router", "/")
+			tt(assert, span)
+		})
+	}
 }
 
 func TestSpanError(t *testing.T) {
@@ -317,16 +392,14 @@ func TestSpanSamplingPriority(t *testing.T) {
 		v, ok := span.Metrics[keySamplingPriority]
 		assert.True(ok)
 		assert.EqualValues(priority, v)
-		assert.EqualValues(span.context.priority, v)
-		assert.True(span.context.hasPriority)
+		assert.EqualValues(*span.context.trace.priority, v)
 
 		childSpan := tracer.newChildSpan("my.child", span)
 		v0, ok0 := span.Metrics[keySamplingPriority]
 		v1, ok1 := childSpan.Metrics[keySamplingPriority]
 		assert.Equal(ok0, ok1)
 		assert.Equal(v0, v1)
-		assert.EqualValues(childSpan.context.priority, v0)
-		assert.EqualValues(childSpan.context.hasPriority, ok0)
+		assert.EqualValues(*childSpan.context.trace.priority, v0)
 	}
 }
 
