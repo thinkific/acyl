@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package mocktracer
 
 import (
@@ -170,4 +175,12 @@ func TestSpanFinish(t *testing.T) {
 	assert.False(s.FinishTime().IsZero())
 	assert.True(s.FinishTime().Before(time.Now()))
 	assert.Equal(want, s.Tag(ext.Error))
+}
+
+func TestSpanWithID(t *testing.T) {
+	spanID := uint64(123456789)
+	span := new(mocktracer).StartSpan("", tracer.WithSpanID(spanID))
+
+	assert := assert.New(t)
+	assert.Equal(spanID, span.Context().SpanID())
 }

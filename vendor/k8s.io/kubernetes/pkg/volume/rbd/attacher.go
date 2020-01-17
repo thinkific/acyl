@@ -71,6 +71,14 @@ func (plugin *rbdPlugin) GetDeviceMountRefs(deviceMountPath string) ([]string, e
 	return mounter.GetMountRefs(deviceMountPath)
 }
 
+func (plugin *rbdPlugin) CanAttach(spec *volume.Spec) (bool, error) {
+	return true, nil
+}
+
+func (plugin *rbdPlugin) CanDeviceMount(spec *volume.Spec) (bool, error) {
+	return true, nil
+}
+
 // rbdAttacher implements volume.Attacher interface.
 type rbdAttacher struct {
 	plugin  *rbdPlugin
@@ -103,7 +111,7 @@ func (attacher *rbdAttacher) VolumesAreAttached(specs []*volume.Spec, nodeName t
 	return volumesAttachedCheck, nil
 }
 
-// WaitForAttach implements Attacher.WaitForAttach. It's called by kublet to
+// WaitForAttach implements Attacher.WaitForAttach. It's called by kubelet to
 // attach volume onto the node.
 // This method is idempotent, callers are responsible for retrying on failure.
 func (attacher *rbdAttacher) WaitForAttach(spec *volume.Spec, devicePath string, pod *v1.Pod, timeout time.Duration) (string, error) {
@@ -197,7 +205,7 @@ var _ volume.DeviceUnmounter = &rbdDetacher{}
 //  - Remove the deviceMountPath at last.
 // This method is idempotent, callers are responsible for retrying on failure.
 func (detacher *rbdDetacher) UnmountDevice(deviceMountPath string) error {
-	if pathExists, pathErr := volutil.PathExists(deviceMountPath); pathErr != nil {
+	if pathExists, pathErr := mount.PathExists(deviceMountPath); pathErr != nil {
 		return fmt.Errorf("Error checking if path exists: %v", pathErr)
 	} else if !pathExists {
 		klog.Warningf("Warning: Unmount skipped because path does not exist: %v", deviceMountPath)
@@ -208,18 +216,39 @@ func (detacher *rbdDetacher) UnmountDevice(deviceMountPath string) error {
 		return err
 	}
 	// Unmount the device from the device mount point.
-	klog.V(4).Infof("rbd: unmouting device mountpoint %s", deviceMountPath)
-	if err = detacher.mounter.Unmount(deviceMountPath); err != nil {
-		return err
-	}
-	klog.V(3).Infof("rbd: successfully umount device mountpath %s", deviceMountPath)
-
-	klog.V(4).Infof("rbd: detaching device %s", devicePath)
-	err = detacher.manager.DetachDisk(detacher.plugin, deviceMountPath, devicePath)
+	notMnt, err := detacher.mounter.IsLikelyNotMountPoint(deviceMountPath)
 	if err != nil {
 		return err
 	}
-	klog.V(3).Infof("rbd: successfully detach device %s", devicePath)
+	if !notMnt {
+		klog.V(4).Infof("rbd: unmouting device mountpoint %s", deviceMountPath)
+		if err = detacher.mounter.Unmount(deviceMountPath); err != nil {
+			return err
+		}
+		klog.V(3).Infof("rbd: successfully umount device mountpath %s", deviceMountPath)
+	}
+
+	// Get devicePath from deviceMountPath if devicePath is empty
+	if devicePath == "" {
+		rbdImageInfo, err := getRbdImageInfo(deviceMountPath)
+		if err != nil {
+			return err
+		}
+		found := false
+		devicePath, found = getRbdDevFromImageAndPool(rbdImageInfo.pool, rbdImageInfo.name)
+		if !found {
+			klog.Warningf("rbd: can't found devicePath for %v. Device is already unmounted, Image %v, Pool %v", deviceMountPath, rbdImageInfo.pool, rbdImageInfo.name)
+		}
+	}
+
+	if devicePath != "" {
+		klog.V(4).Infof("rbd: detaching device %s", devicePath)
+		err = detacher.manager.DetachDisk(detacher.plugin, deviceMountPath, devicePath)
+		if err != nil {
+			return err
+		}
+		klog.V(3).Infof("rbd: successfully detach device %s", devicePath)
+	}
 	err = os.Remove(deviceMountPath)
 	if err != nil {
 		return err

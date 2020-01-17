@@ -1,10 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package tracer
 
 import (
+	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
+	"gopkg.in/DataDog/dd-trace-go.v1/internal/log"
 )
 
 func setupteardown(start, max int) func() {
@@ -21,7 +30,8 @@ func setupteardown(start, max int) func() {
 func TestNewSpanContextPushError(t *testing.T) {
 	defer setupteardown(2, 2)()
 
-	tracer, _, stop := startTestTracer()
+	tp := new(testLogger)
+	_, _, stop := startTestTracer(WithLogger(tp))
 	defer stop()
 	parent := newBasicSpan("test1")                  // 1st span in trace
 	parent.context.trace.push(newBasicSpan("test2")) // 2nd span in trace
@@ -31,12 +41,58 @@ func TestNewSpanContextPushError(t *testing.T) {
 	// One more should overflow.
 	child.context = newSpanContext(child, parent.context)
 
-	select {
-	case err := <-tracer.errorBuffer:
-		assert.Equal(t, &spanBufferFullError{}, err)
-	default:
-		t.Fatal("no error pushed")
+	log.Flush()
+	assert.Contains(t, tp.Lines()[0], "ERROR: trace buffer full (2)")
+}
+
+func TestAsyncSpanRace(t *testing.T) {
+	// This tests a regression where asynchronously finishing spans would
+	// modify a flushing root's sampling priority.
+	_, _, stop := startTestTracer()
+	defer stop()
+
+	for i := 0; i < 100; i++ {
+		// The test has 100 iterations because it is not easy to reproduce the race.
+		t.Run("", func(t *testing.T) {
+			root, ctx := StartSpanFromContext(context.Background(), "root", Tag(ext.SamplingPriority, ext.PriorityUserKeep))
+			var wg sync.WaitGroup
+			done := make(chan struct{})
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				select {
+				case <-done:
+					root.Finish()
+					for i := 0; i < 500; i++ {
+						for range root.(*span).Metrics {
+							// this range simulates iterating over the metrics map
+							// as we do when encoding msgpack upon flushing.
+						}
+					}
+					return
+				}
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				select {
+				case <-done:
+					for i := 0; i < 50; i++ {
+						// to trigger the bug, the child should be created after the root was finished,
+						// as its being flushed
+						child, _ := StartSpanFromContext(ctx, "child", Tag(ext.SamplingPriority, ext.PriorityUserKeep))
+						child.Finish()
+					}
+					return
+				}
+			}()
+			// closing will attempt trigger the two goroutines at approximately the same time.
+			close(done)
+			wg.Wait()
+		})
 	}
+
+	// Test passes if no panic occurs while running.
 }
 
 func TestSpanTracePushOne(t *testing.T) {
@@ -51,26 +107,18 @@ func TestSpanTracePushOne(t *testing.T) {
 	root := newSpan("name1", "a-service", "a-resource", traceID, traceID, 0)
 	trace := root.context.trace
 
-	assert.Len(tracer.errorBuffer, 0)
 	assert.Len(trace.spans, 1)
 	assert.Equal(root, trace.spans[0], "the span is the one pushed before")
 
 	root.Finish()
 	tracer.forceFlush()
 
-	select {
-	case err := <-tracer.errorBuffer:
-		assert.Fail("unexpected error:", err.Error())
-		t.Logf("trace: %v", trace)
-	default:
-		traces := transport.Traces()
-		assert.Len(tracer.errorBuffer, 0)
-		assert.Len(traces, 1)
-		trc := traces[0]
-		assert.Len(trc, 1, "there was a trace in the channel")
-		comparePayloadSpans(t, root, trc[0])
-		assert.Equal(0, len(trace.spans), "no more spans in the trace")
-	}
+	traces := transport.Traces()
+	assert.Len(traces, 1)
+	trc := traces[0]
+	assert.Len(trc, 1, "there was a trace in the channel")
+	comparePayloadSpans(t, root, trc[0])
+	assert.Equal(0, len(trace.spans), "no more spans in the trace")
 }
 
 func TestSpanTracePushNoFinish(t *testing.T) {
@@ -78,7 +126,8 @@ func TestSpanTracePushNoFinish(t *testing.T) {
 
 	assert := assert.New(t)
 
-	tracer, _, stop := startTestTracer()
+	tp := new(testLogger)
+	_, _, stop := startTestTracer(WithLogger(tp))
 	defer stop()
 
 	buffer := newTrace()
@@ -90,17 +139,13 @@ func TestSpanTracePushNoFinish(t *testing.T) {
 	root.context.trace = buffer
 
 	buffer.push(root)
-	assert.Len(tracer.errorBuffer, 0)
 	assert.Len(buffer.spans, 1, "there is one span in the buffer")
 	assert.Equal(root, buffer.spans[0], "the span is the one pushed before")
 
-	select {
-	case err := <-tracer.errorBuffer:
-		assert.Fail("unexpected error:", err.Error())
-		t.Logf("buffer: %v", buffer)
-	case <-time.After(time.Second / 10):
-		t.Logf("expected timeout, nothing should show up in buffer as the trace is not finished")
-	}
+	<-time.After(time.Second / 10)
+	log.Flush()
+	assert.Len(tp.Lines(), 0)
+	t.Logf("expected timeout, nothing should show up in buffer as the trace is not finished")
 }
 
 func TestSpanTracePushSeveral(t *testing.T) {
@@ -125,7 +170,6 @@ func TestSpanTracePushSeveral(t *testing.T) {
 	for i, span := range trace {
 		span.context.trace = buffer
 		buffer.push(span)
-		assert.Len(tracer.errorBuffer, 0)
 		assert.Len(buffer.spans, i+1, "there is one more span in the buffer")
 		assert.Equal(span, buffer.spans[i], "the span is the one pushed before")
 	}
@@ -135,18 +179,63 @@ func TestSpanTracePushSeveral(t *testing.T) {
 	}
 	tracer.forceFlush()
 
-	select {
-	case err := <-tracer.errorBuffer:
-		assert.Fail("unexpected error:", err.Error())
-	default:
-		traces := transport.Traces()
-		assert.Len(traces, 1)
-		trace := traces[0]
-		assert.Len(trace, 4, "there was one trace with the right number of spans in the channel")
-		for _, span := range trace {
-			assert.Contains(trace, span, "the trace contains the spans")
+	traces := transport.Traces()
+	assert.Len(traces, 1)
+	trace = traces[0]
+	assert.Len(trace, 4, "there was one trace with the right number of spans in the channel")
+	for _, span := range trace {
+		assert.Contains(trace, span, "the trace contains the spans")
+	}
+}
+
+// TestSpanFinishPriority asserts that the root span will have the sampling
+// priority metric set by inheriting it from a child.
+func TestSpanFinishPriority(t *testing.T) {
+	assert := assert.New(t)
+	tracer, transport, stop := startTestTracer()
+	defer stop()
+
+	root := tracer.StartSpan(
+		"root",
+		Tag(ext.SamplingPriority, 1),
+	)
+	child := tracer.StartSpan(
+		"child",
+		ChildOf(root.Context()),
+		Tag(ext.SamplingPriority, 2),
+	)
+	child.Finish()
+	root.Finish()
+
+	tracer.forceFlush()
+
+	traces := transport.Traces()
+	assert.Len(traces, 1)
+	trace := traces[0]
+	assert.Len(trace, 2)
+	for _, span := range trace {
+		if span.Name == "root" {
+			// root should have inherited child's sampling priority
+			assert.Equal(span.Metrics[keySamplingPriority], 2.)
+			return
 		}
 	}
+	assert.Fail("span not found")
+}
+
+func TestTracePriorityLocked(t *testing.T) {
+	assert := assert.New(t)
+	ddHeaders := TextMapCarrier(map[string]string{
+		DefaultTraceIDHeader:  "2",
+		DefaultParentIDHeader: "2",
+		DefaultPriorityHeader: "2",
+	})
+
+	ctx, err := NewPropagator(nil).Extract(ddHeaders)
+	assert.Nil(err)
+	sctx, ok := ctx.(*spanContext)
+	assert.True(ok)
+	assert.True(sctx.trace.locked)
 }
 
 func TestNewSpanContext(t *testing.T) {
@@ -160,9 +249,9 @@ func TestNewSpanContext(t *testing.T) {
 		assert := assert.New(t)
 		assert.Equal(ctx.traceID, span.TraceID)
 		assert.Equal(ctx.spanID, span.SpanID)
-		assert.Equal(ctx.priority, 0)
-		assert.False(ctx.hasPriority)
 		assert.NotNil(ctx.trace)
+		assert.Nil(ctx.trace.priority)
+		assert.Equal(ctx.trace.root, span)
 		assert.Contains(ctx.trace.spans, span)
 	})
 
@@ -179,10 +268,28 @@ func TestNewSpanContext(t *testing.T) {
 		assert.Equal(ctx.spanID, span.SpanID)
 		assert.Equal(ctx.TraceID(), span.TraceID)
 		assert.Equal(ctx.SpanID(), span.SpanID)
-		assert.Equal(ctx.priority, 1)
-		assert.True(ctx.hasPriority)
-		assert.NotNil(ctx.trace)
+		assert.Equal(*ctx.trace.priority, 1.)
+		assert.Equal(ctx.trace.root, span)
 		assert.Contains(ctx.trace.spans, span)
+	})
+
+	t.Run("root", func(t *testing.T) {
+		_, _, stop := startTestTracer()
+		defer stop()
+		assert := assert.New(t)
+		ctx, err := NewPropagator(nil).Extract(TextMapCarrier(map[string]string{
+			DefaultTraceIDHeader:  "1",
+			DefaultParentIDHeader: "2",
+			DefaultPriorityHeader: "3",
+		}))
+		assert.Nil(err)
+		sctx, ok := ctx.(*spanContext)
+		assert.True(ok)
+		span := StartSpan("some-span", ChildOf(ctx))
+		assert.EqualValues(sctx.traceID, 1)
+		assert.EqualValues(sctx.spanID, 2)
+		assert.EqualValues(*sctx.trace.priority, 3)
+		assert.Equal(sctx.trace.root, span)
 	})
 }
 
@@ -202,10 +309,11 @@ func TestSpanContextParent(t *testing.T) {
 			drop: true,
 		},
 		"priority": &spanContext{
-			baggage:     map[string]string{"A": "A", "B": "B"},
-			trace:       &trace{spans: []*span{newBasicSpan("abc")}},
-			hasPriority: true,
-			priority:    2,
+			baggage: map[string]string{"A": "A", "B": "B"},
+			trace: &trace{
+				spans:    []*span{newBasicSpan("abc")},
+				priority: func() *float64 { v := new(float64); *v = 2; return v }(),
+			},
 		},
 		"origin": &spanContext{
 			trace:  &trace{spans: []*span{newBasicSpan("abc")}},
@@ -222,8 +330,9 @@ func TestSpanContextParent(t *testing.T) {
 			}
 			assert.NotNil(ctx.trace)
 			assert.Contains(ctx.trace.spans, s)
-			assert.Equal(ctx.hasPriority, parentCtx.hasPriority)
-			assert.Equal(ctx.priority, parentCtx.priority)
+			if parentCtx.trace != nil {
+				assert.Equal(ctx.trace.priority, parentCtx.trace.priority)
+			}
 			assert.Equal(ctx.drop, parentCtx.drop)
 			assert.Equal(ctx.baggage, parentCtx.baggage)
 			assert.Equal(ctx.origin, parentCtx.origin)
@@ -232,12 +341,10 @@ func TestSpanContextParent(t *testing.T) {
 }
 
 func TestSpanContextPushFull(t *testing.T) {
-	oldMaxSize := traceMaxSize
-	defer func() {
-		traceMaxSize = oldMaxSize
-	}()
+	defer func(old int) { traceMaxSize = old }(traceMaxSize)
 	traceMaxSize = 2
-	tracer, _, stop := startTestTracer()
+	tp := new(testLogger)
+	_, _, stop := startTestTracer(WithLogger(tp))
 	defer stop()
 
 	span1 := newBasicSpan("span1")
@@ -247,13 +354,14 @@ func TestSpanContextPushFull(t *testing.T) {
 	buffer := newTrace()
 	assert := assert.New(t)
 	buffer.push(span1)
-	assert.Len(tracer.errorBuffer, 0)
+	log.Flush()
+	assert.Len(tp.Lines(), 0)
 	buffer.push(span2)
-	assert.Len(tracer.errorBuffer, 0)
+	log.Flush()
+	assert.Len(tp.Lines(), 0)
 	buffer.push(span3)
-	assert.Len(tracer.errorBuffer, 1)
-	err := <-tracer.errorBuffer
-	assert.Equal(&spanBufferFullError{}, err)
+	log.Flush()
+	assert.Contains(tp.Lines()[0], "ERROR: trace buffer full (2)")
 }
 
 func TestSpanContextBaggage(t *testing.T) {
@@ -286,4 +394,31 @@ func TestSpanContextIteratorBreak(t *testing.T) {
 	})
 
 	assert.Len(t, got, 0)
+}
+
+// testLogger implements a mock Printer.
+type testLogger struct {
+	mu    sync.RWMutex
+	lines []string
+}
+
+// Print implements log.Printer.
+func (tp *testLogger) Log(msg string) {
+	tp.mu.Lock()
+	defer tp.mu.Unlock()
+	tp.lines = append(tp.lines, msg)
+}
+
+// Lines returns the lines that were printed using this printer.
+func (tp *testLogger) Lines() []string {
+	tp.mu.RLock()
+	defer tp.mu.RUnlock()
+	return tp.lines
+}
+
+// Reset resets the printer's internal buffer.
+func (tp *testLogger) Reset() {
+	tp.mu.Lock()
+	defer tp.mu.Unlock()
+	tp.lines = tp.lines[:0]
 }

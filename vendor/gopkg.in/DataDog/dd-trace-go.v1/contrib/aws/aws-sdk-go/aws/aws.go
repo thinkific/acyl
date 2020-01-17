@@ -1,11 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // Package aws provides functions to trace aws/aws-sdk-go (https://github.com/aws/aws-sdk-go).
 package aws // import "gopkg.in/DataDog/dd-trace-go.v1/contrib/aws/aws-sdk-go/aws"
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -23,6 +31,7 @@ type handlers struct {
 // WrapSession wraps a session.Session, causing requests and responses to be traced.
 func WrapSession(s *session.Session, opts ...Option) *session.Session {
 	cfg := new(config)
+	defaults(cfg)
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -40,7 +49,7 @@ func WrapSession(s *session.Session, opts ...Option) *session.Session {
 }
 
 func (h *handlers) Send(req *request.Request) {
-	_, ctx := tracer.StartSpanFromContext(req.Context(), h.operationName(req),
+	opts := []ddtrace.StartSpanOption{
 		tracer.SpanType(ext.SpanTypeHTTP),
 		tracer.ServiceName(h.serviceName(req)),
 		tracer.ResourceName(h.resourceName(req)),
@@ -49,7 +58,11 @@ func (h *handlers) Send(req *request.Request) {
 		tracer.Tag(tagAWSRegion, h.awsRegion(req)),
 		tracer.Tag(ext.HTTPMethod, req.Operation.HTTPMethod),
 		tracer.Tag(ext.HTTPURL, req.HTTPRequest.URL.String()),
-	)
+	}
+	if !math.IsNaN(h.cfg.analyticsRate) {
+		opts = append(opts, tracer.Tag(ext.EventSampleRate, h.cfg.analyticsRate))
+	}
+	_, ctx := tracer.StartSpanFromContext(req.Context(), h.operationName(req), opts...)
 	req.SetContext(ctx)
 }
 

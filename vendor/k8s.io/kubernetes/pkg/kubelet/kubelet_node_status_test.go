@@ -23,6 +23,7 @@ import (
 	goruntime "runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	cadvisorapi "github.com/google/cadvisor/info/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -43,11 +44,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	utilfeaturetesting "k8s.io/apiserver/pkg/util/feature/testing"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	core "k8s.io/client-go/testing"
+	"k8s.io/component-base/featuregate"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/features"
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 	cadvisortest "k8s.io/kubernetes/pkg/kubelet/cadvisor/testing"
@@ -55,6 +57,7 @@ import (
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/nodestatus"
 	"k8s.io/kubernetes/pkg/kubelet/util/sliceutils"
+	kubeletvolume "k8s.io/kubernetes/pkg/kubelet/volumemanager"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	taintutil "k8s.io/kubernetes/pkg/util/taints"
 	"k8s.io/kubernetes/pkg/version"
@@ -155,19 +158,6 @@ func (lcm *localCM) GetNodeAllocatableReservation() v1.ResourceList {
 
 func (lcm *localCM) GetCapacity() v1.ResourceList {
 	return lcm.capacity
-}
-
-// sortableNodeAddress is a type for sorting []v1.NodeAddress
-type sortableNodeAddress []v1.NodeAddress
-
-func (s sortableNodeAddress) Len() int { return len(s) }
-func (s sortableNodeAddress) Less(i, j int) bool {
-	return (string(s[i].Type) + s[i].Address) < (string(s[j].Type) + s[j].Address)
-}
-func (s sortableNodeAddress) Swap(i, j int) { s[j], s[i] = s[i], s[j] }
-
-func sortNodeAddresses(addrs sortableNodeAddress) {
-	sort.Sort(addrs)
 }
 
 func TestUpdateNewNodeStatus(t *testing.T) {
@@ -272,7 +262,7 @@ func TestUpdateNewNodeStatus(t *testing.T) {
 						SystemUUID:              "abc",
 						BootID:                  "1b3",
 						KernelVersion:           cadvisortest.FakeKernelVersion,
-						OSImage:                 cadvisortest.FakeContainerOsVersion,
+						OSImage:                 cadvisortest.FakeContainerOSVersion,
 						OperatingSystem:         goruntime.GOOS,
 						Architecture:            goruntime.GOARCH,
 						ContainerRuntimeVersion: "test://1.5.0",
@@ -450,7 +440,7 @@ func TestUpdateExistingNodeStatus(t *testing.T) {
 				SystemUUID:              "abc",
 				BootID:                  "1b3",
 				KernelVersion:           cadvisortest.FakeKernelVersion,
-				OSImage:                 cadvisortest.FakeContainerOsVersion,
+				OSImage:                 cadvisortest.FakeContainerOSVersion,
 				OperatingSystem:         goruntime.GOOS,
 				Architecture:            goruntime.GOARCH,
 				ContainerRuntimeVersion: "test://1.5.0",
@@ -548,6 +538,7 @@ func TestUpdateExistingNodeStatusTimeout(t *testing.T) {
 	kubelet := testKubelet.kubelet
 	kubelet.kubeClient = nil // ensure only the heartbeat client is used
 	kubelet.heartbeatClient, err = clientset.NewForConfig(config)
+	require.NoError(t, err)
 	kubelet.onRepeatedHeartbeatFailure = func() {
 		atomic.AddInt64(&failureCallbacks, 1)
 	}
@@ -648,7 +639,7 @@ func TestUpdateNodeStatusWithRuntimeStateError(t *testing.T) {
 				SystemUUID:              "abc",
 				BootID:                  "1b3",
 				KernelVersion:           cadvisortest.FakeKernelVersion,
-				OSImage:                 cadvisortest.FakeContainerOsVersion,
+				OSImage:                 cadvisortest.FakeContainerOSVersion,
 				OperatingSystem:         goruntime.GOOS,
 				Architecture:            goruntime.GOARCH,
 				ContainerRuntimeVersion: "test://1.5.0",
@@ -797,7 +788,7 @@ func TestUpdateNodeStatusError(t *testing.T) {
 }
 
 func TestUpdateNodeStatusWithLease(t *testing.T) {
-	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.NodeLease, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.NodeLease, true)()
 
 	testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
 	defer testKubelet.Cleanup()
@@ -878,7 +869,7 @@ func TestUpdateNodeStatusWithLease(t *testing.T) {
 				SystemUUID:              "abc",
 				BootID:                  "1b3",
 				KernelVersion:           cadvisortest.FakeKernelVersion,
-				OSImage:                 cadvisortest.FakeContainerOsVersion,
+				OSImage:                 cadvisortest.FakeContainerOSVersion,
 				OperatingSystem:         goruntime.GOOS,
 				Architecture:            goruntime.GOARCH,
 				ContainerRuntimeVersion: "test://1.5.0",
@@ -938,7 +929,7 @@ func TestUpdateNodeStatusWithLease(t *testing.T) {
 	assert.Equal(t, v1.NodeReady, updatedNode.Status.Conditions[len(updatedNode.Status.Conditions)-1].Type,
 		"NodeReady should be the last condition")
 
-	// Update node status again when nothing is changed (except heatbeat time).
+	// Update node status again when nothing is changed (except heartbeat time).
 	// Report node status if it has exceeded the duration of nodeStatusReportFrequency.
 	clock.Step(time.Minute)
 	assert.NoError(t, kubelet.updateNodeStatus())
@@ -963,7 +954,7 @@ func TestUpdateNodeStatusWithLease(t *testing.T) {
 	}
 	assert.True(t, apiequality.Semantic.DeepEqual(expectedNode, updatedNode), "%s", diff.ObjectDiff(expectedNode, updatedNode))
 
-	// Update node status again when nothing is changed (except heatbeat time).
+	// Update node status again when nothing is changed (except heartbeat time).
 	// Do not report node status if it is within the duration of nodeStatusReportFrequency.
 	clock.Step(10 * time.Second)
 	assert.NoError(t, kubelet.updateNodeStatus())
@@ -989,7 +980,7 @@ func TestUpdateNodeStatusWithLease(t *testing.T) {
 
 	updatedNode, err = applyNodeStatusPatch(updatedNode, patchAction.GetPatch())
 	require.NoError(t, err)
-	memCapacity, _ := updatedNode.Status.Capacity[v1.ResourceMemory]
+	memCapacity := updatedNode.Status.Capacity[v1.ResourceMemory]
 	updatedMemoryCapacity, _ := (&memCapacity).AsInt64()
 	assert.Equal(t, newMemoryCapacity, updatedMemoryCapacity, "Memory capacity")
 
@@ -1006,11 +997,12 @@ func TestUpdateNodeStatusWithLease(t *testing.T) {
 	// Report node status if it is still within the duration of nodeStatusReportFrequency.
 	clock.Step(10 * time.Second)
 	assert.Equal(t, "", kubelet.runtimeState.podCIDR(), "Pod CIDR should be empty")
-	podCIDR := "10.0.0.0/24"
-	updatedNode.Spec.PodCIDR = podCIDR
+	podCIDRs := []string{"10.0.0.0/24", "2000::/10"}
+	updatedNode.Spec.PodCIDR = podCIDRs[0]
+	updatedNode.Spec.PodCIDRs = podCIDRs
 	kubeClient.ReactionChain = fake.NewSimpleClientset(&v1.NodeList{Items: []v1.Node{*updatedNode}}).ReactionChain
 	assert.NoError(t, kubelet.updateNodeStatus())
-	assert.Equal(t, podCIDR, kubelet.runtimeState.podCIDR(), "Pod CIDR should be updated now")
+	assert.Equal(t, strings.Join(podCIDRs, ","), kubelet.runtimeState.podCIDR(), "Pod CIDR should be updated now")
 	// 2 more action (There were 7 actions before).
 	actions = kubeClient.Actions()
 	assert.Len(t, actions, 9)
@@ -1021,12 +1013,220 @@ func TestUpdateNodeStatusWithLease(t *testing.T) {
 	// Update node status when keeping the pod CIDR.
 	// Do not report node status if it is within the duration of nodeStatusReportFrequency.
 	clock.Step(10 * time.Second)
-	assert.Equal(t, podCIDR, kubelet.runtimeState.podCIDR(), "Pod CIDR should already be updated")
+	assert.Equal(t, strings.Join(podCIDRs, ","), kubelet.runtimeState.podCIDR(), "Pod CIDR should already be updated")
+
 	assert.NoError(t, kubelet.updateNodeStatus())
 	// Only 1 more action (There were 9 actions before).
 	actions = kubeClient.Actions()
 	assert.Len(t, actions, 10)
 	assert.IsType(t, core.GetActionImpl{}, actions[9])
+}
+
+func TestUpdateNodeStatusAndVolumesInUseWithoutNodeLease(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.NodeLease, false)()
+
+	cases := []struct {
+		desc                  string
+		existingVolumes       []v1.UniqueVolumeName // volumes to initially populate volumeManager
+		existingNode          *v1.Node              // existing node object
+		expectedNode          *v1.Node              // new node object after patch
+		expectedReportedInUse []v1.UniqueVolumeName // expected volumes reported in use in volumeManager
+	}{
+		{
+			desc:         "no volumes and no update",
+			existingNode: &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}},
+			expectedNode: &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}},
+		},
+		{
+			desc:            "volumes inuse on node and volumeManager",
+			existingVolumes: []v1.UniqueVolumeName{"vol1"},
+			existingNode: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Status: v1.NodeStatus{
+					VolumesInUse: []v1.UniqueVolumeName{"vol1"},
+				},
+			},
+			expectedNode: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Status: v1.NodeStatus{
+					VolumesInUse: []v1.UniqueVolumeName{"vol1"},
+				},
+			},
+			expectedReportedInUse: []v1.UniqueVolumeName{"vol1"},
+		},
+		{
+			desc: "volumes inuse on node but not in volumeManager",
+			existingNode: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Status: v1.NodeStatus{
+					VolumesInUse: []v1.UniqueVolumeName{"vol1"},
+				},
+			},
+			expectedNode: &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}},
+		},
+		{
+			desc:            "volumes inuse in volumeManager but not on node",
+			existingVolumes: []v1.UniqueVolumeName{"vol1"},
+			existingNode:    &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}},
+			expectedNode: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Status: v1.NodeStatus{
+					VolumesInUse: []v1.UniqueVolumeName{"vol1"},
+				},
+			},
+			expectedReportedInUse: []v1.UniqueVolumeName{"vol1"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Setup
+			testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
+			defer testKubelet.Cleanup()
+
+			kubelet := testKubelet.kubelet
+			kubelet.kubeClient = nil // ensure only the heartbeat client is used
+			kubelet.containerManager = &localCM{ContainerManager: cm.NewStubContainerManager()}
+			kubelet.lastStatusReportTime = kubelet.clock.Now()
+			kubelet.nodeStatusReportFrequency = time.Hour
+			kubelet.machineInfo = &cadvisorapi.MachineInfo{}
+
+			// override test volumeManager
+			fakeVolumeManager := kubeletvolume.NewFakeVolumeManager(tc.existingVolumes)
+			kubelet.volumeManager = fakeVolumeManager
+
+			// Only test VolumesInUse setter
+			kubelet.setNodeStatusFuncs = []func(*v1.Node) error{
+				nodestatus.VolumesInUse(kubelet.volumeManager.ReconcilerStatesHasBeenSynced,
+					kubelet.volumeManager.GetVolumesInUse),
+			}
+
+			kubeClient := testKubelet.fakeKubeClient
+			kubeClient.ReactionChain = fake.NewSimpleClientset(&v1.NodeList{Items: []v1.Node{*tc.existingNode}}).ReactionChain
+
+			// Execute
+			assert.NoError(t, kubelet.updateNodeStatus())
+
+			// Validate
+			actions := kubeClient.Actions()
+			if tc.expectedNode != nil {
+				assert.Len(t, actions, 2)
+				assert.IsType(t, core.GetActionImpl{}, actions[0])
+				assert.IsType(t, core.PatchActionImpl{}, actions[1])
+				patchAction := actions[1].(core.PatchActionImpl)
+
+				updatedNode, err := applyNodeStatusPatch(tc.existingNode, patchAction.GetPatch())
+				require.NoError(t, err)
+				assert.True(t, apiequality.Semantic.DeepEqual(tc.expectedNode, updatedNode), "%s", diff.ObjectDiff(tc.expectedNode, updatedNode))
+			} else {
+				assert.Len(t, actions, 1)
+				assert.IsType(t, core.GetActionImpl{}, actions[0])
+			}
+
+			reportedInUse := fakeVolumeManager.GetVolumesReportedInUse()
+			assert.True(t, apiequality.Semantic.DeepEqual(tc.expectedReportedInUse, reportedInUse), "%s", diff.ObjectDiff(tc.expectedReportedInUse, reportedInUse))
+		})
+	}
+}
+
+func TestUpdateNodeStatusAndVolumesInUseWithNodeLease(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.NodeLease, true)()
+
+	cases := []struct {
+		desc                  string
+		existingVolumes       []v1.UniqueVolumeName // volumes to initially populate volumeManager
+		existingNode          *v1.Node              // existing node object
+		expectedNode          *v1.Node              // new node object after patch
+		expectedReportedInUse []v1.UniqueVolumeName // expected volumes reported in use in volumeManager
+	}{
+		{
+			desc:         "no volumes and no update",
+			existingNode: &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}},
+		},
+		{
+			desc:            "volumes inuse on node and volumeManager",
+			existingVolumes: []v1.UniqueVolumeName{"vol1"},
+			existingNode: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Status: v1.NodeStatus{
+					VolumesInUse: []v1.UniqueVolumeName{"vol1"},
+				},
+			},
+			expectedReportedInUse: []v1.UniqueVolumeName{"vol1"},
+		},
+		{
+			desc: "volumes inuse on node but not in volumeManager",
+			existingNode: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Status: v1.NodeStatus{
+					VolumesInUse: []v1.UniqueVolumeName{"vol1"},
+				},
+			},
+			expectedNode: &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}},
+		},
+		{
+			desc:            "volumes inuse in volumeManager but not on node",
+			existingVolumes: []v1.UniqueVolumeName{"vol1"},
+			existingNode:    &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}},
+			expectedNode: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Status: v1.NodeStatus{
+					VolumesInUse: []v1.UniqueVolumeName{"vol1"},
+				},
+			},
+			expectedReportedInUse: []v1.UniqueVolumeName{"vol1"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Setup
+			testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
+			defer testKubelet.Cleanup()
+
+			kubelet := testKubelet.kubelet
+			kubelet.kubeClient = nil // ensure only the heartbeat client is used
+			kubelet.containerManager = &localCM{ContainerManager: cm.NewStubContainerManager()}
+			kubelet.lastStatusReportTime = kubelet.clock.Now()
+			kubelet.nodeStatusReportFrequency = time.Hour
+			kubelet.machineInfo = &cadvisorapi.MachineInfo{}
+
+			// override test volumeManager
+			fakeVolumeManager := kubeletvolume.NewFakeVolumeManager(tc.existingVolumes)
+			kubelet.volumeManager = fakeVolumeManager
+
+			// Only test VolumesInUse setter
+			kubelet.setNodeStatusFuncs = []func(*v1.Node) error{
+				nodestatus.VolumesInUse(kubelet.volumeManager.ReconcilerStatesHasBeenSynced,
+					kubelet.volumeManager.GetVolumesInUse),
+			}
+
+			kubeClient := testKubelet.fakeKubeClient
+			kubeClient.ReactionChain = fake.NewSimpleClientset(&v1.NodeList{Items: []v1.Node{*tc.existingNode}}).ReactionChain
+
+			// Execute
+			assert.NoError(t, kubelet.updateNodeStatus())
+
+			// Validate
+			actions := kubeClient.Actions()
+			if tc.expectedNode != nil {
+				assert.Len(t, actions, 2)
+				assert.IsType(t, core.GetActionImpl{}, actions[0])
+				assert.IsType(t, core.PatchActionImpl{}, actions[1])
+				patchAction := actions[1].(core.PatchActionImpl)
+
+				updatedNode, err := applyNodeStatusPatch(tc.existingNode, patchAction.GetPatch())
+				require.NoError(t, err)
+				assert.True(t, apiequality.Semantic.DeepEqual(tc.expectedNode, updatedNode), "%s", diff.ObjectDiff(tc.expectedNode, updatedNode))
+			} else {
+				assert.Len(t, actions, 1)
+				assert.IsType(t, core.GetActionImpl{}, actions[0])
+			}
+
+			reportedInUse := fakeVolumeManager.GetVolumesReportedInUse()
+			assert.True(t, apiequality.Semantic.DeepEqual(tc.expectedReportedInUse, reportedInUse), "%s", diff.ObjectDiff(tc.expectedReportedInUse, reportedInUse))
+		})
+	}
 }
 
 func TestRegisterWithApiServer(t *testing.T) {
@@ -1046,9 +1246,11 @@ func TestRegisterWithApiServer(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: testKubeletHostname,
 				Labels: map[string]string{
-					kubeletapis.LabelHostname: testKubeletHostname,
-					kubeletapis.LabelOS:       goruntime.GOOS,
-					kubeletapis.LabelArch:     goruntime.GOARCH,
+					v1.LabelHostname:      testKubeletHostname,
+					v1.LabelOSStable:      goruntime.GOOS,
+					v1.LabelArchStable:    goruntime.GOARCH,
+					kubeletapis.LabelOS:   goruntime.GOOS,
+					kubeletapis.LabelArch: goruntime.GOARCH,
 				},
 			},
 		}, nil
@@ -1091,9 +1293,11 @@ func TestTryRegisterWithApiServer(t *testing.T) {
 		node := &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
-					kubeletapis.LabelHostname: testKubeletHostname,
-					kubeletapis.LabelOS:       goruntime.GOOS,
-					kubeletapis.LabelArch:     goruntime.GOARCH,
+					v1.LabelHostname:      testKubeletHostname,
+					v1.LabelOSStable:      goruntime.GOOS,
+					v1.LabelArchStable:    goruntime.GOARCH,
+					kubeletapis.LabelOS:   goruntime.GOOS,
+					kubeletapis.LabelArch: goruntime.GOARCH,
 				},
 			},
 		}
@@ -1321,12 +1525,12 @@ func TestUpdateDefaultLabels(t *testing.T) {
 			initialNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "new-hostname",
-						kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "new-zone-region",
-						kubeletapis.LabelInstanceType:      "new-instance-type",
-						kubeletapis.LabelOS:                "new-os",
-						kubeletapis.LabelArch:              "new-arch",
+						v1.LabelHostname:          "new-hostname",
+						v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+						v1.LabelZoneRegion:        "new-zone-region",
+						v1.LabelInstanceType:      "new-instance-type",
+						kubeletapis.LabelOS:       "new-os",
+						kubeletapis.LabelArch:     "new-arch",
 					},
 				},
 			},
@@ -1337,12 +1541,12 @@ func TestUpdateDefaultLabels(t *testing.T) {
 			},
 			needsUpdate: true,
 			finalLabels: map[string]string{
-				kubeletapis.LabelHostname:          "new-hostname",
-				kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-				kubeletapis.LabelZoneRegion:        "new-zone-region",
-				kubeletapis.LabelInstanceType:      "new-instance-type",
-				kubeletapis.LabelOS:                "new-os",
-				kubeletapis.LabelArch:              "new-arch",
+				v1.LabelHostname:          "new-hostname",
+				v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+				v1.LabelZoneRegion:        "new-zone-region",
+				v1.LabelInstanceType:      "new-instance-type",
+				kubeletapis.LabelOS:       "new-os",
+				kubeletapis.LabelArch:     "new-arch",
 			},
 		},
 		{
@@ -1350,35 +1554,35 @@ func TestUpdateDefaultLabels(t *testing.T) {
 			initialNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "new-hostname",
-						kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "new-zone-region",
-						kubeletapis.LabelInstanceType:      "new-instance-type",
-						kubeletapis.LabelOS:                "new-os",
-						kubeletapis.LabelArch:              "new-arch",
+						v1.LabelHostname:          "new-hostname",
+						v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+						v1.LabelZoneRegion:        "new-zone-region",
+						v1.LabelInstanceType:      "new-instance-type",
+						kubeletapis.LabelOS:       "new-os",
+						kubeletapis.LabelArch:     "new-arch",
 					},
 				},
 			},
 			existingNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "old-hostname",
-						kubeletapis.LabelZoneFailureDomain: "old-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "old-zone-region",
-						kubeletapis.LabelInstanceType:      "old-instance-type",
-						kubeletapis.LabelOS:                "old-os",
-						kubeletapis.LabelArch:              "old-arch",
+						v1.LabelHostname:          "old-hostname",
+						v1.LabelZoneFailureDomain: "old-zone-failure-domain",
+						v1.LabelZoneRegion:        "old-zone-region",
+						v1.LabelInstanceType:      "old-instance-type",
+						kubeletapis.LabelOS:       "old-os",
+						kubeletapis.LabelArch:     "old-arch",
 					},
 				},
 			},
 			needsUpdate: true,
 			finalLabels: map[string]string{
-				kubeletapis.LabelHostname:          "new-hostname",
-				kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-				kubeletapis.LabelZoneRegion:        "new-zone-region",
-				kubeletapis.LabelInstanceType:      "new-instance-type",
-				kubeletapis.LabelOS:                "new-os",
-				kubeletapis.LabelArch:              "new-arch",
+				v1.LabelHostname:          "new-hostname",
+				v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+				v1.LabelZoneRegion:        "new-zone-region",
+				v1.LabelInstanceType:      "new-instance-type",
+				kubeletapis.LabelOS:       "new-os",
+				kubeletapis.LabelArch:     "new-arch",
 			},
 		},
 		{
@@ -1386,37 +1590,37 @@ func TestUpdateDefaultLabels(t *testing.T) {
 			initialNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "new-hostname",
-						kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "new-zone-region",
-						kubeletapis.LabelInstanceType:      "new-instance-type",
-						kubeletapis.LabelOS:                "new-os",
-						kubeletapis.LabelArch:              "new-arch",
+						v1.LabelHostname:          "new-hostname",
+						v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+						v1.LabelZoneRegion:        "new-zone-region",
+						v1.LabelInstanceType:      "new-instance-type",
+						kubeletapis.LabelOS:       "new-os",
+						kubeletapis.LabelArch:     "new-arch",
 					},
 				},
 			},
 			existingNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "new-hostname",
-						kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "new-zone-region",
-						kubeletapis.LabelInstanceType:      "new-instance-type",
-						kubeletapis.LabelOS:                "new-os",
-						kubeletapis.LabelArch:              "new-arch",
-						"please-persist":                   "foo",
+						v1.LabelHostname:          "new-hostname",
+						v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+						v1.LabelZoneRegion:        "new-zone-region",
+						v1.LabelInstanceType:      "new-instance-type",
+						kubeletapis.LabelOS:       "new-os",
+						kubeletapis.LabelArch:     "new-arch",
+						"please-persist":          "foo",
 					},
 				},
 			},
 			needsUpdate: false,
 			finalLabels: map[string]string{
-				kubeletapis.LabelHostname:          "new-hostname",
-				kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-				kubeletapis.LabelZoneRegion:        "new-zone-region",
-				kubeletapis.LabelInstanceType:      "new-instance-type",
-				kubeletapis.LabelOS:                "new-os",
-				kubeletapis.LabelArch:              "new-arch",
-				"please-persist":                   "foo",
+				v1.LabelHostname:          "new-hostname",
+				v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+				v1.LabelZoneRegion:        "new-zone-region",
+				v1.LabelInstanceType:      "new-instance-type",
+				kubeletapis.LabelOS:       "new-os",
+				kubeletapis.LabelArch:     "new-arch",
+				"please-persist":          "foo",
 			},
 		},
 		{
@@ -1429,25 +1633,25 @@ func TestUpdateDefaultLabels(t *testing.T) {
 			existingNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "new-hostname",
-						kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "new-zone-region",
-						kubeletapis.LabelInstanceType:      "new-instance-type",
-						kubeletapis.LabelOS:                "new-os",
-						kubeletapis.LabelArch:              "new-arch",
-						"please-persist":                   "foo",
+						v1.LabelHostname:          "new-hostname",
+						v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+						v1.LabelZoneRegion:        "new-zone-region",
+						v1.LabelInstanceType:      "new-instance-type",
+						kubeletapis.LabelOS:       "new-os",
+						kubeletapis.LabelArch:     "new-arch",
+						"please-persist":          "foo",
 					},
 				},
 			},
 			needsUpdate: false,
 			finalLabels: map[string]string{
-				kubeletapis.LabelHostname:          "new-hostname",
-				kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-				kubeletapis.LabelZoneRegion:        "new-zone-region",
-				kubeletapis.LabelInstanceType:      "new-instance-type",
-				kubeletapis.LabelOS:                "new-os",
-				kubeletapis.LabelArch:              "new-arch",
-				"please-persist":                   "foo",
+				v1.LabelHostname:          "new-hostname",
+				v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+				v1.LabelZoneRegion:        "new-zone-region",
+				v1.LabelInstanceType:      "new-instance-type",
+				kubeletapis.LabelOS:       "new-os",
+				kubeletapis.LabelArch:     "new-arch",
+				"please-persist":          "foo",
 			},
 		},
 		{
@@ -1455,35 +1659,35 @@ func TestUpdateDefaultLabels(t *testing.T) {
 			initialNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "new-hostname",
-						kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "new-zone-region",
-						kubeletapis.LabelInstanceType:      "new-instance-type",
-						kubeletapis.LabelOS:                "new-os",
-						kubeletapis.LabelArch:              "new-arch",
+						v1.LabelHostname:          "new-hostname",
+						v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+						v1.LabelZoneRegion:        "new-zone-region",
+						v1.LabelInstanceType:      "new-instance-type",
+						kubeletapis.LabelOS:       "new-os",
+						kubeletapis.LabelArch:     "new-arch",
 					},
 				},
 			},
 			existingNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "new-hostname",
-						kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "new-zone-region",
-						kubeletapis.LabelInstanceType:      "new-instance-type",
-						kubeletapis.LabelOS:                "new-os",
-						kubeletapis.LabelArch:              "new-arch",
+						v1.LabelHostname:          "new-hostname",
+						v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+						v1.LabelZoneRegion:        "new-zone-region",
+						v1.LabelInstanceType:      "new-instance-type",
+						kubeletapis.LabelOS:       "new-os",
+						kubeletapis.LabelArch:     "new-arch",
 					},
 				},
 			},
 			needsUpdate: false,
 			finalLabels: map[string]string{
-				kubeletapis.LabelHostname:          "new-hostname",
-				kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-				kubeletapis.LabelZoneRegion:        "new-zone-region",
-				kubeletapis.LabelInstanceType:      "new-instance-type",
-				kubeletapis.LabelOS:                "new-os",
-				kubeletapis.LabelArch:              "new-arch",
+				v1.LabelHostname:          "new-hostname",
+				v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+				v1.LabelZoneRegion:        "new-zone-region",
+				v1.LabelInstanceType:      "new-instance-type",
+				kubeletapis.LabelOS:       "new-os",
+				kubeletapis.LabelArch:     "new-arch",
 			},
 		},
 		{
@@ -1491,12 +1695,12 @@ func TestUpdateDefaultLabels(t *testing.T) {
 			initialNode: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						kubeletapis.LabelHostname:          "new-hostname",
-						kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-						kubeletapis.LabelZoneRegion:        "new-zone-region",
-						kubeletapis.LabelInstanceType:      "new-instance-type",
-						kubeletapis.LabelOS:                "new-os",
-						kubeletapis.LabelArch:              "new-arch",
+						v1.LabelHostname:          "new-hostname",
+						v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+						v1.LabelZoneRegion:        "new-zone-region",
+						v1.LabelInstanceType:      "new-instance-type",
+						kubeletapis.LabelOS:       "new-os",
+						kubeletapis.LabelArch:     "new-arch",
 					},
 				},
 			},
@@ -1505,12 +1709,12 @@ func TestUpdateDefaultLabels(t *testing.T) {
 			},
 			needsUpdate: true,
 			finalLabels: map[string]string{
-				kubeletapis.LabelHostname:          "new-hostname",
-				kubeletapis.LabelZoneFailureDomain: "new-zone-failure-domain",
-				kubeletapis.LabelZoneRegion:        "new-zone-region",
-				kubeletapis.LabelInstanceType:      "new-instance-type",
-				kubeletapis.LabelOS:                "new-os",
-				kubeletapis.LabelArch:              "new-arch",
+				v1.LabelHostname:          "new-hostname",
+				v1.LabelZoneFailureDomain: "new-zone-failure-domain",
+				v1.LabelZoneRegion:        "new-zone-region",
+				v1.LabelInstanceType:      "new-instance-type",
+				kubeletapis.LabelOS:       "new-os",
+				kubeletapis.LabelArch:     "new-arch",
 			},
 		},
 	}
@@ -1528,17 +1732,21 @@ func TestUpdateDefaultLabels(t *testing.T) {
 func TestReconcileExtendedResource(t *testing.T) {
 	testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
 	testKubelet.kubelet.kubeClient = nil // ensure only the heartbeat client is used
+	testKubelet.kubelet.containerManager = cm.NewStubContainerManagerWithExtendedResource(true /* shouldResetExtendedResourceCapacity*/)
+	testKubeletNoReset := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
 	extendedResourceName1 := v1.ResourceName("test.com/resource1")
 	extendedResourceName2 := v1.ResourceName("test.com/resource2")
 
 	cases := []struct {
 		name         string
+		testKubelet  *TestKubelet
 		existingNode *v1.Node
 		expectedNode *v1.Node
 		needsUpdate  bool
 	}{
 		{
-			name: "no update needed without extended resource",
+			name:        "no update needed without extended resource",
+			testKubelet: testKubelet,
 			existingNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -1570,7 +1778,41 @@ func TestReconcileExtendedResource(t *testing.T) {
 			needsUpdate: false,
 		},
 		{
-			name: "extended resource capacity is zeroed",
+			name:        "extended resource capacity is not zeroed due to presence of checkpoint file",
+			testKubelet: testKubelet,
+			existingNode: &v1.Node{
+				Status: v1.NodeStatus{
+					Capacity: v1.ResourceList{
+						v1.ResourceCPU:              *resource.NewMilliQuantity(2000, resource.DecimalSI),
+						v1.ResourceMemory:           *resource.NewQuantity(10E9, resource.BinarySI),
+						v1.ResourceEphemeralStorage: *resource.NewQuantity(5000, resource.BinarySI),
+					},
+					Allocatable: v1.ResourceList{
+						v1.ResourceCPU:              *resource.NewMilliQuantity(2000, resource.DecimalSI),
+						v1.ResourceMemory:           *resource.NewQuantity(10E9, resource.BinarySI),
+						v1.ResourceEphemeralStorage: *resource.NewQuantity(5000, resource.BinarySI),
+					},
+				},
+			},
+			expectedNode: &v1.Node{
+				Status: v1.NodeStatus{
+					Capacity: v1.ResourceList{
+						v1.ResourceCPU:              *resource.NewMilliQuantity(2000, resource.DecimalSI),
+						v1.ResourceMemory:           *resource.NewQuantity(10E9, resource.BinarySI),
+						v1.ResourceEphemeralStorage: *resource.NewQuantity(5000, resource.BinarySI),
+					},
+					Allocatable: v1.ResourceList{
+						v1.ResourceCPU:              *resource.NewMilliQuantity(2000, resource.DecimalSI),
+						v1.ResourceMemory:           *resource.NewQuantity(10E9, resource.BinarySI),
+						v1.ResourceEphemeralStorage: *resource.NewQuantity(5000, resource.BinarySI),
+					},
+				},
+			},
+			needsUpdate: false,
+		},
+		{
+			name:        "extended resource capacity is zeroed",
+			testKubelet: testKubeletNoReset,
 			existingNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -1741,7 +1983,7 @@ func TestRegisterWithApiServerWithTaint(t *testing.T) {
 	// Make node to be unschedulable.
 	kubelet.registerSchedulable = false
 
-	forEachFeatureGate(t, []utilfeature.Feature{features.TaintNodesByCondition}, func(t *testing.T) {
+	forEachFeatureGate(t, []featuregate.Feature{features.TaintNodesByCondition}, func(t *testing.T) {
 		// Reset kubelet status for each test.
 		kubelet.registrationCompleted = false
 
@@ -1759,8 +2001,6 @@ func TestRegisterWithApiServerWithTaint(t *testing.T) {
 			utilfeature.DefaultFeatureGate.Enabled(features.TaintNodesByCondition),
 			taintutil.TaintExists(got.Spec.Taints, unschedulableTaint),
 			"test unschedulable taint for TaintNodesByCondition")
-
-		return
 	})
 }
 
@@ -1916,6 +2156,159 @@ func TestNodeStatusHasChanged(t *testing.T) {
 			assert.Equal(t, tc.expectChange, changed, "Expect node status change to be %t, but got %t.", tc.expectChange, changed)
 			assert.True(t, apiequality.Semantic.DeepEqual(originalStatusCopy, tc.originalStatus), "%s", diff.ObjectDiff(originalStatusCopy, tc.originalStatus))
 			assert.True(t, apiequality.Semantic.DeepEqual(statusCopy, tc.status), "%s", diff.ObjectDiff(statusCopy, tc.status))
+		})
+	}
+}
+
+func TestUpdateNodeAddresses(t *testing.T) {
+	testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
+	defer testKubelet.Cleanup()
+	kubelet := testKubelet.kubelet
+	kubeClient := testKubelet.fakeKubeClient
+
+	existingNode := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}}
+	kubeClient.ReactionChain = fake.NewSimpleClientset(&v1.NodeList{Items: []v1.Node{existingNode}}).ReactionChain
+
+	tests := []struct {
+		Name   string
+		Before []v1.NodeAddress
+		After  []v1.NodeAddress
+	}{
+		{
+			Name:   "nil to populated",
+			Before: nil,
+			After: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+		},
+		{
+			Name:   "empty to populated",
+			Before: []v1.NodeAddress{},
+			After: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+		},
+		{
+			Name: "populated to nil",
+			Before: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			After: nil,
+		},
+		{
+			Name: "populated to empty",
+			Before: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			After: []v1.NodeAddress{},
+		},
+		{
+			Name: "multiple addresses of same type, no change",
+			Before: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.2"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.3"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			After: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.2"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.3"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+		},
+		{
+			Name: "1 InternalIP to 2 InternalIP",
+			Before: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			After: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.2"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+		},
+		{
+			Name: "2 InternalIP to 1 InternalIP",
+			Before: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.2"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			After: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+		},
+		{
+			Name: "2 InternalIP to 2 different InternalIP",
+			Before: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.2"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			After: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.3"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.4"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+		},
+		{
+			Name: "2 InternalIP to reversed order",
+			Before: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.2"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			After: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "127.0.0.2"},
+				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			oldNode := &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Spec:       v1.NodeSpec{},
+				Status: v1.NodeStatus{
+					Addresses: test.Before,
+				},
+			}
+			expectedNode := &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname},
+				Spec:       v1.NodeSpec{},
+				Status: v1.NodeStatus{
+					Addresses: test.After,
+				},
+			}
+
+			_, err := kubeClient.CoreV1().Nodes().Update(oldNode)
+			assert.NoError(t, err)
+			kubelet.setNodeStatusFuncs = []func(*v1.Node) error{
+				func(node *v1.Node) error {
+					node.Status.Addresses = expectedNode.Status.Addresses
+					return nil
+				},
+			}
+			assert.NoError(t, kubelet.updateNodeStatus())
+
+			actions := kubeClient.Actions()
+			lastAction := actions[len(actions)-1]
+			assert.IsType(t, core.PatchActionImpl{}, lastAction)
+			patchAction := lastAction.(core.PatchActionImpl)
+
+			updatedNode, err := applyNodeStatusPatch(oldNode, patchAction.GetPatch())
+			require.NoError(t, err)
+
+			assert.True(t, apiequality.Semantic.DeepEqual(updatedNode, expectedNode), "%s", diff.ObjectDiff(expectedNode, updatedNode))
 		})
 	}
 }

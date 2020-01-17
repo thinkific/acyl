@@ -168,5 +168,9 @@ spec:
           - name: VAULT_ADDR
             value: {{ .Values.vault.addr }}
           {{ end }}
+          {{ if .Values.app.k8s_client_disable_http2 }}
+          - name: DISABLE_HTTP2
+            value: 'true'
+          {{ end }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}

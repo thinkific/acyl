@@ -25,4 +25,8 @@ kubectl wait "job/${JOBNAME}" --for condition=Complete --timeout=300s
 SUCCESS=$?
 kubectl logs "job/${JOBNAME}"
 kubectl delete "job/${JOBNAME}"
+
+# clean up any lingering namespaces
+kubectl get ns --no-headers=true |grep nitro- |awk '{print $1}' |xargs kubectl delete --wait=false ns
+
 exit $SUCCESS

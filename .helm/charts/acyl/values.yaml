@@ -33,6 +33,7 @@ app:
   nitro: true
   k8s_group_bindings: ""
   k8s_secret_injections: "image-pull-secret=k8s/image_pull_secret"
+  k8s_client_disable_http2: true # work around bug in using HTTP2 for k8s client calls
   failure_reports:
     s3:
       region: ''

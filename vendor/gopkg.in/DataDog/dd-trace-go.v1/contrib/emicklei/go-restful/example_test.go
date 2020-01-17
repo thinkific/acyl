@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package restful_test
 
 import (
@@ -15,8 +20,13 @@ func Example() {
 	// create new go-restful service
 	ws := new(restful.WebService)
 
-	// instrument the service with trace
-	ws.Filter(restfultrace.Filter)
+	// create the Datadog filter
+	filter := restfultrace.FilterFunc(
+		restfultrace.WithServiceName("my-service"),
+	)
+
+	// use it
+	ws.Filter(filter)
 
 	// set endpoint
 	ws.Route(ws.GET("/hello").To(

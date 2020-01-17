@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package sarama
 
 import (
@@ -99,7 +104,7 @@ func TestSyncProducer(t *testing.T) {
 
 	metadataResponse := new(sarama.MetadataResponse)
 	metadataResponse.AddBroker(leader.Addr(), leader.BrokerID())
-	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, sarama.ErrNoError)
+	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, nil, sarama.ErrNoError)
 	seedBroker.Returns(metadataResponse)
 
 	prodSuccess := new(sarama.ProduceResponse)
@@ -146,7 +151,7 @@ func TestSyncProducerSendMessages(t *testing.T) {
 
 	metadataResponse := new(sarama.MetadataResponse)
 	metadataResponse.AddBroker(leader.Addr(), leader.BrokerID())
-	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, sarama.ErrNoError)
+	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, nil, sarama.ErrNoError)
 	seedBroker.Returns(metadataResponse)
 
 	prodSuccess := new(sarama.ProduceResponse)
@@ -262,7 +267,7 @@ func newMockBroker(t *testing.T) *sarama.MockBroker {
 
 	metadataResponse := new(sarama.MetadataResponse)
 	metadataResponse.AddBroker(broker.Addr(), broker.BrokerID())
-	metadataResponse.AddTopicPartition("my_topic", 0, broker.BrokerID(), nil, nil, sarama.ErrNoError)
+	metadataResponse.AddTopicPartition("my_topic", 0, broker.BrokerID(), nil, nil, nil, sarama.ErrNoError)
 	broker.Returns(metadataResponse)
 
 	prodSuccess := new(sarama.ProduceResponse)

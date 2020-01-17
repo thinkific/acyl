@@ -23,9 +23,6 @@ import (
 	"strings"
 )
 
-// dockerEndpoint is the os specific endpoint for docker communication
-const dockerEndpoint = "npipe:////./pipe/docker_engine"
-
 // DefaultSysSpec is the default SysSpec for Windows
 var DefaultSysSpec = SysSpec{
 	OS: "Microsoft Windows Server 2016",
@@ -38,7 +35,7 @@ var DefaultSysSpec = SysSpec{
 	Cgroups: []string{},
 	RuntimeSpec: RuntimeSpec{
 		DockerSpec: &DockerSpec{
-			Version:     []string{`18\.06\..*`}, //Requires [18.06] or later
+			Version:     []string{`18\.0[6,9]\..*`},
 			GraphDriver: []string{"windowsfilter"},
 		},
 	},

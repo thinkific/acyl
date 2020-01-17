@@ -16,14 +16,18 @@ go_test(
     deps = select({
         "@io_bazel_rules_go//go/platform:darwin": [
             "//vendor/github.com/stretchr/testify/assert:go_default_library",
+            "//vendor/github.com/stretchr/testify/require:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:freebsd": [
             "//vendor/github.com/stretchr/testify/assert:go_default_library",
+            "//vendor/github.com/stretchr/testify/require:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
             "//vendor/github.com/stretchr/testify/assert:go_default_library",
+            "//vendor/github.com/stretchr/testify/require:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:windows": [
+            "//vendor/github.com/Microsoft/go-winio:go_default_library",
             "//vendor/github.com/stretchr/testify/assert:go_default_library",
             "//vendor/github.com/stretchr/testify/require:go_default_library",
         ],
@@ -34,6 +38,8 @@ go_test(
 go_library(
     name = "go_default_library",
     srcs = [
+        "boottime_util_darwin.go",
+        "boottime_util_linux.go",
         "doc.go",
         "util.go",
         "util_unix.go",
@@ -77,8 +83,8 @@ filegroup(
         "//pkg/kubelet/util/cache:all-srcs",
         "//pkg/kubelet/util/format:all-srcs",
         "//pkg/kubelet/util/ioutils:all-srcs",
+        "//pkg/kubelet/util/logreduction:all-srcs",
         "//pkg/kubelet/util/manager:all-srcs",
-        "//pkg/kubelet/util/pluginwatcher:all-srcs",
         "//pkg/kubelet/util/queue:all-srcs",
         "//pkg/kubelet/util/sliceutils:all-srcs",
         "//pkg/kubelet/util/store:all-srcs",

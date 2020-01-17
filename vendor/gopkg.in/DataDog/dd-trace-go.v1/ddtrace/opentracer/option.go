@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package opentracer // import "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/opentracer"
 
 import (
@@ -16,6 +21,11 @@ func ServiceName(name string) opentracing.StartSpanOption {
 // resource name of a span.
 func ResourceName(name string) opentracing.StartSpanOption {
 	return opentracing.Tag{Key: ext.ResourceName, Value: name}
+}
+
+// SpanName sets the Datadog operation name for the span.
+func SpanName(name string) opentracing.StartSpanOption {
+	return opentracing.Tag{Key: ext.SpanName, Value: name}
 }
 
 // SpanType can be used with opentracing.StartSpan to set the type of a span.

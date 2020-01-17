@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package mgo
 
 import (
@@ -8,17 +13,19 @@ import (
 // Pipe is an mgo.Pipe instance along with the data necessary for tracing.
 type Pipe struct {
 	*mgo.Pipe
-	cfg mongoConfig
+	cfg  *mongoConfig
+	tags map[string]string
 }
 
 // Iter invokes and traces Pipe.Iter
 func (p *Pipe) Iter() *Iter {
-	span := newChildSpanFromContext(p.cfg)
+	span := newChildSpanFromContext(p.cfg, p.tags)
 	iter := p.Pipe.Iter()
 	span.Finish()
 	return &Iter{
 		Iter: iter,
 		cfg:  p.cfg,
+		tags: p.tags,
 	}
 }
 
@@ -29,31 +36,15 @@ func (p *Pipe) All(result interface{}) error {
 
 // One invokes and traces Pipe.One
 func (p *Pipe) One(result interface{}) (err error) {
-	span := newChildSpanFromContext(p.cfg)
+	span := newChildSpanFromContext(p.cfg, p.tags)
 	defer span.Finish(tracer.WithError(err))
 	err = p.Pipe.One(result)
 	return
 }
 
-// AllowDiskUse invokes and traces Pipe.AllowDiskUse
-func (p *Pipe) AllowDiskUse() *Pipe {
-	return &Pipe{
-		Pipe: p.Pipe.AllowDiskUse(),
-		cfg:  p.cfg,
-	}
-}
-
-// Batch invokes and traces Pipe.Batch
-func (p *Pipe) Batch(n int) *Pipe {
-	return &Pipe{
-		Pipe: p.Pipe.Batch(n),
-		cfg:  p.cfg,
-	}
-}
-
 // Explain invokes and traces Pipe.Explain
 func (p *Pipe) Explain(result interface{}) (err error) {
-	span := newChildSpanFromContext(p.cfg)
+	span := newChildSpanFromContext(p.cfg, p.tags)
 	defer span.Finish(tracer.WithError(err))
 	err = p.Pipe.Explain(result)
 	return

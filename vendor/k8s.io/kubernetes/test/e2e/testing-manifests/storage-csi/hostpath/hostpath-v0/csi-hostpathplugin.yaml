@@ -11,11 +11,10 @@ spec:
       labels:
         app: csi-hostpathplugin
     spec:
-      serviceAccountName: csi-node-sa
       hostNetwork: true
       containers:
         - name: driver-registrar
-          image: gcr.io/gke-release/csi-driver-registrar:v0.4.1-gke.0
+          image: quay.io/k8scsi/driver-registrar:v0.4.1
           args:
             - --v=5
             - --csi-address=/csi/csi.sock

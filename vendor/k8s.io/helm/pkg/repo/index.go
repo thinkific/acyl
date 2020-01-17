@@ -147,7 +147,8 @@ func (i IndexFile) SortEntries() {
 
 // Get returns the ChartVersion for the given name.
 //
-// If version is empty, this will return the chart with the highest version.
+// If version is empty, this will return the chart with the latest stable version,
+// prerelease versions will be skipped.
 func (i IndexFile) Get(name, version string) (*ChartVersion, error) {
 	vs, ok := i.Entries[name]
 	if !ok {
@@ -165,6 +166,15 @@ func (i IndexFile) Get(name, version string) (*ChartVersion, error) {
 		constraint, err = semver.NewConstraint(version)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// when customer input exact version, check whether have exact match one first
+	if len(version) != 0 {
+		for _, ver := range vs {
+			if version == ver.Version {
+				return ver, nil
+			}
 		}
 	}
 

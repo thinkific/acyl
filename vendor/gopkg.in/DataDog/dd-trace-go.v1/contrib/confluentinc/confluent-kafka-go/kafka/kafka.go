@@ -1,11 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // Package kafka provides functions to trace the confluentinc/confluent-kafka-go package (https://github.com/confluentinc/confluent-kafka-go).
 package kafka // import "gopkg.in/DataDog/dd-trace-go.v1/contrib/confluentinc/confluent-kafka-go/kafka"
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"math"
+
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 // NewConsumer calls kafka.NewConsumer and wraps the resulting Consumer.
@@ -85,6 +93,9 @@ func (c *Consumer) startSpan(msg *kafka.Message) ddtrace.Span {
 		tracer.SpanType(ext.SpanTypeMessageConsumer),
 		tracer.Tag("partition", msg.TopicPartition.Partition),
 		tracer.Tag("offset", msg.TopicPartition.Offset),
+	}
+	if !math.IsNaN(c.cfg.analyticsRate) {
+		opts = append(opts, tracer.Tag(ext.EventSampleRate, c.cfg.analyticsRate))
 	}
 	// kafka supports headers, so try to extract a span context
 	carrier := NewMessageCarrier(msg)
@@ -171,6 +182,9 @@ func (p *Producer) startSpan(msg *kafka.Message) ddtrace.Span {
 		tracer.ResourceName("Produce Topic " + *msg.TopicPartition.Topic),
 		tracer.SpanType(ext.SpanTypeMessageProducer),
 		tracer.Tag("partition", msg.TopicPartition.Partition),
+	}
+	if !math.IsNaN(p.cfg.analyticsRate) {
+		opts = append(opts, tracer.Tag(ext.EventSampleRate, p.cfg.analyticsRate))
 	}
 	carrier := NewMessageCarrier(msg)
 	span, _ := tracer.StartSpanFromContext(p.cfg.ctx, "kafka.produce", opts...)

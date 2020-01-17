@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/transport"
 
 	// this is to include all auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -69,7 +70,7 @@ type K8sClientFactoryFunc func(kubecfgpath, kubectx string) (*kubernetes.Clients
 
 // Defaults for Tiller configuration options, if not specified otherwise
 const (
-	DefaultTillerImage                   = "gcr.io/kubernetes-helm/tiller:v2.11.0"
+	DefaultTillerImage                   = "gcr.io/kubernetes-helm/tiller:v2.16.1"
 	DefaultTillerPort                    = 44134
 	DefaultTillerDeploymentName          = "tiller-deploy"
 	DefaultTillerServerConnectRetryDelay = 10 * time.Second
@@ -222,8 +223,8 @@ func NewInClusterK8sClientset(k8sJWTPath string, enableK8sTracing bool) (*kubern
 // wrapTransport encapsulates the kubernetestrace WrapTransport and Kubernetes'
 // default TokenSource WrapTransport.
 func wrapTransport(k8sJWTPath string, enableK8sTracing bool) func(rt http.RoundTripper) http.RoundTripper {
-	ts := rest.NewCachedFileTokenSource(k8sJWTPath)
-	tokenWrappedTransport := rest.TokenSourceWrapTransport(ts)
+	ts := transport.NewCachedFileTokenSource(k8sJWTPath)
+	tokenWrappedTransport := transport.TokenSourceWrapTransport(ts)
 	if enableK8sTracing {
 		return func(rt http.RoundTripper) http.RoundTripper {
 			return kubernetestrace.WrapRoundTripper(tokenWrappedTransport(rt))
