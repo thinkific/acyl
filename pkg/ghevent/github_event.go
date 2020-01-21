@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
@@ -79,8 +78,6 @@ const (
 	UnknownEvent GitHubEventType = iota
 	// PullRequestEvent is a PR event
 	PullRequestEvent
-	// CommitPushEvent is a commit push event
-	CommitPushEvent
 )
 
 // GitHubEvent represents an incoming GitHub webhook payload
@@ -88,9 +85,6 @@ type GitHubEvent struct {
 	Action      string                 `json:"action"`       //PR
 	Repository  GitHubEventRepository  `json:"repository"`   //PR/Push
 	PullRequest GitHubEventPullRequest `json:"pull_request"` //PR
-	Ref         string                 `json:"ref"`          //Push
-	Before      string                 `json:"before"`       //Push
-	After       string                 `json:"after"`        //Push
 	Sender      GitHubEventUser
 }
 
@@ -99,8 +93,6 @@ func (event GitHubEvent) Type() GitHubEventType {
 	switch {
 	case event.Action != "":
 		return PullRequestEvent
-	case event.Before != "" && event.After != "" && event.Ref != "":
-		return CommitPushEvent
 	}
 	return UnknownEvent
 }
@@ -161,16 +153,6 @@ func (ge *GitHubEventWebhook) checkRelevancyPR(log func(string, ...interface{}),
 	return false
 }
 
-// checkRelevancyPush checks relevancy for Push events
-func (ge *GitHubEventWebhook) checkRelevancyPush(log func(string, ...interface{}), event *GitHubEvent, qat *models.QAType) bool {
-	for _, r := range qat.TrackRefs {
-		if event.Ref == "refs/"+r {
-			return true
-		}
-	}
-	return false
-}
-
 func (ge *GitHubEventWebhook) generateRepoMetadataPR(event *GitHubEvent) *models.RepoRevisionData {
 	return &models.RepoRevisionData{
 		User:         event.PullRequest.User.Login,
@@ -180,20 +162,6 @@ func (ge *GitHubEventWebhook) generateRepoMetadataPR(event *GitHubEvent) *models
 		BaseSHA:      event.PullRequest.Base.SHA,
 		SourceBranch: event.PullRequest.Head.Ref,
 		BaseBranch:   event.PullRequest.Base.Ref,
-	}
-}
-
-func (ge *GitHubEventWebhook) generateRepoMetadataPush(event *GitHubEvent) *models.RepoRevisionData {
-	// we strip out raw git ref stuff to get the branch name
-	// if it's a tag, we're left with "tags/tagname" to differentiate from a branch
-	ref := strings.Replace(strings.Replace(event.Ref, "heads/", "", 1), "refs/", "", 1)
-	return &models.RepoRevisionData{
-		User:        event.Sender.Login,
-		Repo:        event.Repository.FullName,
-		PullRequest: 0,
-		SourceSHA:   event.After,
-		BaseSHA:     event.Before,
-		SourceRef:   ref,
 	}
 }
 
@@ -255,57 +223,42 @@ func (ge *GitHubEventWebhook) New(body []byte, sig string) (WebhookResponse, err
 	out.Logger = logger
 	log := logger.Printf
 
-	log("event type: %v", event.Type().String())
+	if event.Type() != PullRequestEvent {
+		log("not a PR event; ignoring")
+		return out, nil
+	}
 
-	if _, ok := supportedActions[event.Action]; event.Type() == PullRequestEvent && !ok {
+	if _, ok := supportedActions[event.Action]; !ok {
 		log("PR event but unsupported action: %v", event)
 		return out, nil
 	}
-	if event.PullRequest.Head.SHA == "" && event.After == "" {
+
+	if event.PullRequest.Head.SHA == "" {
 		log("no head SHA found, aborting")
 		return out, fmt.Errorf("malformed payload: no SHA found")
 	}
 
 	headsha := event.PullRequest.Head.SHA
-	if headsha == "" {
-		headsha = event.After
-	}
 
 	log("fetching acyl.yml for %v@%v", event.Repository.FullName, headsha)
+
 	qat, err := ge.getRelevantType(event.Repository.FullName, headsha)
 	if err != nil {
 		log("error fetching acyl.yml for webhook: %v", err)
 		return out, fmt.Errorf("error fetching acyl.yml: %v", err)
 	}
 
-	var cr func(func(string, ...interface{}), *GitHubEvent, *models.QAType) bool
-	var grm func(event *GitHubEvent) *models.RepoRevisionData
-	var at ActionType
-	switch event.Type() {
-	case PullRequestEvent:
-		// PR event
-		cr = ge.checkRelevancyPR
-		grm = ge.generateRepoMetadataPR
-		at = supportedActions[event.Action]
-	case CommitPushEvent:
-		// Push event
-		cr = ge.checkRelevancyPush
-		grm = ge.generateRepoMetadataPush
-		at = Update
-	default:
-		log("not a pull request or push event: %v", event.Type().String())
-		return out, fmt.Errorf("not a pull request or push event")
-	}
-	if !cr(log, &event, qat) {
+	at := supportedActions[event.Action]
+	if !ge.checkRelevancyPR(log, &event, qat) {
 		log("github event: relevancy check failed: %v: %v", at.String(), event)
 		return out, nil
 	}
-	repoData := grm(&event)
+	repoData := ge.generateRepoMetadataPR(&event)
 	if repoData.SourceBranch == "" {
 		log("event.Type(): %v \n body parse SourceBranch is empty: %v \n headsha: %v , QaType.Name: %v", event.Type(), string(body), headsha, qat.Name)
 	}
 	log("relevant action: %v", at.String())
 	out.Action = at
-	out.RRD = grm(&event)
+	out.RRD = repoData
 	return out, nil
 }
