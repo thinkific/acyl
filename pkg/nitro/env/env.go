@@ -574,8 +574,8 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 	}
 	// Delete k8s resources asynchronously with retries
 	go func() {
-		// new context with independent timeout
-		ctx2, cf := context.WithTimeout(context.Background(), 10 * time.Minute)
+		// new context with independent timeout, but preserve the eventlogger from the original context
+		ctx2, cf := context.WithTimeout(eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx)), 10 * time.Minute)
 		defer cf()
 
 		// use existing context for logging so messages go to proper eventlogs
