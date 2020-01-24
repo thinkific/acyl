@@ -29,6 +29,7 @@ type lockingDataMap struct {
 // FakeDataLayer is a fake implementation of DataLayer that persists data in-memory, for testing purposes
 type FakeDataLayer struct {
 	data *lockingDataMap
+	delay time.Duration
 }
 
 var _ DataLayer = &FakeDataLayer{}
@@ -57,6 +58,26 @@ func NewPopulatedFakeDataLayer(qaenvs []models.QAEnvironment, k8senvs []models.K
 		fd.data.helm[hr.EnvName] = append(fd.data.helm[hr.EnvName], hr)
 	}
 	return fd
+}
+
+func NewDelayedFakeDataLayer(delay time.Duration) *FakeDataLayer {
+	return &FakeDataLayer{
+		data: &lockingDataMap{
+			d:     make(map[string]*models.QAEnvironment),
+			helm:  make(map[string][]models.HelmRelease),
+			k8s:   make(map[string]*models.KubernetesEnvironment),
+			elogs: make(map[uuid.UUID]*models.EventLog),
+		},
+		delay: delay,
+	}
+}
+
+func (fdl *FakeDataLayer) SetDelay(d time.Duration) {
+	fdl.delay = d
+}
+
+func (fdl *FakeDataLayer) doDelay() {
+	time.Sleep(fdl.delay)
 }
 
 // Save writes all data to files in dir and returns the filenames, or error
@@ -163,6 +184,10 @@ func (fdl *FakeDataLayer) Load(dir string) error {
 }
 
 func (fdl *FakeDataLayer) CreateQAEnvironment(ctx context.Context, qa *QAEnvironment) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	fdl.data.d[qa.Name] = qa
 	fdl.data.Unlock()
@@ -170,8 +195,12 @@ func (fdl *FakeDataLayer) CreateQAEnvironment(ctx context.Context, qa *QAEnviron
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironment(ctx context.Context, name string) (*QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
+	fdl.doDelay()
 	if qa, ok := fdl.data.d[name]; ok {
 		return qa, nil
 	}
@@ -183,6 +212,10 @@ func (fdl *FakeDataLayer) GetQAEnvironmentConsistently(ctx context.Context, name
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironments(ctx context.Context) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -193,6 +226,10 @@ func (fdl *FakeDataLayer) GetQAEnvironments(ctx context.Context) ([]QAEnvironmen
 }
 
 func (fdl *FakeDataLayer) DeleteQAEnvironment(ctx context.Context, name string) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -213,6 +250,10 @@ func (fdl *FakeDataLayer) DeleteQAEnvironment(ctx context.Context, name string) 
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironmentsByStatus(ctx context.Context, status string) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	out := []models.QAEnvironment{}
 	s, err := models.EnvironmentStatusFromString(status)
 	if err != nil {
@@ -229,6 +270,10 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsByStatus(ctx context.Context, status 
 }
 
 func (fdl *FakeDataLayer) GetRunningQAEnvironments(ctx context.Context) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	out1, _ := fdl.GetQAEnvironmentsByStatus(ctx, "Success")
 	out2, _ := fdl.GetQAEnvironmentsByStatus(ctx, "Spawned")
 	out3, _ := fdl.GetQAEnvironmentsByStatus(ctx, "Updating")
@@ -238,6 +283,10 @@ func (fdl *FakeDataLayer) GetRunningQAEnvironments(ctx context.Context) ([]QAEnv
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironmentsByRepoAndPR(ctx context.Context, repo string, pr uint) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -250,6 +299,7 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsByRepoAndPR(ctx context.Context, repo
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironmentsByRepo(ctx context.Context, repo string) ([]QAEnvironment, error) {
+	fdl.doDelay()
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -262,6 +312,10 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsByRepo(ctx context.Context, repo stri
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironmentBySourceSHA(ctx context.Context, sourceSHA string) (*QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	for _, v := range fdl.data.d {
@@ -273,6 +327,10 @@ func (fdl *FakeDataLayer) GetQAEnvironmentBySourceSHA(ctx context.Context, sourc
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironmentsBySourceBranch(ctx context.Context, sourceBranch string) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -285,6 +343,10 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsBySourceBranch(ctx context.Context, s
 }
 
 func (fdl *FakeDataLayer) GetQAEnvironmentsByUser(ctx context.Context, user string) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -297,6 +359,10 @@ func (fdl *FakeDataLayer) GetQAEnvironmentsByUser(ctx context.Context, user stri
 }
 
 func (fdl *FakeDataLayer) GetExtantQAEnvironments(ctx context.Context, repo string, pr uint) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	out := []models.QAEnvironment{}
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
@@ -309,6 +375,10 @@ func (fdl *FakeDataLayer) GetExtantQAEnvironments(ctx context.Context, repo stri
 }
 
 func (fdl *FakeDataLayer) SetQAEnvironmentStatus(ctx context.Context, name string, status EnvironmentStatus) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -319,6 +389,10 @@ func (fdl *FakeDataLayer) SetQAEnvironmentStatus(ctx context.Context, name strin
 }
 
 func (fdl *FakeDataLayer) SetQAEnvironmentRepoData(ctx context.Context, name string, rrd *RepoRevisionData) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -336,6 +410,10 @@ func (fdl *FakeDataLayer) SetQAEnvironmentRepoData(ctx context.Context, name str
 }
 
 func (fdl *FakeDataLayer) SetQAEnvironmentRefMap(ctx context.Context, name string, rm RefMap) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -346,6 +424,10 @@ func (fdl *FakeDataLayer) SetQAEnvironmentRefMap(ctx context.Context, name strin
 }
 
 func (fdl *FakeDataLayer) SetQAEnvironmentCommitSHAMap(ctx context.Context, name string, csm RefMap) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -356,6 +438,10 @@ func (fdl *FakeDataLayer) SetQAEnvironmentCommitSHAMap(ctx context.Context, name
 }
 
 func (fdl *FakeDataLayer) SetQAEnvironmentCreated(ctx context.Context, name string, ts time.Time) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -366,6 +452,10 @@ func (fdl *FakeDataLayer) SetQAEnvironmentCreated(ctx context.Context, name stri
 }
 
 func (fdl *FakeDataLayer) SetAminoEnvironmentID(ctx context.Context, name string, did int) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -376,6 +466,10 @@ func (fdl *FakeDataLayer) SetAminoEnvironmentID(ctx context.Context, name string
 }
 
 func (fdl *FakeDataLayer) SetAminoServiceToPort(ctx context.Context, name string, serviceToPort map[string]int64) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -386,6 +480,10 @@ func (fdl *FakeDataLayer) SetAminoServiceToPort(ctx context.Context, name string
 }
 
 func (fdl *FakeDataLayer) SetAminoKubernetesNamespace(ctx context.Context, name, namespace string) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -396,6 +494,10 @@ func (fdl *FakeDataLayer) SetAminoKubernetesNamespace(ctx context.Context, name,
 }
 
 func (fdl *FakeDataLayer) AddEvent(ctx context.Context, name string, msg string) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if v, ok := fdl.data.d[name]; ok {
@@ -422,6 +524,10 @@ func (fdl *FakeDataLayer) getQAEnvironmentsBySourceRef(sourceref string) ([]QAEn
 }
 
 func (fdl *FakeDataLayer) Search(ctx context.Context, opts models.EnvSearchParameters) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	if opts.Pr != 0 && opts.Repo == "" {
 		return nil, fmt.Errorf("search by PR requires repo name")
 	}
@@ -463,6 +569,10 @@ func (fdl *FakeDataLayer) Search(ctx context.Context, opts models.EnvSearchParam
 }
 
 func (fdl *FakeDataLayer) GetMostRecent(ctx context.Context, n uint) ([]QAEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	envs, _ := fdl.GetQAEnvironments(ctx)
 	sort.Slice(envs, func(i int, j int) bool { return envs[i].Created.After(envs[j].Created) })
 	if int(n) > len(envs) {
@@ -476,6 +586,10 @@ func (fdl *FakeDataLayer) Close() error {
 }
 
 func (fdl *FakeDataLayer) GetHelmReleasesForEnv(ctx context.Context, name string) ([]models.HelmRelease, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	v, ok := fdl.data.helm[name]
@@ -486,6 +600,10 @@ func (fdl *FakeDataLayer) GetHelmReleasesForEnv(ctx context.Context, name string
 }
 
 func (fdl *FakeDataLayer) UpdateHelmReleaseRevision(ctx context.Context, envname, release, revision string) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	for i, r := range fdl.data.helm[envname] {
@@ -497,6 +615,10 @@ func (fdl *FakeDataLayer) UpdateHelmReleaseRevision(ctx context.Context, envname
 }
 
 func (fdl *FakeDataLayer) CreateHelmReleasesForEnv(ctx context.Context, releases []models.HelmRelease) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	if len(releases) == 0 {
 		return errors.New("empty releases")
 	}
@@ -511,6 +633,10 @@ func (fdl *FakeDataLayer) CreateHelmReleasesForEnv(ctx context.Context, releases
 }
 
 func (fdl *FakeDataLayer) DeleteHelmReleasesForEnv(ctx context.Context, name string) (uint, error) {
+	if isCancelled(ctx) {
+		return 0, ctx.Err()
+	}
+	fdl.doDelay()
 	var n uint
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
@@ -524,6 +650,10 @@ func (fdl *FakeDataLayer) DeleteHelmReleasesForEnv(ctx context.Context, name str
 }
 
 func (fdl *FakeDataLayer) GetK8sEnv(ctx context.Context, name string) (*models.KubernetesEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	env, ok := fdl.data.k8s[name]
@@ -534,6 +664,10 @@ func (fdl *FakeDataLayer) GetK8sEnv(ctx context.Context, name string) (*models.K
 }
 
 func (fdl *FakeDataLayer) GetK8sEnvsByNamespace(ctx context.Context, ns string) ([]models.KubernetesEnvironment, error) {
+	if isCancelled(ctx) {
+		return nil, ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	var out []models.KubernetesEnvironment
@@ -546,6 +680,10 @@ func (fdl *FakeDataLayer) GetK8sEnvsByNamespace(ctx context.Context, ns string) 
 }
 
 func (fdl *FakeDataLayer) CreateK8sEnv(ctx context.Context, env *models.KubernetesEnvironment) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if env == nil || env.EnvName == "" {
@@ -559,6 +697,10 @@ func (fdl *FakeDataLayer) CreateK8sEnv(ctx context.Context, env *models.Kubernet
 }
 
 func (fdl *FakeDataLayer) DeleteK8sEnv(ctx context.Context, name string) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	delete(fdl.data.k8s, name)
@@ -566,6 +708,10 @@ func (fdl *FakeDataLayer) DeleteK8sEnv(ctx context.Context, name string) error {
 }
 
 func (fdl *FakeDataLayer) UpdateK8sEnvTillerAddr(ctx context.Context, envname, taddr string) error {
+	if isCancelled(ctx) {
+		return ctx.Err()
+	}
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	env, ok := fdl.data.k8s[envname]
@@ -577,6 +723,7 @@ func (fdl *FakeDataLayer) UpdateK8sEnvTillerAddr(ctx context.Context, envname, t
 }
 
 func (fdl *FakeDataLayer) GetEventLogByID(id uuid.UUID) (*models.EventLog, error) {
+	fdl.doDelay()
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	el, ok := fdl.data.elogs[id]
@@ -587,6 +734,7 @@ func (fdl *FakeDataLayer) GetEventLogByID(id uuid.UUID) (*models.EventLog, error
 }
 
 func (fdl *FakeDataLayer) GetEventLogsByEnvName(name string) ([]models.EventLog, error) {
+	fdl.doDelay()
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	var out []models.EventLog
@@ -599,6 +747,7 @@ func (fdl *FakeDataLayer) GetEventLogsByEnvName(name string) ([]models.EventLog,
 }
 
 func (fdl *FakeDataLayer) GetEventLogsByRepoAndPR(repo string, pr uint) ([]models.EventLog, error) {
+	fdl.doDelay()
 	fdl.data.RLock()
 	defer fdl.data.RUnlock()
 	var out []models.EventLog
@@ -611,6 +760,7 @@ func (fdl *FakeDataLayer) GetEventLogsByRepoAndPR(repo string, pr uint) ([]model
 }
 
 func (fdl *FakeDataLayer) CreateEventLog(elog *models.EventLog) error {
+	fdl.doDelay()
 	if elog == nil {
 		return errors.New("input is nil")
 	}
@@ -621,6 +771,7 @@ func (fdl *FakeDataLayer) CreateEventLog(elog *models.EventLog) error {
 }
 
 func (fdl *FakeDataLayer) AppendToEventLog(id uuid.UUID, msg string) error {
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	if fdl.data.elogs[id] == nil {
@@ -631,6 +782,7 @@ func (fdl *FakeDataLayer) AppendToEventLog(id uuid.UUID, msg string) error {
 }
 
 func (fdl *FakeDataLayer) SetEventLogEnvName(id uuid.UUID, name string) error {
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	fdl.data.elogs[id].EnvName = name
@@ -638,6 +790,7 @@ func (fdl *FakeDataLayer) SetEventLogEnvName(id uuid.UUID, name string) error {
 }
 
 func (fdl *FakeDataLayer) DeleteEventLog(id uuid.UUID) error {
+	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	delete(fdl.data.elogs, id)
@@ -645,6 +798,7 @@ func (fdl *FakeDataLayer) DeleteEventLog(id uuid.UUID) error {
 }
 
 func (fdl *FakeDataLayer) DeleteEventLogsByEnvName(name string) (uint, error) {
+	fdl.doDelay()
 	del := []uuid.UUID{}
 	fdl.data.Lock()
 	for k := range fdl.data.elogs {
@@ -660,6 +814,7 @@ func (fdl *FakeDataLayer) DeleteEventLogsByEnvName(name string) (uint, error) {
 }
 
 func (fdl *FakeDataLayer) DeleteEventLogsByRepoAndPR(repo string, pr uint) (uint, error) {
+	fdl.doDelay()
 	del := []uuid.UUID{}
 	fdl.data.Lock()
 	for k := range fdl.data.elogs {
