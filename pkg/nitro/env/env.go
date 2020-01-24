@@ -572,9 +572,6 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		// processEnvConfig() always returns a valid newenv
 		m.log(ctx, "error processing environment config: %v", err)
 	}
-	ctx, cf := context.WithCancel(ctx)
-	defer cf()
-	go m.enforceTimeout(ctx, cf, ne)
 	defer func() {
 		if err != nil {
 			m.pushNotification(ctx, ne, notifier.Failure, "error destroying: "+err.Error())
@@ -620,6 +617,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		dnend()
 		m.log(ctx, "completed k8s delete for env: %v", k8senv.EnvName)
 	}()
+	// use independent context for setting the status
 	err = m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Destroyed)
 	return errors.Wrap(nitroerrors.SystemError(err), "error setting environment status")
 }
