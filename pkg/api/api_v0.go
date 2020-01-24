@@ -119,6 +119,11 @@ func (api *v0api) register(r *muxtrace.Router) error {
 	return nil
 }
 
+// MaxAsyncActionTimeout is the maximum amount of time an asynchronous action can take before it's forcibly cancelled
+// This is mainly a failsafe against leaking goroutines, additional more strict timeout logic is implemented by environment operations code.
+// If this timeout occurs, no notifications will be sent to the user.
+var MaxAsyncActionTimeout = 45 * time.Minute
+
 func setTagsForGithubWebhookHandler(span tracer.Span, rd *models.RepoRevisionData) {
 	span.SetTag("base_branch", rd.BaseBranch)
 	span.SetTag("base_sha", rd.BaseSHA)
@@ -199,7 +204,7 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			var err error
 			defer api.wg.Done()
-			ctx, cf := context.WithCancel(ctx)
+			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			name, err := api.es.Create(ctx, *out.RRD)
 			if err != nil {
@@ -215,7 +220,7 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			var err error
 			defer api.wg.Done()
-			ctx, cf := context.WithCancel(ctx)
+			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			name, err := api.es.Update(ctx, *out.RRD)
 			if err != nil {
@@ -231,7 +236,7 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			var err error
 			defer api.wg.Done()
-			ctx, cf := context.WithCancel(ctx)
+			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
 			err = api.es.Destroy(ctx, *out.RRD, models.DestroyApiRequest)
 			if err != nil {
