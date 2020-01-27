@@ -15,9 +15,14 @@ application:
   #   - "app.secrets_mapping=ACYL_{{ .ID }}"
   #   - "app.secrets_from_env=true"
   #   - "app.k8s_secret_injections="
+  #   - "ingress.traefik.enabled=false"
+  #   - "app.furan_addr=furan:4001"
 
 dependencies:
   direct:
+    - repo: dollarshaveclub/furan
+      name: furan
+      default_branch: local-dqa-fixes
     - chart_repo_path: 'kubernetes/charts@8bd8912453404fc1bc45cc91de70c54bafb8a7ec:stable/postgresql'
       chart_vars_repo_path: 'kubernetes/charts@8bd8912453404fc1bc45cc91de70c54bafb8a7ec:stable/postgresql/values.yaml'
       value_overrides:
