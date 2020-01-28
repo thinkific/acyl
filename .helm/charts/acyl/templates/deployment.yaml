@@ -95,6 +95,10 @@ spec:
           - "{{ .Values.app.failure_reports.s3.keyprefix }}"
           - "--k8s-group-bindings"
           - "{{ .Values.app.k8s_group_bindings }}"
+          {{ if .Values.app.operation_timeout_override }}
+          - "--operation-timeout-override"
+          - "{{ .Values.app.operation_timeout_override }}"
+          {{ end }}
     {{ end }}
         ports:
         - containerPort: {{ .Values.service.internalPort }}

@@ -62,7 +62,10 @@ type Manager struct {
 	GlobalLimit          uint
 	failureTemplate      *template.Template
 	s3p                  s3Pusher
+	OperationTimeout     time.Duration
 }
+
+var DefaultOperationTimeout = 30 * time.Minute
 
 func (m *Manager) log(ctx context.Context, msg string, args ...interface{}) {
 	eventlogger.GetLogger(ctx).Printf(msg, args...)
@@ -427,6 +430,20 @@ func (m *Manager) fetchCharts(ctx context.Context, name string, rc *models.RepoC
 	return td, cloc, nil
 }
 
+func (m *Manager) enforceTimeout(ctx context.Context, cf context.CancelFunc, newenv *newEnv) {
+	to := DefaultOperationTimeout
+	if m.OperationTimeout != 0 {
+		to = m.OperationTimeout
+	}
+	select {
+	case <-time.After(to):
+		m.pushNotification(ctx, newenv, notifier.Failure, fmt.Sprintf("timeout reached (%v), aborting", to))
+		m.log(ctx, "timed out (%v), cancelling context and aborting", to)
+		cf()
+	case <-ctx.Done():
+	}
+}
+
 // create creates a new environment and returns the environment name, or error
 func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envname string, err error) {
 	end := m.MC.Timing(mpfx+"create", "triggering_repo:"+rd.Repo)
@@ -441,6 +458,9 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 	}
 	m.setloggername(ctx, env.Name)
 	newenv := &newEnv{env: env}
+	ctx, cf := context.WithCancel(ctx)
+	defer cf()
+	go m.enforceTimeout(ctx, cf, newenv)
 	defer func() {
 		if err != nil {
 			if err := m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Failure); err != nil {
@@ -575,7 +595,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 	// Delete k8s resources asynchronously with retries
 	go func() {
 		// new context with independent timeout, but preserve the eventlogger from the original context
-		ctx2, cf := context.WithTimeout(eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx)), 10 * time.Minute)
+		ctx2, cf := context.WithTimeout(eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx)), 10*time.Minute)
 		defer cf()
 
 		// use existing context for logging so messages go to proper eventlogs
@@ -588,7 +608,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 			m.log(ctx, "error deleting helm releases from DB: %v", err)
 		}
 		// delete NS with retry
-		for i := 0; i < 3 ; i++ {
+		for i := 0; i < 3; i++ {
 			if err = m.CI.DeleteNamespace(ctx2, k8senv); err != nil {
 				m.log(ctx, "error deleting namespace (try: %v): %v", i, err)
 				continue
@@ -598,6 +618,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		dnend()
 		m.log(ctx, "completed k8s delete for env: %v", k8senv.EnvName)
 	}()
+	// use independent context for setting the status
 	err = m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Destroyed)
 	return errors.Wrap(nitroerrors.SystemError(err), "error setting environment status")
 }
@@ -634,6 +655,9 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 	}
 	m.setloggername(ctx, env.Name)
 	ne := &newEnv{env: env}
+	ctx, cf := context.WithCancel(ctx)
+	defer cf()
+	go m.enforceTimeout(ctx, cf, ne)
 	defer func() {
 		if err != nil {
 			if err := m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Failure); err != nil {

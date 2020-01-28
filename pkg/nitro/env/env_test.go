@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -203,6 +204,44 @@ var testNF = func(lf func(string, ...interface{}), notifications models.Notifica
 	return &notifier.MultiRouter{Backends: []notifier.Backend{sb}}
 }
 
+type notificationTrackerSender struct {
+	sync.Mutex
+	sent []notifier.Notification
+}
+
+func (nts *notificationTrackerSender) FanOut(n notifier.Notification) error {
+	nts.Lock()
+	defer nts.Unlock()
+	nts.sent = append(nts.sent, n)
+	return nil
+}
+
+type notificationTracker struct {
+	Sender *notificationTrackerSender
+}
+
+func newNotificationTracker() *notificationTracker {
+	return &notificationTracker{Sender: &notificationTrackerSender{}}
+}
+
+func (nt *notificationTracker) sender(lf func(string, ...interface{}), notifications models.Notifications, user string) notifier.Router {
+	return nt.Sender
+}
+
+func (nt *notificationTracker) get() []notifier.Notification {
+	nt.Sender.Lock()
+	defer nt.Sender.Unlock()
+	out := make([]notifier.Notification, len(nt.Sender.sent))
+	copy(out, nt.Sender.sent)
+	return out
+}
+
+func (nt *notificationTracker) reset() {
+	nt.Sender.Lock()
+	defer nt.Sender.Unlock()
+	nt.Sender.sent = nil
+}
+
 func TestCreate(t *testing.T) {
 	dl := persistence.NewFakeDataLayer()
 	rdd := models.RepoRevisionData{
@@ -286,11 +325,12 @@ func TestCreate(t *testing.T) {
 		inputBranches      map[string][]ghclient.BranchInfo
 		chartInstallResult map[string]error
 		limit              uint
-		verifyFunc         func(string, error, *testing.T)
+		delay, timeout time.Duration
+		verifyFunc         func(string, error, *notificationTracker, *testing.T)
 	}{
 		{
-			"branch matching", rdd, rc, cl, bm, cir, 0,
-			func(name string, err error, st *testing.T) {
+			"branch matching", rdd, rc, cl, bm, cir, 0, 0, 0,
+			func(name string, err error, nt *notificationTracker, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
@@ -326,8 +366,8 @@ func TestCreate(t *testing.T) {
 				"foo-bar":    errors.New("install error"),
 				"foo-qwerty": nil,
 				"foo-mysql":  nil,
-			}, 0,
-			func(name string, err error, st *testing.T) {
+			}, 0, 0, 0,
+			func(name string, err error, nt *notificationTracker, st *testing.T) {
 				if err == nil {
 					st.Fatalf("should have failed with install error")
 				}
@@ -337,8 +377,8 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			"global limit enforced", rdd, rc, cl, bm, cir, 1,
-			func(name string, err error, st *testing.T) {
+			"global limit enforced", rdd, rc, cl, bm, cir, 1, 0, 0,
+			func(name string, err error, nt *notificationTracker, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
@@ -355,9 +395,28 @@ func TestCreate(t *testing.T) {
 				}
 			},
 		},
+		{
+			"timeout", rdd, rc, cl, bm, cir, 0, 50 * time.Millisecond, 50 * time.Millisecond,
+			func(name string, err error, nt *notificationTracker, st *testing.T) {
+				if err == nil {
+					st.Fatalf("should have failed with timeout")
+				}
+				ns := nt.get()
+				var found bool
+				for _, n := range ns {
+					if n.Event == notifier.Failure && strings.Contains(n.Data.ErrorMessage, "timeout reached") {
+						found = true
+					}
+				}
+				if !found {
+					st.Fatalf("did not get timeout notification: %+v", ns)
+				}
+			},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			dl.SetDelay(c.delay)
 			fg := &meta.FakeGetter{
 				GetFunc: func(ctx context.Context, rd models.RepoRevisionData) (*models.RepoConfig, error) {
 					return &c.inputRC, nil
@@ -380,6 +439,7 @@ func TestCreate(t *testing.T) {
 				DL: dl,
 				KC: k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "nitro-1234-some-random-name"}}),
 			}
+			nt := newNotificationTracker()
 			m := Manager{
 				DL: dl,
 				LP: &locker.FakePreemptiveLockProvider{
@@ -389,7 +449,7 @@ func TestCreate(t *testing.T) {
 						return lch
 					},
 				},
-				NF:          testNF,
+				NF:          nt.sender,
 				MC:          &metrics.FakeCollector{},
 				NG:          &namegen.FakeNameGenerator{},
 				FS:          memfs.New(),
@@ -397,10 +457,11 @@ func TestCreate(t *testing.T) {
 				RC:          frc,
 				CI:          ci,
 				GlobalLimit: c.limit,
+				OperationTimeout: c.timeout,
 			}
 
 			name, err := m.Create(context.Background(), c.inputRRD)
-			c.verifyFunc(name, err, t)
+			c.verifyFunc(name, err, nt, t)
 		})
 	}
 }
@@ -509,11 +570,12 @@ func TestUpdate(t *testing.T) {
 		inputCL            meta.ChartLocations
 		inputBranches      map[string][]ghclient.BranchInfo
 		chartInstallResult map[string]error
-		verifyFunc         func(error, persistence.DataLayer, *testing.T)
+		delay, timeout time.Duration
+		verifyFunc         func(error, persistence.DataLayer, *notificationTracker, *testing.T)
 	}{
 		{
-			"update matching signature", rdd, env, k8senv, releases, rc, cl, bm, cir,
-			func(err error, dl persistence.DataLayer, st *testing.T) {
+			"update matching signature", rdd, env, k8senv, releases, rc, cl, bm, cir, 0, 0,
+			func(err error, dl persistence.DataLayer, nt *notificationTracker, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
@@ -542,8 +604,8 @@ func TestUpdate(t *testing.T) {
 			},
 		},
 		{
-			"update different signature", rdd, env, k8senv, releases, rc2, cl2, bm2, cir2,
-			func(err error, dl persistence.DataLayer, st *testing.T) {
+			"update different signature", rdd, env, k8senv, releases, rc2, cl2, bm2, cir2, 0, 0,
+			func(err error, dl persistence.DataLayer, nt *notificationTracker, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
@@ -576,8 +638,8 @@ func TestUpdate(t *testing.T) {
 			},
 		},
 		{
-			"missing k8senv", rdd, env, models.KubernetesEnvironment{}, releases, rc, cl, bm, cir,
-			func(err error, dl persistence.DataLayer, st *testing.T) {
+			"missing k8senv", rdd, env, models.KubernetesEnvironment{}, releases, rc, cl, bm, cir, 0, 0,
+			func(err error, dl persistence.DataLayer, nt *notificationTracker, st *testing.T) {
 				if err == nil {
 					st.Fatalf("should have failed with missing k8s env")
 				}
@@ -586,10 +648,28 @@ func TestUpdate(t *testing.T) {
 				}
 			},
 		},
+		{
+			"timeout", rdd, env, k8senv, releases, rc, cl, bm, cir, 50 * time.Millisecond, 50 * time.Millisecond,
+			func(err error, dl persistence.DataLayer, nt *notificationTracker, st *testing.T) {
+				if err == nil {
+					st.Fatalf("should have failed with timeout")
+				}
+				ns := nt.get()
+				var found bool
+				for _, n := range ns {
+					if n.Event == notifier.Failure && strings.Contains(n.Data.ErrorMessage, "timeout reached") {
+						found = true
+					}
+				}
+				if !found {
+					st.Fatalf("did not get timeout notification: %+v", ns)
+				}
+			},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dl := persistence.NewFakeDataLayer()
+			dl := persistence.NewDelayedFakeDataLayer(c.delay)
 			dl.CreateQAEnvironment(context.Background(), &c.inputEnv)
 			if c.inputK8sEnv.EnvName != "" {
 				dl.CreateK8sEnv(context.Background(), &c.inputK8sEnv)
@@ -624,6 +704,7 @@ func TestUpdate(t *testing.T) {
 				DL:           dl,
 				HelmReleases: releases,
 			}
+			nt := newNotificationTracker()
 			m := Manager{
 				DL: dl,
 				LP: &locker.FakePreemptiveLockProvider{
@@ -633,16 +714,17 @@ func TestUpdate(t *testing.T) {
 						return lch
 					},
 				},
-				NF: testNF,
+				NF: nt.sender,
 				MC: &metrics.FakeCollector{},
 				NG: &namegen.FakeNameGenerator{},
 				FS: memfs.New(),
 				MG: fg,
 				RC: frc,
 				CI: ci,
+				OperationTimeout: c.timeout,
 			}
 			_, err := m.Update(context.Background(), c.inputRDD)
-			c.verifyFunc(err, dl, t)
+			c.verifyFunc(err, dl, nt, t)
 		})
 	}
 }
@@ -699,12 +781,12 @@ func TestDelete(t *testing.T) {
 		models.HelmRelease{EnvName: env.Name, Name: "foo-mysql", RevisionSHA: env.CommitSHAMap["foo/mysql"], Release: "release-name-foo/mysql"},
 	}
 	cases := []struct {
-		name          string
-		inputRDD      models.RepoRevisionData
-		inputEnv      models.QAEnvironment
-		inputK8sEnv   models.KubernetesEnvironment
-		inputReleases []models.HelmRelease
-		verifyFunc    func(error, *testing.T)
+		name           string
+		inputRDD       models.RepoRevisionData
+		inputEnv       models.QAEnvironment
+		inputK8sEnv    models.KubernetesEnvironment
+		inputReleases  []models.HelmRelease
+		verifyFunc     func(error, *testing.T)
 	}{
 		{
 			"delete", rdd, env, k8senv, releases,
@@ -792,14 +874,14 @@ func TestDelete(t *testing.T) {
 						return lch
 					},
 				},
-				NF: testNF,
-				MC: &metrics.FakeCollector{},
-				MG: fg,
-				RC: frc,
-				CI: ci,
+				NF:               testNF,
+				MC:               &metrics.FakeCollector{},
+				MG:               fg,
+				RC:               frc,
+				CI:               ci,
 			}
 			err := m.Delete(context.Background(), &c.inputRDD, models.DestroyApiRequest)
-			time.Sleep(10*time.Millisecond) // give time for async delete to complete
+			time.Sleep(10 * time.Millisecond) // give time for async delete to complete
 			c.verifyFunc(err, t)
 		})
 	}

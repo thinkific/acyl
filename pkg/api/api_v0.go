@@ -120,7 +120,9 @@ func (api *v0api) register(r *muxtrace.Router) error {
 }
 
 // MaxAsyncActionTimeout is the maximum amount of time an asynchronous action can take before it's forcibly cancelled
-var MaxAsyncActionTimeout = 30 * time.Minute
+// This is mainly a failsafe against leaking goroutines, additional more strict timeout logic is implemented by environment operations code.
+// If this timeout occurs, no notifications will be sent to the user.
+var MaxAsyncActionTimeout = 45 * time.Minute
 
 func setTagsForGithubWebhookHandler(span tracer.Span, rd *models.RepoRevisionData) {
 	span.SetTag("base_branch", rd.BaseBranch)

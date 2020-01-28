@@ -13,7 +13,7 @@ import (
 var _ HelmDataLayer = &PGLayer{}
 
 func (pg *PGLayer) GetHelmReleasesForEnv(ctx context.Context, name string) ([]models.HelmRelease, error) {
-	if isCancelled(ctx.Done()) {
+	if isCancelled(ctx) {
 		return nil, errors.Wrap(ctx.Err(), "error getting helm releases for env")
 	}
 	q := `SELECT ` + models.HelmRelease{}.Columns() + ` FROM helm_releases WHERE env_name = $1;`
@@ -21,7 +21,7 @@ func (pg *PGLayer) GetHelmReleasesForEnv(ctx context.Context, name string) ([]mo
 }
 
 func (pg *PGLayer) UpdateHelmReleaseRevision(ctx context.Context, envname, release, revision string) error {
-	if isCancelled(ctx.Done()) {
+	if isCancelled(ctx) {
 		return errors.Wrap(ctx.Err(), "error updating helm relese revision")
 	}
 	q := `UPDATE helm_releases SET revision_sha = $1 WHERE env_name = $2 AND release = $3;`
@@ -30,7 +30,7 @@ func (pg *PGLayer) UpdateHelmReleaseRevision(ctx context.Context, envname, relea
 }
 
 func (pg *PGLayer) CreateHelmReleasesForEnv(ctx context.Context, releases []models.HelmRelease) error {
-	if isCancelled(ctx.Done()) {
+	if isCancelled(ctx) {
 		return errors.Wrap(ctx.Err(), "error creating helm releases for env")
 	}
 	tx, err := pg.db.Begin()
@@ -57,7 +57,7 @@ func (pg *PGLayer) CreateHelmReleasesForEnv(ctx context.Context, releases []mode
 }
 
 func (pg *PGLayer) DeleteHelmReleasesForEnv(ctx context.Context, name string) (uint, error) {
-	if isCancelled(ctx.Done()) {
+	if isCancelled(ctx) {
 		return 0, errors.Wrap(ctx.Err(), "error deleting helm releases for env")
 	}
 	q := `DELETE FROM helm_releases WHERE env_name = $1;`

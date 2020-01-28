@@ -35,6 +35,7 @@ type webhookOptions struct {
 	secret     string
 	endpoint   string
 	ignorecert bool
+	disableHTTPS bool
 }
 
 var whOptions = &webhookOptions{}
@@ -52,6 +53,7 @@ func init() {
 	webhookCmd.PersistentFlags().StringVar(&whOptions.secret, "secret", "", "Hub signature secret (must match the secret expected by the Acyl host)")
 	webhookCmd.PersistentFlags().StringVar(&whOptions.endpoint, "endpoint", "/webhook", "acyl webhook endpoint")
 	webhookCmd.PersistentFlags().BoolVar(&whOptions.ignorecert, "ignore-cert", true, "Ignore TLS certificate validity (INSECURE)")
+	webhookCmd.PersistentFlags().BoolVar(&whOptions.disableHTTPS, "disable-https", false, "Do not use TLS/HTTPS (INSECURE)")
 	RootCmd.AddCommand(webhookCmd)
 }
 
@@ -101,7 +103,11 @@ func webhook(cmd *cobra.Command, args []string) {
 	geh := ghevent.NewGitHubEventWebhook(nil, whOptions.secret, "", nil)
 	sig := geh.GenerateSignatureString(jb)
 
-	url := "https://" + whOptions.host + whOptions.endpoint
+	urlpfx := "https://"
+	if whOptions.disableHTTPS {
+		urlpfx = "http://"
+	}
+	url := urlpfx + whOptions.host + whOptions.endpoint
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jb))
 	if err != nil {
 		log.Fatalf("error creating http request: %v", err)
