@@ -438,6 +438,7 @@ func (m *Manager) enforceTimeout(ctx context.Context, cf context.CancelFunc, new
 	select {
 	case <-time.After(to):
 		m.pushNotification(ctx, newenv, notifier.Failure, fmt.Sprintf("timeout reached (%v), aborting", to))
+		m.log(ctx, "timed out (%v), cancelling context and aborting", to)
 		cf()
 	case <-ctx.Done():
 	}
