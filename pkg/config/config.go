@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dollarshaveclub/pvc"
 	"github.com/pkg/errors"
@@ -27,6 +28,7 @@ type ServerConfig struct {
 	DebugEndpointsIPWhitelists []string
 	NitroFeatureFlag           bool
 	NotificationsDefaultsJSON  string
+	OperationTimeoutOverride   time.Duration
 }
 
 type PGConfig struct {
