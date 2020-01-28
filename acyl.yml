@@ -17,7 +17,7 @@ application:
   #   - "app.k8s_secret_injections="
   #   - "ingress.traefik.enabled=false"
   #   - "app.furan_addr=furan:4001"
-  #   - "app.operation_timeout_override=1m"
+  #   - "app.operation_timeout_override=10m"
 
 dependencies:
   direct:
