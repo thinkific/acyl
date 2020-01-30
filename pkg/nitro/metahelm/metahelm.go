@@ -608,14 +608,14 @@ func (ci ChartInstaller) GenerateCharts(ctx context.Context, ns string, newenv *
 			overrides[rcd.AppMetadata.ChartTagValue] = rcd.AppMetadata.Ref
 		}
 		for i, lo := range rcd.AppMetadata.ValueOverrides {
-			los := strings.Split(lo, "=")
+			los := strings.SplitN(lo, "=", 2)
 			if len(los) != 2 {
 				return out, fmt.Errorf("malformed application ValueOverride: %v: offset %v: %v", rcd.Repo, i, lo)
 			}
 			overrides[los[0]] = los[1]
 		}
 		for i, lo := range rcd.ValueOverrides {
-			los := strings.Split(lo, "=")
+			los := strings.SplitN(lo, "=", 2)
 			if len(los) != 2 {
 				return out, fmt.Errorf("malformed dependency ValueOverride: %v: offset %v: %v", rcd.Repo, i, lo)
 			}
