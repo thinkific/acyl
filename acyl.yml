@@ -9,21 +9,22 @@ application:
   chart_vars_repo_path: 'dollarshaveclub/helm-charts@master:releases/kube-uw2-110/acyl/dqa.yml'
   image: quay.io/dollarshaveclub/acyl
   # local:
-  # value_overrides:
-  #   - "app.dogstatsd_addr=1.2.3.4:8125"
-  #   - "app.secrets_backend=env"
-  #   - "app.secrets_mapping=ACYL_{{ .ID }}"
-  #   - "app.secrets_from_env=true"
-  #   - "app.k8s_secret_injections="
-  #   - "ingress.traefik.enabled=false"
-  #   - "app.furan_addr=furan:4001"
-  #   - "app.operation_timeout_override=10m"
+  value_overrides:
+    - "app.dogstatsd_addr=1.2.3.4:8125"
+    - "app.secrets_backend=env"
+    - "app.secrets_mapping=ACYL_{{ .ID }}"
+    - "app.secrets_from_env=true"
+    - "app.k8s_secret_injections="
+    - "ingress.traefik.enabled=false"
+    - "app.furan_addr=furan:4001"
+    - "app.operation_timeout_override=10m"
+    - "app.k8s_secret_injections=image-pull-secret=k8s/image_pull_secret"
 
 dependencies:
   direct:
     - repo: dollarshaveclub/furan
       name: furan
-      default_branch: local-dqa-fixes
+      default_branch: master
     - chart_repo_path: 'kubernetes/charts@8bd8912453404fc1bc45cc91de70c54bafb8a7ec:stable/postgresql'
       chart_vars_repo_path: 'kubernetes/charts@8bd8912453404fc1bc45cc91de70c54bafb8a7ec:stable/postgresql/values.yaml'
       value_overrides:
