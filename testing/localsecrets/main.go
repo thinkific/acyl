@@ -203,6 +203,7 @@ func findAndBouncePod(kc *kubernetes.Clientset, ns, label string) error {
 	if err != nil {
 		return fmt.Errorf("error starting pod watch: %w", err)
 	}
+	defer watch.Stop()
 	for {
 		select {
 		case event := <-watch.ResultChan():
