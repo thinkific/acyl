@@ -1,5 +1,7 @@
 # This is an example goreleaser.yaml file with some sane defaults.
 # Make sure to check the documentation at http://goreleaser.com
+env:
+  - GO111MODULE=off
 before:
   hooks:
     - dep check
@@ -8,21 +10,22 @@ before:
 builds:
 - env:
   - CGO_ENABLED=0
+  - GO111MODULE=off
   goos:
   - linux
   - darwin
   - freebsd
   goarch:
   - amd64
-archive:
-  replacements:
-    darwin: MacOS
-    linux: Linux
-    freebsd: FreeBSD
-    amd64: x86_64
-  files:
-    - data/words.json.gz
-    - README.md
+archives:
+  - replacements:
+      darwin: MacOS
+      linux: Linux
+      freebsd: FreeBSD
+      amd64: x86_64
+    files:
+      - data/words.json.gz
+      - README.md
 checksum:
   name_template: 'checksums.txt'
 snapshot:
@@ -33,30 +36,30 @@ changelog:
     exclude:
     - '^docs:'
     - '^test:'
-nfpm:
-  name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+nfpms:
+  - file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
-  homepage: https://github.com/dollarshaveclub/acyl
+    homepage: https://github.com/dollarshaveclub/acyl
 
-  # Your app's maintainer (probably you).
-  # Default is empty.
-  maintainer: Benjamen Keroack <benjamen@dollarshaveclub.com>
+    # Your app's maintainer (probably you).
+    # Default is empty.
+    maintainer: Benjamen Keroack <benjamen@dollarshaveclub.com>
 
-  # Your app's description.
-  # Default is empty.
-  description: Testing Environments on Demand
+    # Your app's description.
+    # Default is empty.
+    description: Testing Environments on Demand
 
-  # Your app's license.
-  # Default is empty.
-  license: MIT
+    # Your app's license.
+    # Default is empty.
+    license: MIT
 
-  # Formats to be generated.
-  formats:
-    - deb
-    - rpm
+    # Formats to be generated.
+    formats:
+      - deb
+      - rpm
 
-  files:
-    "data/words.json.gz": "/usr/local/share/acyl/words.json.gz"
+    files:
+      "data/words.json.gz": "/usr/local/share/acyl/words.json.gz"
 
 release:
   # If set to true, will not auto-publish the release.
@@ -69,88 +72,88 @@ release:
   # Default is false.
   prerelease: auto
 
-brew:
+brews:
   # Name template of the recipe
   # Default to project name
-  name: acyl
+  - name: acyl
 
-  # Repository to push the tap to.
-  github:
-    owner: dollarshaveclub
-    name: homebrew-public
+    # Repository to push the tap to.
+    github:
+      owner: dollarshaveclub
+      name: homebrew-public
 
-  # Template for the url.
-  # Default is "https://github.com/<repo_owner>/<repo_name>/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-  #url_template: "http://github.mycompany.com/foo/bar/releases/{{ .Tag }}/{{ .ArtifactName }}"
+    # Template for the url.
+    # Default is "https://github.com/<repo_owner>/<repo_name>/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    #url_template: "http://github.mycompany.com/foo/bar/releases/{{ .Tag }}/{{ .ArtifactName }}"
 
-  # Allows you to set a custom download strategy.
-  # Default is empty.
-  # download_strategy: CustomGitHubPrivateRepositoryReleaseDownloadStrategy
+    # Allows you to set a custom download strategy.
+    # Default is empty.
+    # download_strategy: CustomGitHubPrivateRepositoryReleaseDownloadStrategy
 
-  # Allows you to add a custom require_relative at the top of the formula template
-  # Default is empty
-  # custom_require:
+    # Allows you to add a custom require_relative at the top of the formula template
+    # Default is empty
+    # custom_require:
 
-  # Git author used to commit to the repository.
-  # Defaults are shown.
-  commit_author:
-    name: goreleaserbot
-    email: goreleaser@dollarshaveclub.com
+    # Git author used to commit to the repository.
+    # Defaults are shown.
+    commit_author:
+      name: goreleaserbot
+      email: goreleaser@dollarshaveclub.com
 
-  # Folder inside the repository to put the formula.
-  # Default is the root folder.
-  folder: Formula
+    # Folder inside the repository to put the formula.
+    # Default is the root folder.
+    folder: Formula
 
-  # Caveats for the user of your binary.
-  # Default is empty.
-  #caveats: "How to use this binary"
+    # Caveats for the user of your binary.
+    # Default is empty.
+    #caveats: "How to use this binary"
 
-  # Your app's homepage.
-  # Default is empty.
-  #homepage: "https://example.com/"
+    # Your app's homepage.
+    # Default is empty.
+    #homepage: "https://example.com/"
 
-  # Your app's description.
-  # Default is empty.
-  description: "Testing Environments On Demand"
+    # Your app's description.
+    # Default is empty.
+    description: "Testing Environments On Demand"
 
-  # Setting this will prevent goreleaser to actually try to commit the updated
-  # formula - instead, the formula file will be stored on the dist folder only,
-  # leaving the responsibility of publishing it to the user.
-  # Default is false.
-  #skip_upload: true
+    # Setting this will prevent goreleaser to actually try to commit the updated
+    # formula - instead, the formula file will be stored on the dist folder only,
+    # leaving the responsibility of publishing it to the user.
+    # Default is false.
+    #skip_upload: true
 
-  # Custom block for brew.
-  # Can be used to specify alternate downloads for devel or head releases.
-  # Default is empty.
-  #custom_block: |
-  #  head "https://github.com/some/package.git"
-  #  ...
+    # Custom block for brew.
+    # Can be used to specify alternate downloads for devel or head releases.
+    # Default is empty.
+    #custom_block: |
+    #  head "https://github.com/some/package.git"
+    #  ...
 
-  # Packages your package depends on.
-  #dependencies:
-  #  - git
-  #  - zsh
+    # Packages your package depends on.
+    #dependencies:
+    #  - git
+    #  - zsh
 
-  # Packages that conflict with your package.
-  #conflicts:
-  #  - svn
-  #  - bash
+    # Packages that conflict with your package.
+    #conflicts:
+    #  - svn
+    #  - bash
 
-  # Specify for packages that run as a service.
-  # Default is empty.
-  #plist: |
-  #  <?xml version="1.0" encoding="UTF-8"?>
-  #  ...
+    # Specify for packages that run as a service.
+    # Default is empty.
+    #plist: |
+    #  <?xml version="1.0" encoding="UTF-8"?>
+    #  ...
 
-  # So you can `brew test` your formula.
-  # Default is empty.
-  #test: |
-  #  system "#{bin}/program --version"
-  #  ...
+    # So you can `brew test` your formula.
+    # Default is empty.
+    #test: |
+    #  system "#{bin}/program --version"
+    #  ...
 
-  # Custom install script for brew.
-  # Default is 'bin.install "program"'.
-  install: |
-   bin.install "acyl"
-   pkgshare.mkpath
-   pkgshare.install "data/words.json.gz"
+    # Custom install script for brew.
+    # Default is 'bin.install "program"'.
+    install: |
+      bin.install "acyl"
+      pkgshare.mkpath
+      pkgshare.install "data/words.json.gz"
