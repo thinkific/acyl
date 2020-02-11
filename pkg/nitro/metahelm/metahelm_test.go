@@ -1112,62 +1112,6 @@ func TestMetahelmBuildAndUpgradeCharts(t *testing.T) {
 	}
 }
 
-func TestMetahelmDeleteReleases(t *testing.T) {
-	nenv := &EnvInfo{
-		Env: &models.QAEnvironment{Name: "foo-bar"},
-		Releases: map[string]string{
-			"foo": "foo-release",
-			"bar": "bar-release",
-		},
-	}
-	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(context.Background(), nenv.Env)
-	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{
-		EnvName:   nenv.Env.Name,
-		Namespace: "foo",
-	})
-	rlses := []models.HelmRelease{
-		models.HelmRelease{
-			EnvName:     nenv.Env.Name,
-			Name:        "foo",
-			Release:     nenv.Releases["foo"],
-			RevisionSHA: "1234",
-		},
-		models.HelmRelease{
-			EnvName:     nenv.Env.Name,
-			Name:        "bar",
-			Release:     nenv.Releases["bar"],
-			RevisionSHA: "5678",
-		},
-	}
-	k8senv := &models.KubernetesEnvironment{
-		EnvName:   nenv.Env.Name,
-		Namespace: "foo",
-	}
-	dl.CreateK8sEnv(context.Background(), k8senv)
-	dl.CreateHelmReleasesForEnv(context.Background(), rlses)
-	rels := []*rls.Release{}
-	for _, r := range rlses {
-		rels = append(rels, &rls.Release{Name: r.Release})
-	}
-	ci := ChartInstaller{
-		dl: dl,
-		hcf: func(tillerNS, tillerAddr string, rcfg *rest.Config, kc kubernetes.Interface) (helm.Interface, error) {
-			return &helm.FakeClient{Rels: rels}, nil
-		},
-	}
-	if err := ci.DeleteReleases(context.Background(), k8senv); err != nil {
-		t.Fatalf("should have succeeded: %v", err)
-	}
-	if releases, err := dl.GetHelmReleasesForEnv(context.Background(), nenv.Env.Name); err != nil {
-		t.Fatalf("helm get should have succeeded: %v", err)
-	} else {
-		if len(releases) != 0 {
-			t.Fatalf("expected empty results: %v", releases)
-		}
-	}
-}
-
 func TestMetahelmDeleteNamespace(t *testing.T) {
 	nenv := &EnvInfo{
 		Env: &models.QAEnvironment{Name: "foo-bar"},

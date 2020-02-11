@@ -592,35 +592,40 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 	if k8senv == nil {
 		return errors.New("missing k8s environment")
 	}
+
 	// Delete k8s resources asynchronously with retries
-	go func() {
-		// new context with independent timeout, but preserve the eventlogger from the original context
-		ctx2, cf := context.WithTimeout(eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx)), 10*time.Minute)
-		defer cf()
+	go m.deleteNamespace(ctx, k8senv, rd.Repo)
 
-		// use existing context for logging so messages go to proper eventlogs
-		m.log(ctx, "beginning k8s delete for env: %v", k8senv.EnvName)
-
-		dnend := m.MC.Timing(mpfx+"delete_namespace_duration", "triggering_repo:"+rd.Repo)
-
-		// delete helm releases from DB only
-		if _, err := m.DL.DeleteHelmReleasesForEnv(ctx2, k8senv.EnvName); err != nil {
-			m.log(ctx, "error deleting helm releases from DB: %v", err)
-		}
-		// delete NS with retry
-		for i := 0; i < 3; i++ {
-			if err = m.CI.DeleteNamespace(ctx2, k8senv); err != nil {
-				m.log(ctx, "error deleting namespace (try: %v): %v", i, err)
-				continue
-			}
-			break
-		}
-		dnend()
-		m.log(ctx, "completed k8s delete for env: %v", k8senv.EnvName)
-	}()
 	// use independent context for setting the status
 	err = m.DL.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Name, models.Destroyed)
 	return errors.Wrap(nitroerrors.SystemError(err), "error setting environment status")
+}
+
+// deleteNamespace deletes a namespace and cleans up the database
+func (m *Manager) deleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment, repo string) {
+	
+	// new context with independent timeout, but preserve the eventlogger from the original context
+	ctx, cf := context.WithTimeout(eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx)), 10*time.Minute)
+	defer cf()
+
+	m.log(ctx, "beginning k8s delete for env: %v", k8senv.EnvName)
+
+	dnend := m.MC.Timing(mpfx+"delete_namespace_duration", "triggering_repo:"+repo)
+
+	// delete helm releases from DB only
+	if _, err := m.DL.DeleteHelmReleasesForEnv(ctx, k8senv.EnvName); err != nil {
+		m.log(ctx, "error deleting helm releases from DB: %v", err)
+	}
+	// delete NS with retry
+	for i := 0; i < 3; i++ {
+		if err := m.CI.DeleteNamespace(ctx, k8senv); err != nil {
+			m.log(ctx, "error deleting namespace (try: %v): %v", i, err)
+			continue
+		}
+		break
+	}
+	dnend()
+	m.log(ctx, "completed k8s delete for env: %v", k8senv.EnvName)
 }
 
 // Update changes an existing environment
@@ -722,15 +727,18 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 		}
 		return envinfo.Env.Name, nil
 	}
-	m.log(ctx, "config signature mismatch or previous environment failed: deleting all helm releases and building environment into existing namespace")
+	m.log(ctx, "config signature mismatch or previous environment failed: tearing down namespace and building new env from scratch")
 	m.MC.Increment(mpfx+"update_tear_down", "triggering_repo:"+rd.Repo)
-	err = errors.Wrap(m.CI.DeleteReleases(ctx, k8senv), "error deleting helm releases for environment")
-	if err != nil {
-		return "", err
+	
+	go m.deleteNamespace(ctx, k8senv, rd.Repo)
+
+	chartSpan, ctx := tracer.StartSpanFromContext(ctx, "build_and_install_charts")
+	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: ne.env, RC: ne.rc}, mcloc); err != nil {
+		chartSpan.Finish(tracer.WithError(err))
+		return "", m.handleMetahelmError(ctx, ne, err, "error installing charts")
 	}
-	if err := m.CI.BuildAndInstallChartsIntoExisting(ctx, envinfo, k8senv, mcloc); err != nil {
-		return envinfo.Env.Name, m.handleMetahelmError(ctx, ne, err, "error installing charts into existing namespace")
-	}
+	chartSpan.Finish()
+
 	return envinfo.Env.Name, nil
 }
 
@@ -779,6 +787,8 @@ func (m *Manager) handleMetahelmError(ctx context.Context, env *newEnv, err erro
 			return errors.Wrap(nitroerrors.SystemError(err), msg)
 		}
 		m.pushNotification(context.Background(), env, notifier.Failure, "Environment Failure Log: "+link)
+	} else {
+		m.log(ctx, "not pushing failure report because S3 bucket (%v) and/or region (%v) not set", m.S3Config.Bucket, m.S3Config.Region)
 	}
 	return errors.Wrap(nitroerrors.UserError(err), msg)
 }

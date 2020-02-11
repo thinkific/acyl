@@ -168,6 +168,11 @@ spec:
               secretKeyRef:
                 name: dummy-acyl-secrets
                 key: db_uri
+          - name: ACYL_K8S_IMAGE_PULL_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: image_pull_secret                
           {{ else }}
           - name: VAULT_ADDR
             value: {{ .Values.vault.addr }}

@@ -58,7 +58,6 @@ type Installer interface {
 	BuildAndInstallCharts(ctx context.Context, newenv *EnvInfo, cl ChartLocations) error
 	BuildAndInstallChartsIntoExisting(ctx context.Context, newenv *EnvInfo, k8senv *models.KubernetesEnvironment, cl ChartLocations) error
 	BuildAndUpgradeCharts(ctx context.Context, env *EnvInfo, k8senv *models.KubernetesEnvironment, cl ChartLocations) error
-	DeleteReleases(ctx context.Context, k8senv *models.KubernetesEnvironment) error
 	DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error
 }
 
@@ -609,14 +608,14 @@ func (ci ChartInstaller) GenerateCharts(ctx context.Context, ns string, newenv *
 			overrides[rcd.AppMetadata.ChartTagValue] = rcd.AppMetadata.Ref
 		}
 		for i, lo := range rcd.AppMetadata.ValueOverrides {
-			los := strings.Split(lo, "=")
+			los := strings.SplitN(lo, "=", 2)
 			if len(los) != 2 {
 				return out, fmt.Errorf("malformed application ValueOverride: %v: offset %v: %v", rcd.Repo, i, lo)
 			}
 			overrides[los[0]] = los[1]
 		}
 		for i, lo := range rcd.ValueOverrides {
-			los := strings.Split(lo, "=")
+			los := strings.SplitN(lo, "=", 2)
 			if len(los) != 2 {
 				return out, fmt.Errorf("malformed dependency ValueOverride: %v: offset %v: %v", rcd.Repo, i, lo)
 			}
@@ -963,36 +962,6 @@ func (ci ChartInstaller) getTillerPods(ns string) (*corev1.PodList, error) {
 		return nil, errors.Wrap(err, "error getting pod list")
 	}
 	return pods, nil
-}
-
-// DeleteReleases deletes all the helm releases for an environment and removes them from the database
-func (ci ChartInstaller) DeleteReleases(ctx context.Context, k8senv *models.KubernetesEnvironment) error {
-	releases, err := ci.dl.GetHelmReleasesForEnv(ctx, k8senv.EnvName)
-	if err != nil {
-		return errors.Wrap(err, "error getting helm releases")
-	}
-	hc, err := ci.hcf(k8senv.Namespace, k8senv.TillerAddr, ci.rcfg, ci.kc)
-	if err != nil {
-		return errors.Wrap(err, "error getting helm client")
-	}
-	for _, r := range releases {
-		select {
-		case <-ctx.Done():
-			return errors.New("context was cancelled")
-		default:
-			break
-		}
-		ci.log(ctx, "using helm to delete release: %v", r.Release)
-		if _, err = hc.DeleteRelease(r.Release, helm.DeletePurge(true)); err != nil {
-			return errors.Wrapf(err, "error deleting release: %v", r.Release)
-		}
-	}
-	n, err := ci.dl.DeleteHelmReleasesForEnv(ctx, k8senv.EnvName)
-	if err != nil {
-		return errors.Wrap(err, "error deleting helm releases from DB")
-	}
-	ci.log(ctx, "deleted %v helm releases from database", n)
-	return nil
 }
 
 // cleanUpNamespace deletes an environment's namespace and ClusterRoleBinding, if they exist
