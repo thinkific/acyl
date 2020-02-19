@@ -28,6 +28,31 @@
         "webhook_payload": "cXdlcnR5Cg==",
         "log": [
             "this other thing"
-        ]
+        ],
+        "status": {
+            "config": {
+                "status":1,
+                "processing_time":0,
+                "started":"0001-01-01T00:00:00Z",
+                "completed":"0001-01-01T00:00:00Z",
+                "ref_map":null
+            },
+            "tree": {
+                "foo/bar": {
+                    "parent":"",
+                    "image": {
+                        "name":"asdf",
+                        "error":false,
+                        "completed":"0001-01-01T00:00:00Z",
+                        "started":"0001-01-01T00:00:00Z"
+                    },
+                    "chart": {
+                        "status":0,
+                        "started":"0001-01-01T00:00:00Z",
+                        "completed":"0001-01-01T00:00:00Z"
+                    }
+                }
+            }
+        }
     }
 ]

@@ -1,6 +1,9 @@
 package models
 
 import (
+	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -10,14 +13,15 @@ import (
 )
 
 type EventLog struct {
-	ID             uuid.UUID   `json:"id"`
-	Created        time.Time   `json:"created"`
-	Updated        pq.NullTime `json:"updated"`
-	EnvName        string      `json:"env_name"`
-	Repo           string      `json:"repo"`
-	PullRequest    uint        `json:"pull_request"`
-	WebhookPayload []byte      `json:"webhook_payload"`
-	Log            []string    `json:"log"`
+	ID             uuid.UUID          `json:"id"`
+	Created        time.Time          `json:"created"`
+	Updated        pq.NullTime        `json:"updated"`
+	EnvName        string             `json:"env_name"`
+	Repo           string             `json:"repo"`
+	PullRequest    uint               `json:"pull_request"`
+	WebhookPayload []byte             `json:"webhook_payload"`
+	Log            []string           `json:"log"`
+	Status         EventStatusSummary `json:"status"`
 }
 
 func (el EventLog) Columns() string {
@@ -43,3 +47,81 @@ func (el EventLog) InsertParams() string {
 	}
 	return strings.Join(params, ", ")
 }
+
+//go:generate stringer -type=NodeChartStatus
+//go:generate stringer -type=EventStatus
+
+type NodeChartStatus int
+
+const (
+	UnknownChartStatus NodeChartStatus = iota
+	WaitingChartStatus
+	ReadyChartStatus
+	InstallingChartStatus
+	DoneChartStatus
+	FailedChartStatus
+)
+
+type EventStatus int
+
+const (
+	UnknownEventStatus EventStatus = iota
+	CreateNewStatus
+	UpdateTearDownStatus
+	UpdateInPlaceStatus
+	DestroyStatus
+	DoneStatus
+	FailedStatus
+)
+
+type EventStatusSummaryConfig struct {
+	Status         EventStatus       `json:"status"`
+	ProcessingTime time.Duration     `json:"processing_time"`
+	Started        time.Time         `json:"started"`
+	Completed      time.Time         `json:"completed"`
+	RefMap         map[string]string `json:"ref_map"`
+}
+
+type EventStatusTreeNodeImage struct {
+	Name      string    `json:"name"`
+	Error     bool      `json:"error"`
+	Completed time.Time `json:"completed"`
+	Started   time.Time `json:"started"`
+}
+
+type EventStatusTreeNodeChart struct {
+	Status    NodeChartStatus `json:"status"`
+	Started   time.Time       `json:"started"`
+	Completed time.Time       `json:"completed"`
+}
+
+type EventStatusTreeNode struct {
+	Parent string                   `json:"parent"`
+	Image  EventStatusTreeNodeImage `json:"image"`
+	Chart  EventStatusTreeNodeChart `json:"chart"`
+}
+
+type EventStatusSummary struct {
+	Config EventStatusSummaryConfig       `json:"config"`
+	Tree   map[string]EventStatusTreeNode `json:"tree"`
+}
+
+// Value implements database/sql/driver Valuer interface.
+func (es EventStatusSummary) Value() (driver.Value, error) {
+	return json.Marshal(es)
+}
+
+// Scan implements database/sql Scanner interface.
+func (es *EventStatusSummary) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("unexpected type for value: %T (wanted []byte)", value)
+	}
+	return json.Unmarshal(b, &es)
+}
+
+// check interfaces
+var (
+	_ driver.Valuer = EventStatusSummary{}
+	_ sql.Scanner   = &EventStatusSummary{}
+)

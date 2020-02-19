@@ -28,7 +28,7 @@ type lockingDataMap struct {
 
 // FakeDataLayer is a fake implementation of DataLayer that persists data in-memory, for testing purposes
 type FakeDataLayer struct {
-	data *lockingDataMap
+	data  *lockingDataMap
 	delay time.Duration
 }
 
@@ -827,4 +827,73 @@ func (fdl *FakeDataLayer) DeleteEventLogsByRepoAndPR(repo string, pr uint) (uint
 	}
 	fdl.data.Unlock()
 	return uint(len(del)), nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatus(id uuid.UUID, status models.EventStatusSummary) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	fdl.data.elogs[id].Status = status
+	fdl.data.Unlock()
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusCompleted(id uuid.UUID, status models.EventStatus) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	fdl.data.elogs[id].Status.Config.Status = status
+	fdl.data.elogs[id].Status.Config.Completed = time.Now().UTC()
+	fdl.data.Unlock()
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusImageStarted(id uuid.UUID, name string) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	tn := fdl.data.elogs[id].Status.Tree[name]
+	tn.Image.Started = time.Now().UTC()
+	fdl.data.elogs[id].Status.Tree[name] = tn
+	fdl.data.Unlock()
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusImageCompleted(id uuid.UUID, name string, err bool) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	tn := fdl.data.elogs[id].Status.Tree[name]
+	tn.Image.Error = err
+	tn.Image.Completed = time.Now().UTC()
+	fdl.data.elogs[id].Status.Tree[name] = tn
+	fdl.data.Unlock()
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusChartStarted(id uuid.UUID, name string, status models.NodeChartStatus) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	tn := fdl.data.elogs[id].Status.Tree[name]
+	tn.Chart.Status = status
+	tn.Chart.Started = time.Now().UTC()
+	fdl.data.elogs[id].Status.Tree[name] = tn
+	fdl.data.Unlock()
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	tn := fdl.data.elogs[id].Status.Tree[name]
+	tn.Chart.Status = status
+	tn.Chart.Completed = time.Now().UTC()
+	fdl.data.elogs[id].Status.Tree[name] = tn
+	fdl.data.Unlock()
+	return nil
+}
+
+func (fdl *FakeDataLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error) {
+	var out models.EventStatusSummary
+	fdl.doDelay()
+	fdl.data.RLock()
+	out = fdl.data.elogs[id].Status
+	fdl.data.RUnlock()
+	return &out, nil
 }

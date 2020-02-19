@@ -2,9 +2,12 @@ package persistence
 
 import (
 	"database/sql"
+	"fmt"
+	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
@@ -94,4 +97,71 @@ func collectEventLogRows(rows *sql.Rows, err error) ([]models.EventLog, error) {
 		logs = append(logs, el)
 	}
 	return logs, nil
+}
+
+func JSONTime(t time.Time) string {
+	return t.Format("2006-01-02T15:04:05Z07:00")
+}
+
+func (pg *PGLayer) SetEventStatus(id uuid.UUID, status models.EventStatusSummary) error {
+	q := `UPDATE event_logs SET status = $1 WHERE id = $2;`
+	_, err := pg.db.Exec(q, status, id)
+	return errors.Wrap(err, "error setting event status")
+}
+
+func (pg *PGLayer) SetEventStatusCompleted(id uuid.UUID, configStatus models.EventStatus) error {
+	// '{"status": $1, "completed": $2}'
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, '{config}', status->'config' || json_build_object('status', $1::int, 'completed', $2::text)::jsonb)
+		  WHERE id = $3;`
+	_, err := pg.db.Exec(q, configStatus, JSONTime(time.Now().UTC()), id)
+	return errors.Wrap(err, "error setting event status config status to completed")
+}
+
+func (pg *PGLayer) SetEventStatusImageStarted(id uuid.UUID, name string) error {
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, ARRAY['tree',$1,'image'], status->'tree'->$1->'image' || json_build_object('started', $2::text)::jsonb)
+		  WHERE id = $3;`
+	_, err := pg.db.Exec(q, name, JSONTime(time.Now().UTC()), id)
+	return errors.Wrap(err, "error setting event status image to started")
+}
+
+func (pg *PGLayer) SetEventStatusImageCompleted(id uuid.UUID, name string, err bool) error {
+	q := `UPDATE event_logs SET
+			status = jsonb_set(status, ARRAY['tree',$1,'image'], status->'tree'->$1->'image' || json_build_object('completed', $3::text, 'error', $2::boolean)::jsonb)
+		  WHERE id = $4;`
+	_, err2 := pg.db.Exec(q, name, err, JSONTime(time.Now().UTC()), id)
+	return errors.Wrap(err2, "error setting event status image status to completed")
+}
+
+func (pg *PGLayer) SetEventStatusChartStarted(id uuid.UUID, name string, status models.NodeChartStatus) error {
+	q := `UPDATE event_logs SET
+			status = jsonb_set(status, ARRAY['tree',$1,'chart'], status->'tree'->$1->'chart' || json_build_object('status', $2::int, 'started', $3::text)::jsonb)
+		  WHERE id = $4;`
+	_, err := pg.db.Exec(q, name, status, JSONTime(time.Now().UTC()), id)
+	return errors.Wrap(err, "error setting event status chart status to started")
+}
+
+func (pg *PGLayer) SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error {
+	q := `UPDATE event_logs SET
+			status = jsonb_set(status, ARRAY['tree',$1,'chart'], status->'tree'->$1->'chart' || json_build_object('status', $2::int, 'completed', $3::text)::jsonb)
+		  WHERE id = $4;`
+	_, err := pg.db.Exec(q, name, status, JSONTime(time.Now().UTC()), id)
+	if err != nil {
+		perr := err.(*pq.Error)
+		fmt.Printf("perr: %v\n", perr.Detail)
+	}
+	return errors.Wrap(err, "error setting event status chart status to completed")
+}
+
+func (pg *PGLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error) {
+	out := &models.EventStatusSummary{}
+	q := `SELECT status FROM event_logs WHERE id = $1;`
+	if err := pg.db.QueryRow(q, id).Scan(&out); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, errors.Wrap(err, "error getting event status by id")
+	}
+	return out, nil
 }
