@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/match"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/images"
@@ -587,7 +588,10 @@ func TestMetahelmInstallCharts(t *testing.T) {
 		mc: &metrics.FakeCollector{},
 	}
 	metahelm.ChartWaitPollInterval = 10 * time.Millisecond
-	if err := ci.installOrUpgradeCharts(context.Background(), "127.0.0.1:4404", "foo", charts, nenv, b, false); err != nil {
+	el := &eventlogger.Logger{DL: dl}
+	el.Init([]byte{}, "foo/bar", 99)
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+	if err := ci.installOrUpgradeCharts(ctx, "127.0.0.1:4404", "foo", charts, nenv, b, false); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
 }

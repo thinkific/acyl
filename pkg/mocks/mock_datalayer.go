@@ -266,6 +266,21 @@ func (mr *MockDataLayerMockRecorder) GetEventLogsByRepoAndPR(arg0, arg1 interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventLogsByRepoAndPR", reflect.TypeOf((*MockDataLayer)(nil).GetEventLogsByRepoAndPR), arg0, arg1)
 }
 
+// GetEventStatus mocks base method
+func (m *MockDataLayer) GetEventStatus(arg0 uuid.UUID) (*models.EventStatusSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEventStatus", arg0)
+	ret0, _ := ret[0].(*models.EventStatusSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEventStatus indicates an expected call of GetEventStatus
+func (mr *MockDataLayerMockRecorder) GetEventStatus(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventStatus", reflect.TypeOf((*MockDataLayer)(nil).GetEventStatus), arg0)
+}
+
 // GetExtantQAEnvironments mocks base method
 func (m *MockDataLayer) GetExtantQAEnvironments(arg0 context.Context, arg1 string, arg2 uint) ([]models.QAEnvironment, error) {
 	m.ctrl.T.Helper()
@@ -560,6 +575,118 @@ func (m *MockDataLayer) SetEventLogEnvName(arg0 uuid.UUID, arg1 string) error {
 func (mr *MockDataLayerMockRecorder) SetEventLogEnvName(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventLogEnvName", reflect.TypeOf((*MockDataLayer)(nil).SetEventLogEnvName), arg0, arg1)
+}
+
+// SetEventStatus mocks base method
+func (m *MockDataLayer) SetEventStatus(arg0 uuid.UUID, arg1 models.EventStatusSummary) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatus", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatus indicates an expected call of SetEventStatus
+func (mr *MockDataLayerMockRecorder) SetEventStatus(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatus", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatus), arg0, arg1)
+}
+
+// SetEventStatusChartCompleted mocks base method
+func (m *MockDataLayer) SetEventStatusChartCompleted(arg0 uuid.UUID, arg1 string, arg2 models.NodeChartStatus) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusChartCompleted", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusChartCompleted indicates an expected call of SetEventStatusChartCompleted
+func (mr *MockDataLayerMockRecorder) SetEventStatusChartCompleted(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusChartCompleted", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusChartCompleted), arg0, arg1, arg2)
+}
+
+// SetEventStatusChartStarted mocks base method
+func (m *MockDataLayer) SetEventStatusChartStarted(arg0 uuid.UUID, arg1 string, arg2 models.NodeChartStatus) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusChartStarted", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusChartStarted indicates an expected call of SetEventStatusChartStarted
+func (mr *MockDataLayerMockRecorder) SetEventStatusChartStarted(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusChartStarted", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusChartStarted), arg0, arg1, arg2)
+}
+
+// SetEventStatusCompleted mocks base method
+func (m *MockDataLayer) SetEventStatusCompleted(arg0 uuid.UUID, arg1 models.EventStatus) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusCompleted", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusCompleted indicates an expected call of SetEventStatusCompleted
+func (mr *MockDataLayerMockRecorder) SetEventStatusCompleted(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusCompleted", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusCompleted), arg0, arg1)
+}
+
+// SetEventStatusConfig mocks base method
+func (m *MockDataLayer) SetEventStatusConfig(arg0 uuid.UUID, arg1 time.Duration, arg2 map[string]string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusConfig", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusConfig indicates an expected call of SetEventStatusConfig
+func (mr *MockDataLayerMockRecorder) SetEventStatusConfig(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusConfig", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusConfig), arg0, arg1, arg2)
+}
+
+// SetEventStatusImageCompleted mocks base method
+func (m *MockDataLayer) SetEventStatusImageCompleted(arg0 uuid.UUID, arg1 string, arg2 bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusImageCompleted", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusImageCompleted indicates an expected call of SetEventStatusImageCompleted
+func (mr *MockDataLayerMockRecorder) SetEventStatusImageCompleted(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusImageCompleted", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusImageCompleted), arg0, arg1, arg2)
+}
+
+// SetEventStatusImageStarted mocks base method
+func (m *MockDataLayer) SetEventStatusImageStarted(arg0 uuid.UUID, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusImageStarted", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusImageStarted indicates an expected call of SetEventStatusImageStarted
+func (mr *MockDataLayerMockRecorder) SetEventStatusImageStarted(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusImageStarted", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusImageStarted), arg0, arg1)
+}
+
+// SetEventStatusTree mocks base method
+func (m *MockDataLayer) SetEventStatusTree(arg0 uuid.UUID, arg1 map[string]models.EventStatusTreeNode) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusTree", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusTree indicates an expected call of SetEventStatusTree
+func (mr *MockDataLayerMockRecorder) SetEventStatusTree(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusTree", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusTree), arg0, arg1)
 }
 
 // SetQAEnvironmentCommitSHAMap mocks base method

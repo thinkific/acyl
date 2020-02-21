@@ -4,9 +4,9 @@ package models
 
 import "strconv"
 
-const _EventStatus_name = "UnknownEventStatusCreateNewStatusUpdateTearDownStatusUpdateInPlaceStatusDestroyStatusDoneStatusFailedStatus"
+const _EventStatus_name = "UnknownEventStatusPendingStatusDoneStatusFailedStatus"
 
-var _EventStatus_index = [...]uint8{0, 18, 33, 53, 72, 85, 95, 107}
+var _EventStatus_index = [...]uint8{0, 18, 31, 41, 53}
 
 func (i EventStatus) String() string {
 	if i < 0 || i >= EventStatus(len(_EventStatus_index)-1) {

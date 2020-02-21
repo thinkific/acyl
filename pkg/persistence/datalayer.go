@@ -72,6 +72,8 @@ type EventLoggerDataLayer interface {
 	DeleteEventLogsByEnvName(name string) (uint, error)
 	DeleteEventLogsByRepoAndPR(repo string, pr uint) (uint, error)
 	SetEventStatus(id uuid.UUID, status models.EventStatusSummary) error
+	SetEventStatusConfig(id uuid.UUID, processingTime time.Duration, refmap map[string]string) error
+	SetEventStatusTree(id uuid.UUID, tree map[string]models.EventStatusTreeNode) error
 	SetEventStatusCompleted(id uuid.UUID, configStatus models.EventStatus) error
 	SetEventStatusImageStarted(id uuid.UUID, name string) error
 	SetEventStatusImageCompleted(id uuid.UUID, name string, err bool) error

@@ -4,9 +4,9 @@ package models
 
 import "strconv"
 
-const _NodeChartStatus_name = "UnknownChartStatusWaitingChartStatusReadyChartStatusInstallingChartStatusDoneChartStatusFailedChartStatus"
+const _NodeChartStatus_name = "UnknownChartStatusWaitingChartStatusInstallingChartStatusUpgradingChartStatusDoneChartStatusFailedChartStatus"
 
-var _NodeChartStatus_index = [...]uint8{0, 18, 36, 52, 73, 88, 105}
+var _NodeChartStatus_index = [...]uint8{0, 18, 36, 57, 77, 92, 109}
 
 func (i NodeChartStatus) String() string {
 	if i < 0 || i >= NodeChartStatus(len(_NodeChartStatus_index)-1) {

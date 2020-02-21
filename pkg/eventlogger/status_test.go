@@ -23,6 +23,7 @@ var testRC = models.RepoConfig{
 		Direct: []models.RepoConfigDependency{
 			models.RepoConfigDependency{
 				Repo: "foo/something",
+				Name: "something",
 				AppMetadata: models.RepoConfigAppMetadata{
 					Repo:   "foo/something",
 					Image:  "quay.io/foo/something",
@@ -34,10 +35,32 @@ var testRC = models.RepoConfig{
 			},
 			models.RepoConfigDependency{
 				Name:   "otherthing",
-				Parent: "foo/something",
+				Parent: "something",
 			},
 		},
 	},
+}
+
+func TestSetNewStatus(t *testing.T) {
+	dl := persistence.NewFakeDataLayer()
+	id, _ := uuid.NewRandom()
+	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
+	elog.Init([]byte{}, "foo/bar", 99)
+
+	elog.SetNewStatus(models.CreateEvent)
+
+	el2, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("error getting event status: %v", err)
+	}
+
+	if etype := el2.Config.Type; etype != models.CreateEvent {
+		t.Fatalf("unexpected event type: %v", etype.String())
+	}
+
+	if el2.Config.Started.IsZero() {
+		t.Fatalf("config should have been started")
+	}
 }
 
 func TestSetInitialStatus(t *testing.T) {
@@ -46,15 +69,21 @@ func TestSetInitialStatus(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetInitialStatus(&testRC, models.CreateNewStatus, 10*time.Millisecond)
+	elog.SetNewStatus(models.CreateEvent)
+
+	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
 
 	el2, err := dl.GetEventStatus(id)
 	if err != nil {
 		t.Fatalf("error getting event status: %v", err)
 	}
 
-	if status := el2.Config.Status; status != models.CreateNewStatus {
+	if status := el2.Config.Status; status != models.PendingStatus {
 		t.Fatalf("unexpected status: %v", status.String())
+	}
+
+	if etype := el2.Config.Type; etype != models.CreateEvent {
+		t.Fatalf("unexpected event type: %v", etype.String())
 	}
 
 	if n := len(el2.Tree); n != 3 {
@@ -65,7 +94,7 @@ func TestSetInitialStatus(t *testing.T) {
 		t.Fatalf("missing tree node: %+v", el2.Tree)
 	}
 
-	if node := el2.Tree["otherthing"]; node.Parent != "foo/something" {
+	if node := el2.Tree["otherthing"]; node.Parent != "something" {
 		t.Fatalf("bad node: %+v", node)
 	}
 }
@@ -76,16 +105,18 @@ func TestSetImageStarted(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetInitialStatus(&testRC, models.CreateNewStatus, 10*time.Millisecond)
+	elog.SetNewStatus(models.CreateEvent)
 
-	elog.SetImageStarted("foo/something")
+	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
+
+	elog.SetImageStarted("something")
 
 	el2, err := dl.GetEventStatus(id)
 	if err != nil {
 		t.Fatalf("error getting event status: %v", err)
 	}
 
-	if el2.Tree["foo/something"].Image.Started.IsZero() {
+	if el2.Tree["something"].Image.Started.IsZero() {
 		t.Fatalf("image should have been started")
 	}
 }
@@ -96,20 +127,22 @@ func TestSetImageCompleted(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetInitialStatus(&testRC, models.CreateNewStatus, 10*time.Millisecond)
+	elog.SetNewStatus(models.CreateEvent)
 
-	elog.SetImageCompleted("foo/something", true)
+	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
+
+	elog.SetImageCompleted("something", true)
 
 	el2, err := dl.GetEventStatus(id)
 	if err != nil {
 		t.Fatalf("error getting event status: %v", err)
 	}
 
-	if el2.Tree["foo/something"].Image.Completed.IsZero() {
+	if el2.Tree["something"].Image.Completed.IsZero() {
 		t.Fatalf("image should have been completed")
 	}
 
-	if !el2.Tree["foo/something"].Image.Error {
+	if !el2.Tree["something"].Image.Error {
 		t.Fatalf("image should have been marked as error")
 	}
 }
@@ -120,20 +153,22 @@ func TestSetChartStarted(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetInitialStatus(&testRC, models.CreateNewStatus, 10*time.Millisecond)
+	elog.SetNewStatus(models.CreateEvent)
 
-	elog.SetChartStarted("foo/something", models.InstallingChartStatus)
+	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
+
+	elog.SetChartStarted("something", models.InstallingChartStatus)
 
 	el2, err := dl.GetEventStatus(id)
 	if err != nil {
 		t.Fatalf("error getting event status: %v", err)
 	}
 
-	if el2.Tree["foo/something"].Chart.Started.IsZero() {
+	if el2.Tree["something"].Chart.Started.IsZero() {
 		t.Fatalf("chart should have been started")
 	}
 
-	if status := el2.Tree["foo/something"].Chart.Status; status != models.InstallingChartStatus {
+	if status := el2.Tree["something"].Chart.Status; status != models.InstallingChartStatus {
 		t.Fatalf("unexpected status: %v", status)
 	}
 }
@@ -144,20 +179,22 @@ func TestSetChartCompleted(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetInitialStatus(&testRC, models.CreateNewStatus, 10*time.Millisecond)
+	elog.SetNewStatus(models.CreateEvent)
 
-	elog.SetChartCompleted("foo/something", models.DoneChartStatus)
+	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
+
+	elog.SetChartCompleted("something", models.DoneChartStatus)
 
 	el2, err := dl.GetEventStatus(id)
 	if err != nil {
 		t.Fatalf("error getting event status: %v", err)
 	}
 
-	if el2.Tree["foo/something"].Chart.Completed.IsZero() {
+	if el2.Tree["something"].Chart.Completed.IsZero() {
 		t.Fatalf("chart should have been completed")
 	}
 
-	if status := el2.Tree["foo/something"].Chart.Status; status != models.DoneChartStatus {
+	if status := el2.Tree["something"].Chart.Status; status != models.DoneChartStatus {
 		t.Fatalf("unexpected status: %v", status)
 	}
 }
@@ -168,7 +205,9 @@ func TestSetCompletedStatus(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetInitialStatus(&testRC, models.CreateNewStatus, 10*time.Millisecond)
+	elog.SetNewStatus(models.CreateEvent)
+
+	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
 
 	elog.SetCompletedStatus(models.DoneStatus)
 

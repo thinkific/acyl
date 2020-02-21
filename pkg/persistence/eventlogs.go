@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -109,8 +110,41 @@ func (pg *PGLayer) SetEventStatus(id uuid.UUID, status models.EventStatusSummary
 	return errors.Wrap(err, "error setting event status")
 }
 
+func (pg *PGLayer) SetEventStatusConfig(id uuid.UUID, processingTime time.Duration, refmap map[string]string) error {
+	if len(refmap) == 0 {
+		return errors.New("refmap cannot be empty")
+	}
+	rj, err := json.Marshal(&refmap)
+	if err != nil {
+		return errors.Wrap(err, "error marshaling refmap")
+	}
+	ptj, err := json.Marshal(&models.ConfigProcessingDuration{Duration: processingTime})
+	if err != nil {
+		return errors.Wrap(err, "error marshaling processingTime")
+	}
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, '{config}', status->'config' || json_build_object('processing_time', $1::text, 'ref_map', $2::jsonb)::jsonb)
+		  WHERE id = $3;`
+	_, err = pg.db.Exec(q, string(ptj), string(rj), id)
+	return errors.Wrap(err, "error setting event status config")
+}
+
+func (pg *PGLayer) SetEventStatusTree(id uuid.UUID, tree map[string]models.EventStatusTreeNode) error {
+	if len(tree) == 0 {
+		return errors.New("tree cannot be empty")
+	}
+	tj, err := json.Marshal(&tree)
+	if err != nil {
+		return errors.Wrap(err, "error marshaling tree")
+	}
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, '{tree}', $1::jsonb)
+		  WHERE id = $2;`
+	_, err = pg.db.Exec(q, string(tj), id)
+	return errors.Wrap(err, "error setting event status tree")
+}
+
 func (pg *PGLayer) SetEventStatusCompleted(id uuid.UUID, configStatus models.EventStatus) error {
-	// '{"status": $1, "completed": $2}'
 	q := `UPDATE event_logs SET 
 			status = jsonb_set(status, '{config}', status->'config' || json_build_object('status', $1::int, 'completed', $2::text)::jsonb)
 		  WHERE id = $3;`

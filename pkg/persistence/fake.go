@@ -832,60 +832,127 @@ func (fdl *FakeDataLayer) DeleteEventLogsByRepoAndPR(repo string, pr uint) (uint
 func (fdl *FakeDataLayer) SetEventStatus(id uuid.UUID, status models.EventStatusSummary) error {
 	fdl.doDelay()
 	fdl.data.Lock()
-	fdl.data.elogs[id].Status = status
-	fdl.data.Unlock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status = status
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusConfig(id uuid.UUID, processingTime time.Duration, refmap map[string]string) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Config.ProcessingTime = models.ConfigProcessingDuration{Duration: processingTime}
+	elog.Status.Config.RefMap = refmap
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusTree(id uuid.UUID, tree map[string]models.EventStatusTreeNode) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Tree = tree
 	return nil
 }
 
 func (fdl *FakeDataLayer) SetEventStatusCompleted(id uuid.UUID, status models.EventStatus) error {
 	fdl.doDelay()
 	fdl.data.Lock()
-	fdl.data.elogs[id].Status.Config.Status = status
-	fdl.data.elogs[id].Status.Config.Completed = time.Now().UTC()
-	fdl.data.Unlock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Config.Status = status
+	elog.Status.Config.Completed = time.Now().UTC()
 	return nil
 }
 
 func (fdl *FakeDataLayer) SetEventStatusImageStarted(id uuid.UUID, name string) error {
 	fdl.doDelay()
 	fdl.data.Lock()
-	tn := fdl.data.elogs[id].Status.Tree[name]
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	tn, ok := elog.Status.Tree[name]
+	if !ok {
+		keys := make([]string, len(elog.Status.Tree))
+		i := 0
+		for k := range elog.Status.Tree {
+			keys[i] = k
+			i++
+		}
+		return fmt.Errorf("%v not found in tree: %v: %v", name, len(keys), keys)
+	}
 	tn.Image.Started = time.Now().UTC()
 	fdl.data.elogs[id].Status.Tree[name] = tn
-	fdl.data.Unlock()
 	return nil
 }
 
 func (fdl *FakeDataLayer) SetEventStatusImageCompleted(id uuid.UUID, name string, err bool) error {
 	fdl.doDelay()
 	fdl.data.Lock()
-	tn := fdl.data.elogs[id].Status.Tree[name]
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	tn, ok := elog.Status.Tree[name]
+	if !ok {
+		return fmt.Errorf("%v not found in tree", name)
+	}
 	tn.Image.Error = err
 	tn.Image.Completed = time.Now().UTC()
-	fdl.data.elogs[id].Status.Tree[name] = tn
-	fdl.data.Unlock()
+	elog.Status.Tree[name] = tn
 	return nil
 }
 
 func (fdl *FakeDataLayer) SetEventStatusChartStarted(id uuid.UUID, name string, status models.NodeChartStatus) error {
 	fdl.doDelay()
 	fdl.data.Lock()
-	tn := fdl.data.elogs[id].Status.Tree[name]
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	tn, ok := elog.Status.Tree[name]
+	if !ok {
+		return fmt.Errorf("%v not found in tree", name)
+	}
 	tn.Chart.Status = status
 	tn.Chart.Started = time.Now().UTC()
-	fdl.data.elogs[id].Status.Tree[name] = tn
-	fdl.data.Unlock()
+	elog.Status.Tree[name] = tn
 	return nil
 }
 
 func (fdl *FakeDataLayer) SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error {
 	fdl.doDelay()
 	fdl.data.Lock()
-	tn := fdl.data.elogs[id].Status.Tree[name]
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	tn, ok := elog.Status.Tree[name]
+	if !ok {
+		return fmt.Errorf("%v not found in tree", name)
+	}
 	tn.Chart.Status = status
 	tn.Chart.Completed = time.Now().UTC()
-	fdl.data.elogs[id].Status.Tree[name] = tn
-	fdl.data.Unlock()
+	elog.Status.Tree[name] = tn
 	return nil
 }
 

@@ -1193,7 +1193,7 @@ func TestDataLayerSetEventStatus(t *testing.T) {
 	elog := logs[0]
 	s := models.EventStatusSummary{
 		Config: models.EventStatusSummaryConfig{
-			Status: models.CreateNewStatus,
+			Status: models.PendingStatus,
 		},
 		Tree: map[string]models.EventStatusTreeNode{
 			"foo/bar": models.EventStatusTreeNode{},
@@ -1206,8 +1206,54 @@ func TestDataLayerSetEventStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get 2 should have succeeded: %v", err)
 	}
-	if s2.Config.Status != models.CreateNewStatus {
+	if s2.Config.Status != models.PendingStatus {
 		t.Fatalf("unexpected status: %v (%v)", s2.Config.Status, s2.Config.Status.String())
+	}
+}
+
+func TestDataLayerSetEventStatusConfig(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusConfig(id, 10*time.Millisecond, map[string]string{"foo/bar": "asdf"}); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if refmap := s.Config.RefMap; len(refmap) != 1 {
+		t.Fatalf("unexpected refmap: %+v", refmap)
+	}
+	if s.Config.ProcessingTime.Duration == 0 {
+		t.Fatalf("processing_time should have been set")
+	}
+}
+
+func TestDataLayerSetEventStatusTree(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusTree(id, map[string]models.EventStatusTreeNode{
+		"foo/bar": models.EventStatusTreeNode{Parent: "foo"},
+	}); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if tree := s.Tree; len(tree) != 1 {
+		t.Fatalf("unexpected tree: %+v", tree)
+	}
+	if node, ok := s.Tree["foo/bar"]; !ok || node.Parent != "foo" {
+		t.Fatalf("unexpected or missing node: %v: %+v", ok, node)
 	}
 }
 

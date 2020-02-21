@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/locker"
 	"github.com/dollarshaveclub/acyl/pkg/memfs"
@@ -460,7 +461,10 @@ func TestCreate(t *testing.T) {
 				OperationTimeout: c.timeout,
 			}
 
-			name, err := m.Create(context.Background(), c.inputRRD)
+			el := &eventlogger.Logger{DL: dl}
+			el.Init([]byte{}, c.inputRRD.Repo, c.inputRRD.PullRequest)
+			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+			name, err := m.Create(ctx, c.inputRRD)
 			c.verifyFunc(name, err, nt, t)
 		})
 	}
@@ -724,7 +728,11 @@ func TestUpdate(t *testing.T) {
 				CI:               ci,
 				OperationTimeout: c.timeout,
 			}
-			_, err := m.Update(context.Background(), c.inputRDD)
+
+			el := &eventlogger.Logger{DL: dl}
+			el.Init([]byte{}, c.inputRDD.Repo, c.inputRDD.PullRequest)
+			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+			_, err := m.Update(ctx, c.inputRDD)
 			c.verifyFunc(err, dl, nt, t)
 		})
 	}
@@ -881,7 +889,11 @@ func TestDelete(t *testing.T) {
 				RC: frc,
 				CI: ci,
 			}
-			err := m.Delete(context.Background(), &c.inputRDD, models.DestroyApiRequest)
+
+			el := &eventlogger.Logger{DL: dl}
+			el.Init([]byte{}, c.inputRDD.Repo, c.inputRDD.PullRequest)
+			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+			err := m.Delete(ctx, &c.inputRDD, models.DestroyApiRequest)
 			time.Sleep(10 * time.Millisecond) // give time for async delete to complete
 			c.verifyFunc(err, t)
 		})

@@ -5,11 +5,13 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/pkg/errors"
 )
 
 type EventLog struct {
@@ -50,14 +52,15 @@ func (el EventLog) InsertParams() string {
 
 //go:generate stringer -type=NodeChartStatus
 //go:generate stringer -type=EventStatus
+//go:generate stringer -type=EventStatusType
 
 type NodeChartStatus int
 
 const (
 	UnknownChartStatus NodeChartStatus = iota
 	WaitingChartStatus
-	ReadyChartStatus
 	InstallingChartStatus
+	UpgradingChartStatus
 	DoneChartStatus
 	FailedChartStatus
 )
@@ -66,20 +69,64 @@ type EventStatus int
 
 const (
 	UnknownEventStatus EventStatus = iota
-	CreateNewStatus
-	UpdateTearDownStatus
-	UpdateInPlaceStatus
-	DestroyStatus
+	PendingStatus
 	DoneStatus
 	FailedStatus
 )
 
+type EventStatusType int
+
+const (
+	UnknownEventStatusType EventStatusType = iota
+	CreateEvent
+	UpdateEvent
+	DestroyEvent
+)
+
+// adapted from https://stackoverflow.com/questions/48050945/how-to-unmarshal-json-into-durations
+
+type ConfigProcessingDuration struct {
+	time.Duration
+}
+
+func (d ConfigProcessingDuration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.String())
+}
+
+func (d *ConfigProcessingDuration) UnmarshalJSON(b []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return errors.Wrap(err, "error unmarshaling duration")
+	}
+	switch value := v.(type) {
+	case float64:
+		d.Duration = time.Duration(value)
+		return nil
+	case string:
+		var err error
+		if strings.Contains(value, `"`) {
+			value, err = strconv.Unquote(value)
+			if err != nil {
+				return errors.Wrap(err, "error unquoting value")
+			}
+		}
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return errors.Wrap(err, "error parsing duration")
+		}
+		return nil
+	default:
+		return errors.New("invalid duration")
+	}
+}
+
 type EventStatusSummaryConfig struct {
-	Status         EventStatus       `json:"status"`
-	ProcessingTime time.Duration     `json:"processing_time"`
-	Started        time.Time         `json:"started"`
-	Completed      time.Time         `json:"completed"`
-	RefMap         map[string]string `json:"ref_map"`
+	Type           EventStatusType          `json:"event_type"`
+	Status         EventStatus              `json:"status"`
+	ProcessingTime ConfigProcessingDuration `json:"processing_time"`
+	Started        time.Time                `json:"started"`
+	Completed      time.Time                `json:"completed"`
+	RefMap         map[string]string        `json:"ref_map"`
 }
 
 type EventStatusTreeNodeImage struct {
