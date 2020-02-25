@@ -121,8 +121,14 @@ func (d *ConfigProcessingDuration) UnmarshalJSON(b []byte) error {
 }
 
 type EventStatusSummaryConfig struct {
-	Type           EventStatusType          `json:"event_type"`
+	Type           EventStatusType          `json:"type"`
 	Status         EventStatus              `json:"status"`
+	EnvName        string                   `json:"env_name"`
+	TriggeringRepo string                   `json:"triggering_repo"`
+	PullRequest    uint                     `json:"pull_request"`
+	GitHubUser     string                   `json:"github_user"`
+	Branch         string                   `json:"branch"`
+	Revision       string                   `json:"revision"`
 	ProcessingTime ConfigProcessingDuration `json:"processing_time"`
 	Started        time.Time                `json:"started"`
 	Completed      time.Time                `json:"completed"`

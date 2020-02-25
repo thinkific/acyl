@@ -452,11 +452,11 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 		end(fmt.Sprintf("success:%v", err == nil))
 		span.Finish(tracer.WithError(err))
 	}()
-	eventlogger.GetLogger(ctx).SetNewStatus(models.CreateEvent)
 	env, err := m.generateNewEnv(ctx, rd)
 	if err != nil {
 		return "", errors.Wrap(err, "error generating environment data")
 	}
+	eventlogger.GetLogger(ctx).SetNewStatus(models.CreateEvent, env.Name, *rd)
 	m.setloggername(ctx, env.Name)
 	newenv := &newEnv{env: env}
 	ctx, cf := context.WithCancel(ctx)
@@ -551,9 +551,9 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		end(fmt.Sprintf("success:%v", err == nil))
 		span.Finish(tracer.WithError(err))
 	}()
-	eventlogger.GetLogger(ctx).SetNewStatus(models.DestroyEvent)
 	env, err := m.getenv(ctx, rd)
 	if err != nil {
+		eventlogger.GetLogger(ctx).SetNewStatus(models.DestroyEvent, "<unknown>", *rd)
 		defer eventlogger.GetLogger(ctx).SetCompletedStatus(models.DoneStatus)
 		if err == extantEnvsErr {
 			// if there's no extant envs, set all associated with the repo & PR to status destroyed
@@ -574,6 +574,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		}
 		return errors.Wrap(nitroerrors.SystemError(err), "error getting extant environment")
 	}
+	eventlogger.GetLogger(ctx).SetNewStatus(models.DestroyEvent, env.Name, *rd)
 	m.setloggername(ctx, env.Name)
 	started := time.Now().UTC()
 	ne, err := m.processEnvConfig(ctx, env, rd)
@@ -660,7 +661,6 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 		end(fmt.Sprintf("success:%v", err == nil))
 		span.Finish(tracer.WithError(err))
 	}()
-	eventlogger.GetLogger(ctx).SetNewStatus(models.UpdateEvent)
 	// check config signatures, if match then we can do chart upgrades
 	// if mismatch, then tear down existing env and rebuild from scratch
 	env, err := m.getenv(ctx, rd)
@@ -673,6 +673,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 		}
 		return "", errors.Wrap(nitroerrors.SystemError(err), "error getting extant environment")
 	}
+	eventlogger.GetLogger(ctx).SetNewStatus(models.UpdateEvent, env.Name, *rd)
 	m.setloggername(ctx, env.Name)
 	ne := &newEnv{env: env}
 	ctx, cf := context.WithCancel(ctx)

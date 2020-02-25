@@ -7,12 +7,18 @@ import (
 )
 
 // SetNewStatus creates a new empty event status of etype with only config.type, config.status and config.started set. This is intended to be called first and prior to config processing.
-func (l *Logger) SetNewStatus(etype models.EventStatusType) {
+func (l *Logger) SetNewStatus(etype models.EventStatusType, envName string, rrd models.RepoRevisionData) {
 	summary := models.EventStatusSummary{
 		Config: models.EventStatusSummaryConfig{
-			Type:    etype,
-			Status:  models.PendingStatus,
-			Started: time.Now().UTC(),
+			Type:           etype,
+			Status:         models.PendingStatus,
+			EnvName:        envName,
+			TriggeringRepo: rrd.Repo,
+			PullRequest:    rrd.PullRequest,
+			GitHubUser:     rrd.User,
+			Branch:         rrd.SourceBranch,
+			Revision:       rrd.SourceSHA,
+			Started:        time.Now().UTC(),
 		},
 	}
 	if err := l.DL.SetEventStatus(l.ID, summary); err != nil {

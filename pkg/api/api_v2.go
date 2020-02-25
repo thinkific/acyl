@@ -93,6 +93,149 @@ func v2EventLogFromEventLog(el *models.EventLog) *v2EventLog {
 	}
 }
 
+func timeOrNil(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+func statusSummaryType(t models.EventStatusType) string {
+	switch t {
+	case models.UnknownEventStatusType:
+		return "unknown"
+	case models.CreateEvent:
+		return "create"
+	case models.UpdateEvent:
+		return "update"
+	case models.DestroyEvent:
+		return "destroy"
+	default:
+		return "default"
+	}
+}
+
+func statusSummaryStatus(s models.EventStatus) string {
+	switch s {
+	case models.UnknownEventStatus:
+		return "unknown"
+	case models.PendingStatus:
+		return "pending"
+	case models.DoneStatus:
+		return "done"
+	case models.FailedStatus:
+		return "failed"
+	default:
+		return "default"
+	}
+}
+
+func statusNodeChartStatus(n models.NodeChartStatus) string {
+	switch n {
+	case models.UnknownChartStatus:
+		return "unknown"
+	case models.WaitingChartStatus:
+		return "waiting"
+	case models.InstallingChartStatus:
+		return "installing"
+	case models.UpgradingChartStatus:
+		return "upgrading"
+	case models.DoneChartStatus:
+		return "done"
+	case models.FailedChartStatus:
+		return "failed"
+	default:
+		return "default"
+	}
+}
+
+type v2EventStatusSummaryConfig struct {
+	Type           string            `json:"type"`
+	Status         string            `json:"status"`
+	EnvName        string            `json:"env_name"`
+	TriggeringRepo string            `json:"triggering_repo"`
+	PullRequest    uint              `json:"pull_request"`
+	GitHubUser     string            `json:"github_user"`
+	Branch         string            `json:"branch"`
+	Revision       string            `json:"revision"`
+	ProcessingTime string            `json:"processing_time"`
+	Started        *time.Time        `json:"started"`
+	Completed      *time.Time        `json:"completed"`
+	RefMap         map[string]string `json:"ref_map"`
+}
+
+type v2EventStatusTreeNodeImage struct {
+	Name      string     `json:"name"`
+	Error     bool       `json:"error"`
+	Completed *time.Time `json:"completed"`
+	Started   *time.Time `json:"started"`
+}
+
+type v2EventStatusTreeNodeChart struct {
+	Status    string     `json:"status"`
+	Started   *time.Time `json:"started"`
+	Completed *time.Time `json:"completed"`
+}
+
+func statusImageOrNil(image models.EventStatusTreeNodeImage) *v2EventStatusTreeNodeImage {
+	if image.Name == "" {
+		return nil
+	}
+	return &v2EventStatusTreeNodeImage{
+		Name:      image.Name,
+		Error:     image.Error,
+		Completed: timeOrNil(image.Completed),
+		Started:   timeOrNil(image.Started),
+	}
+}
+
+type v2EventStatusTreeNode struct {
+	Parent string                      `json:"parent"`
+	Image  *v2EventStatusTreeNodeImage `json:"image"`
+	Chart  v2EventStatusTreeNodeChart  `json:"chart"`
+}
+
+type v2EventStatusSummary struct {
+	Config v2EventStatusSummaryConfig       `json:"config"`
+	Tree   map[string]v2EventStatusTreeNode `json:"tree"`
+}
+
+func v2EventStatusTreeFromTree(tree map[string]models.EventStatusTreeNode) map[string]v2EventStatusTreeNode {
+	out := make(map[string]v2EventStatusTreeNode, len(tree))
+	for k, v := range tree {
+		out[k] = v2EventStatusTreeNode{
+			Parent: v.Parent,
+			Image:  statusImageOrNil(v.Image),
+			Chart: v2EventStatusTreeNodeChart{
+				Status:    statusNodeChartStatus(v.Chart.Status),
+				Completed: timeOrNil(v.Chart.Completed),
+				Started:   timeOrNil(v.Chart.Started),
+			},
+		}
+	}
+	return out
+}
+
+func v2EventStatusSummaryFromEventStatusSummary(sum *models.EventStatusSummary) *v2EventStatusSummary {
+	return &v2EventStatusSummary{
+		Config: v2EventStatusSummaryConfig{
+			Type:           statusSummaryType(sum.Config.Type),
+			Status:         statusSummaryStatus(sum.Config.Status),
+			EnvName:        sum.Config.EnvName,
+			TriggeringRepo: sum.Config.TriggeringRepo,
+			PullRequest:    sum.Config.PullRequest,
+			GitHubUser:     sum.Config.GitHubUser,
+			Branch:         sum.Config.Branch,
+			Revision:       sum.Config.Revision,
+			ProcessingTime: sum.Config.ProcessingTime.String(),
+			Started:        timeOrNil(sum.Config.Started),
+			Completed:      timeOrNil(sum.Config.Completed),
+			RefMap:         sum.Config.RefMap,
+		},
+		Tree: v2EventStatusTreeFromTree(sum.Tree),
+	}
+}
+
 type v2api struct {
 	apiBase
 	dl persistence.DataLayer
@@ -121,6 +264,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/envs/_search", middlewareChain(api.envSearchHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/envs/{name}", middlewareChain(api.envDetailHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/eventlog/{id}", middlewareChain(api.eventLogHandler, authMiddleware.authRequest)).Methods("GET")
+	r.HandleFunc("/v2/event/{id}/status", middlewareChain(api.eventStatusHandler)).Methods("GET")
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
 	return nil
 }
@@ -251,6 +395,30 @@ func (api *v2api) eventLogHandler(w http.ResponseWriter, r *http.Request) {
 	j, err := json.Marshal(v2EventLogFromEventLog(el))
 	if err != nil {
 		api.internalError(w, errors.Wrap(err, "error marshaling event log"))
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(j)
+}
+
+func (api *v2api) eventStatusHandler(w http.ResponseWriter, r *http.Request) {
+	idstr := mux.Vars(r)["id"]
+	id, err := uuid.Parse(idstr)
+	if err != nil {
+		api.badRequestError(w, errors.Wrap(err, "error parsing id"))
+		return
+	}
+	es, err := api.dl.GetEventStatus(id)
+	if err != nil {
+		api.internalError(w, errors.Wrap(err, "error fetching event status"))
+		return
+	}
+	if es == nil {
+		api.notfoundError(w)
+		return
+	}
+	j, err := json.Marshal(v2EventStatusSummaryFromEventStatusSummary(es))
+	if err != nil {
+		api.internalError(w, errors.Wrap(err, "error marshaling event status"))
 	}
 	w.Header().Add("Content-Type", "application/json")
 	w.Write(j)

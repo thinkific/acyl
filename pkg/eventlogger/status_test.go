@@ -47,7 +47,8 @@ func TestSetNewStatus(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetNewStatus(models.CreateEvent)
+	rrd := models.RepoRevisionData{Repo: "foo/bar", PullRequest: 12, User: "john.doe", SourceBranch: "feature-foo", SourceSHA: "asdf"}
+	elog.SetNewStatus(models.CreateEvent, "some-name", rrd)
 
 	el2, err := dl.GetEventStatus(id)
 	if err != nil {
@@ -61,6 +62,24 @@ func TestSetNewStatus(t *testing.T) {
 	if el2.Config.Started.IsZero() {
 		t.Fatalf("config should have been started")
 	}
+
+	if el2.Config.TriggeringRepo != rrd.Repo {
+		t.Fatalf("bad repo: %v", el2.Config.TriggeringRepo)
+	}
+
+	if el2.Config.PullRequest != rrd.PullRequest {
+		t.Fatalf("bad pr: %v", el2.Config.PullRequest)
+	}
+
+	if el2.Config.GitHubUser != rrd.User {
+		t.Fatalf("bad user: %v", el2.Config.GitHubUser)
+	}
+	if el2.Config.Branch != rrd.SourceBranch {
+		t.Fatalf("bad branch: %v", el2.Config.Branch)
+	}
+	if el2.Config.Revision != rrd.SourceSHA {
+		t.Fatalf("bad revision: %v", el2.Config.Revision)
+	}
 }
 
 func TestSetInitialStatus(t *testing.T) {
@@ -69,7 +88,8 @@ func TestSetInitialStatus(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetNewStatus(models.CreateEvent)
+	rrd := models.RepoRevisionData{Repo: "foo/bar", PullRequest: 12, User: "john.doe", SourceBranch: "feature-foo", SourceSHA: "asdf"}
+	elog.SetNewStatus(models.CreateEvent, "some-name", rrd)
 
 	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
 
@@ -105,7 +125,8 @@ func TestSetImageStarted(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetNewStatus(models.CreateEvent)
+	rrd := models.RepoRevisionData{Repo: "foo/bar", PullRequest: 12, User: "john.doe", SourceBranch: "feature-foo", SourceSHA: "asdf"}
+	elog.SetNewStatus(models.CreateEvent, "some-name", rrd)
 
 	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
 
@@ -127,7 +148,8 @@ func TestSetImageCompleted(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetNewStatus(models.CreateEvent)
+	rrd := models.RepoRevisionData{Repo: "foo/bar", PullRequest: 12, User: "john.doe", SourceBranch: "feature-foo", SourceSHA: "asdf"}
+	elog.SetNewStatus(models.CreateEvent, "some-name", rrd)
 
 	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
 
@@ -153,7 +175,8 @@ func TestSetChartStarted(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetNewStatus(models.CreateEvent)
+	rrd := models.RepoRevisionData{Repo: "foo/bar", PullRequest: 12, User: "john.doe", SourceBranch: "feature-foo", SourceSHA: "asdf"}
+	elog.SetNewStatus(models.CreateEvent, "some-name", rrd)
 
 	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
 
@@ -179,7 +202,8 @@ func TestSetChartCompleted(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetNewStatus(models.CreateEvent)
+	rrd := models.RepoRevisionData{Repo: "foo/bar", PullRequest: 12, User: "john.doe", SourceBranch: "feature-foo", SourceSHA: "asdf"}
+	elog.SetNewStatus(models.CreateEvent, "some-name", rrd)
 
 	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
 
@@ -205,7 +229,8 @@ func TestSetCompletedStatus(t *testing.T) {
 	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
 	elog.Init([]byte{}, "foo/bar", 99)
 
-	elog.SetNewStatus(models.CreateEvent)
+	rrd := models.RepoRevisionData{Repo: "foo/bar", PullRequest: 12, User: "john.doe", SourceBranch: "feature-foo", SourceSHA: "asdf"}
+	elog.SetNewStatus(models.CreateEvent, "some-name", rrd)
 
 	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
 

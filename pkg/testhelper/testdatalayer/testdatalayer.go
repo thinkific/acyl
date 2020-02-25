@@ -122,6 +122,10 @@ func (tdl *TestDataLayer) insertEventLog(el models.EventLog) error {
 	if _, err := tdl.pgdb.Exec(q, &el.ID, &el.Created, &el.Updated, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, pq.Array(el.Log)); err != nil {
 		return errors.Wrap(err, "error inserting event log")
 	}
+	q = `UPDATE event_logs SET status = $1 WHERE id = $2;`
+	if _, err := tdl.pgdb.Exec(q, el.Status, el.ID); err != nil {
+		return errors.Wrap(err, "error setting event log status")
+	}
 	return nil
 }
 
