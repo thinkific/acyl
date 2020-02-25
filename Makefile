@@ -3,10 +3,10 @@
 default: build
 
 build:
-	go install github.com/dollarshaveclub/acyl
+	GO111MODULE=off go install github.com/dollarshaveclub/acyl
 
 generate:
-	go generate ./...
+	GO111MODULE=off go generate ./...
 
-test:
-	go test ./...
+check:
+	./check.sh
