@@ -2,12 +2,12 @@
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: acyl-argo
+  name: fastly-dqa
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
   namespace: {{ .Values.namespace }}
   annotations:
-      kubernetes.io/ingress.class: argo-tunnel
+      kubernetes.io/ingress.class: 
 spec:
   rules:
     {{- if .Values.is_dqa }}
