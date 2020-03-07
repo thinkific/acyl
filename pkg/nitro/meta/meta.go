@@ -488,7 +488,7 @@ func (g DataGetter) FetchCharts(ctx context.Context, rc *models.RepoConfig, base
 				return nil, nitroerrors.SystemError(io.ErrShortWrite)
 			}
 			for _, v := range d.AppMetadata.ValueOverrides {
-				vsl := strings.Split(v, "=")
+				vsl := strings.SplitN(v, "=", 2)
 				if len(vsl) != 2 {
 					return nil, fmt.Errorf("malformed value override: %v", v)
 				}
@@ -529,7 +529,7 @@ func (g DataGetter) FetchCharts(ctx context.Context, rc *models.RepoConfig, base
 		loc := couts[i]
 		d := offsetmap[i]
 		for _, v := range d.ValueOverrides { // Dependency value_overrides override anything in the application metadata
-			vsl := strings.Split(v, "=")
+			vsl := strings.SplitN(v, "=", 2)
 			if len(vsl) != 2 {
 				return nil, fmt.Errorf("malformed value override: %v", v)
 			}

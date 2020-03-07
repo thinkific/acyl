@@ -4,9 +4,9 @@ package ghevent
 
 import "strconv"
 
-const _GitHubEventType_name = "UnknownEventPullRequestEventCommitPushEvent"
+const _GitHubEventType_name = "UnknownEventPullRequestEvent"
 
-var _GitHubEventType_index = [...]uint8{0, 12, 28, 43}
+var _GitHubEventType_index = [...]uint8{0, 12, 28}
 
 func (i GitHubEventType) String() string {
 	if i < 0 || i >= GitHubEventType(len(_GitHubEventType_index)-1) {

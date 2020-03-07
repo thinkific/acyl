@@ -325,7 +325,7 @@ func TestCreate(t *testing.T) {
 		inputBranches      map[string][]ghclient.BranchInfo
 		chartInstallResult map[string]error
 		limit              uint
-		delay, timeout time.Duration
+		delay, timeout     time.Duration
 		verifyFunc         func(string, error, *notificationTracker, *testing.T)
 	}{
 		{
@@ -449,14 +449,14 @@ func TestCreate(t *testing.T) {
 						return lch
 					},
 				},
-				NF:          nt.sender,
-				MC:          &metrics.FakeCollector{},
-				NG:          &namegen.FakeNameGenerator{},
-				FS:          memfs.New(),
-				MG:          fg,
-				RC:          frc,
-				CI:          ci,
-				GlobalLimit: c.limit,
+				NF:               nt.sender,
+				MC:               &metrics.FakeCollector{},
+				NG:               &namegen.FakeNameGenerator{},
+				FS:               memfs.New(),
+				MG:               fg,
+				RC:               frc,
+				CI:               ci,
+				GlobalLimit:      c.limit,
 				OperationTimeout: c.timeout,
 			}
 
@@ -570,7 +570,7 @@ func TestUpdate(t *testing.T) {
 		inputCL            meta.ChartLocations
 		inputBranches      map[string][]ghclient.BranchInfo
 		chartInstallResult map[string]error
-		delay, timeout time.Duration
+		delay, timeout     time.Duration
 		verifyFunc         func(error, persistence.DataLayer, *notificationTracker, *testing.T)
 	}{
 		{
@@ -703,6 +703,7 @@ func TestUpdate(t *testing.T) {
 				},
 				DL:           dl,
 				HelmReleases: releases,
+				KC:           k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: c.inputK8sEnv.Namespace}}),
 			}
 			nt := newNotificationTracker()
 			m := Manager{
@@ -714,13 +715,13 @@ func TestUpdate(t *testing.T) {
 						return lch
 					},
 				},
-				NF: nt.sender,
-				MC: &metrics.FakeCollector{},
-				NG: &namegen.FakeNameGenerator{},
-				FS: memfs.New(),
-				MG: fg,
-				RC: frc,
-				CI: ci,
+				NF:               nt.sender,
+				MC:               &metrics.FakeCollector{},
+				NG:               &namegen.FakeNameGenerator{},
+				FS:               memfs.New(),
+				MG:               fg,
+				RC:               frc,
+				CI:               ci,
 				OperationTimeout: c.timeout,
 			}
 			_, err := m.Update(context.Background(), c.inputRDD)
@@ -781,12 +782,12 @@ func TestDelete(t *testing.T) {
 		models.HelmRelease{EnvName: env.Name, Name: "foo-mysql", RevisionSHA: env.CommitSHAMap["foo/mysql"], Release: "release-name-foo/mysql"},
 	}
 	cases := []struct {
-		name           string
-		inputRDD       models.RepoRevisionData
-		inputEnv       models.QAEnvironment
-		inputK8sEnv    models.KubernetesEnvironment
-		inputReleases  []models.HelmRelease
-		verifyFunc     func(error, *testing.T)
+		name          string
+		inputRDD      models.RepoRevisionData
+		inputEnv      models.QAEnvironment
+		inputK8sEnv   models.KubernetesEnvironment
+		inputReleases []models.HelmRelease
+		verifyFunc    func(error, *testing.T)
 	}{
 		{
 			"delete", rdd, env, k8senv, releases,
@@ -874,11 +875,11 @@ func TestDelete(t *testing.T) {
 						return lch
 					},
 				},
-				NF:               testNF,
-				MC:               &metrics.FakeCollector{},
-				MG:               fg,
-				RC:               frc,
-				CI:               ci,
+				NF: testNF,
+				MC: &metrics.FakeCollector{},
+				MG: fg,
+				RC: frc,
+				CI: ci,
 			}
 			err := m.Delete(context.Background(), &c.inputRDD, models.DestroyApiRequest)
 			time.Sleep(10 * time.Millisecond) // give time for async delete to complete
