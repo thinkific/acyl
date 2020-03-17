@@ -28,8 +28,9 @@ type lockingDataMap struct {
 
 // FakeDataLayer is a fake implementation of DataLayer that persists data in-memory, for testing purposes
 type FakeDataLayer struct {
-	data  *lockingDataMap
-	delay time.Duration
+	CreateMissingEventLog bool
+	data                  *lockingDataMap
+	delay                 time.Duration
 }
 
 var _ DataLayer = &FakeDataLayer{}
@@ -725,9 +726,21 @@ func (fdl *FakeDataLayer) UpdateK8sEnvTillerAddr(ctx context.Context, envname, t
 func (fdl *FakeDataLayer) GetEventLogByID(id uuid.UUID) (*models.EventLog, error) {
 	fdl.doDelay()
 	fdl.data.RLock()
-	defer fdl.data.RUnlock()
 	el, ok := fdl.data.elogs[id]
+	fdl.data.RUnlock()
 	if !ok {
+		if fdl.CreateMissingEventLog {
+			sum := fdl.newStatus(id)
+			out := &models.EventLog{
+				ID:     id,
+				LogKey: uuid.Must(uuid.NewRandom()),
+				Status: *sum,
+			}
+			fdl.data.Lock()
+			fdl.data.elogs[id] = out
+			fdl.data.Unlock()
+			return out, nil
+		}
 		return nil, nil
 	}
 	return el, nil
@@ -763,6 +776,13 @@ func (fdl *FakeDataLayer) CreateEventLog(elog *models.EventLog) error {
 	fdl.doDelay()
 	if elog == nil {
 		return errors.New("input is nil")
+	}
+	if elog.LogKey == uuid.Nil {
+		lk, err := uuid.NewRandom()
+		if err != nil {
+			return errors.Wrap(err, "error generating log key")
+		}
+		elog.LogKey = lk
 	}
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
@@ -957,10 +977,17 @@ func (fdl *FakeDataLayer) SetEventStatusChartCompleted(id uuid.UUID, name string
 }
 
 func (fdl *FakeDataLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error) {
-	var out models.EventStatusSummary
 	fdl.doDelay()
 	fdl.data.RLock()
-	out = fdl.data.elogs[id].Status
+	elog := fdl.data.elogs[id]
 	fdl.data.RUnlock()
-	return &out, nil
+	if elog == nil {
+		if fdl.CreateMissingEventLog {
+			// if id not found, create a new one and begin an async update goroutine
+			return fdl.newStatus(id), nil
+		}
+		return nil, nil
+	}
+	out := *elog
+	return &out.Status, nil
 }

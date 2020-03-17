@@ -1013,6 +1013,9 @@ func TestDataLayerGetEventLogByID(t *testing.T) {
 	if el.Created.Equal(time.Time{}) {
 		t.Fatalf("zero value for created: %v", el.Created)
 	}
+	if el.LogKey == uuid.Nil {
+		t.Fatalf("unset log key: %v", el.LogKey)
+	}
 }
 
 func TestDataLayerGetEventLogsByEnvName(t *testing.T) {
@@ -1070,6 +1073,9 @@ func TestDataLayerCreateEventLog(t *testing.T) {
 	}
 	if el2.Log[0] != el.Log[0] {
 		t.Fatalf("bad log: %v", el2.Log)
+	}
+	if el2.LogKey == uuid.Nil {
+		t.Fatalf("unset log key: %v", el2.LogKey)
 	}
 }
 

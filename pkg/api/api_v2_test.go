@@ -232,7 +232,7 @@ func TestAPIv2EventStatus(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("should have succeeded: %v: %v", resp.StatusCode, string(bb))
 	}
-	res := v2EventStatusSummary{}
+	res := V2EventStatusSummary{}
 	fmt.Printf("res: %v\n", string(bb))
 	err = json.Unmarshal(bb, &res)
 	if err != nil {

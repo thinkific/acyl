@@ -149,7 +149,7 @@ func statusNodeChartStatus(n models.NodeChartStatus) string {
 	}
 }
 
-type v2EventStatusSummaryConfig struct {
+type V2EventStatusSummaryConfig struct {
 	Type           string            `json:"type"`
 	Status         string            `json:"status"`
 	EnvName        string            `json:"env_name"`
@@ -164,24 +164,24 @@ type v2EventStatusSummaryConfig struct {
 	RefMap         map[string]string `json:"ref_map"`
 }
 
-type v2EventStatusTreeNodeImage struct {
+type V2EventStatusTreeNodeImage struct {
 	Name      string     `json:"name"`
 	Error     bool       `json:"error"`
 	Completed *time.Time `json:"completed"`
 	Started   *time.Time `json:"started"`
 }
 
-type v2EventStatusTreeNodeChart struct {
+type V2EventStatusTreeNodeChart struct {
 	Status    string     `json:"status"`
 	Started   *time.Time `json:"started"`
 	Completed *time.Time `json:"completed"`
 }
 
-func statusImageOrNil(image models.EventStatusTreeNodeImage) *v2EventStatusTreeNodeImage {
+func statusImageOrNil(image models.EventStatusTreeNodeImage) *V2EventStatusTreeNodeImage {
 	if image.Name == "" {
 		return nil
 	}
-	return &v2EventStatusTreeNodeImage{
+	return &V2EventStatusTreeNodeImage{
 		Name:      image.Name,
 		Error:     image.Error,
 		Completed: timeOrNil(image.Completed),
@@ -189,24 +189,24 @@ func statusImageOrNil(image models.EventStatusTreeNodeImage) *v2EventStatusTreeN
 	}
 }
 
-type v2EventStatusTreeNode struct {
+type V2EventStatusTreeNode struct {
 	Parent string                      `json:"parent"`
-	Image  *v2EventStatusTreeNodeImage `json:"image"`
-	Chart  v2EventStatusTreeNodeChart  `json:"chart"`
+	Image  *V2EventStatusTreeNodeImage `json:"image"`
+	Chart  V2EventStatusTreeNodeChart  `json:"chart"`
 }
 
-type v2EventStatusSummary struct {
-	Config v2EventStatusSummaryConfig       `json:"config"`
-	Tree   map[string]v2EventStatusTreeNode `json:"tree"`
+type V2EventStatusSummary struct {
+	Config V2EventStatusSummaryConfig       `json:"config"`
+	Tree   map[string]V2EventStatusTreeNode `json:"tree"`
 }
 
-func v2EventStatusTreeFromTree(tree map[string]models.EventStatusTreeNode) map[string]v2EventStatusTreeNode {
-	out := make(map[string]v2EventStatusTreeNode, len(tree))
+func v2EventStatusTreeFromTree(tree map[string]models.EventStatusTreeNode) map[string]V2EventStatusTreeNode {
+	out := make(map[string]V2EventStatusTreeNode, len(tree))
 	for k, v := range tree {
-		out[k] = v2EventStatusTreeNode{
+		out[k] = V2EventStatusTreeNode{
 			Parent: v.Parent,
 			Image:  statusImageOrNil(v.Image),
-			Chart: v2EventStatusTreeNodeChart{
+			Chart: V2EventStatusTreeNodeChart{
 				Status:    statusNodeChartStatus(v.Chart.Status),
 				Completed: timeOrNil(v.Chart.Completed),
 				Started:   timeOrNil(v.Chart.Started),
@@ -216,9 +216,9 @@ func v2EventStatusTreeFromTree(tree map[string]models.EventStatusTreeNode) map[s
 	return out
 }
 
-func v2EventStatusSummaryFromEventStatusSummary(sum *models.EventStatusSummary) *v2EventStatusSummary {
-	return &v2EventStatusSummary{
-		Config: v2EventStatusSummaryConfig{
+func V2EventStatusSummaryFromEventStatusSummary(sum *models.EventStatusSummary) *V2EventStatusSummary {
+	return &V2EventStatusSummary{
+		Config: V2EventStatusSummaryConfig{
 			Type:           statusSummaryType(sum.Config.Type),
 			Status:         statusSummaryStatus(sum.Config.Status),
 			EnvName:        sum.Config.EnvName,
@@ -265,6 +265,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/envs/{name}", middlewareChain(api.envDetailHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/eventlog/{id}", middlewareChain(api.eventLogHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/event/{id}/status", middlewareChain(api.eventStatusHandler)).Methods("GET")
+	r.HandleFunc("/v2/event/{id}/logs", middlewareChain(api.logsHandler)).Methods("GET")
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
 	return nil
 }
@@ -416,9 +417,60 @@ func (api *v2api) eventStatusHandler(w http.ResponseWriter, r *http.Request) {
 		api.notfoundError(w)
 		return
 	}
-	j, err := json.Marshal(v2EventStatusSummaryFromEventStatusSummary(es))
+	j, err := json.Marshal(V2EventStatusSummaryFromEventStatusSummary(es))
 	if err != nil {
 		api.internalError(w, errors.Wrap(err, "error marshaling event status"))
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(j)
+}
+
+// logsHandler is an unauthenticated event log API endpoint for the UI that only returns event log lines
+// and not the full EventLog object
+// Instead of a global API token (like /v2/eventlog/{id}) it requires an event-scoped
+// log key (UUID) passed in the "Acyl-Log-Key" request header
+func (api *v2api) logsHandler(w http.ResponseWriter, r *http.Request) {
+	lk := r.Header.Get("Acyl-Log-Key")
+	if lk == "" {
+		api.logger.Printf("error serving event logs: missing log key")
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	lkuuid, err := uuid.Parse(lk)
+	if err != nil {
+		api.logger.Printf("error serving event logs: bad log key: %v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	idstr := mux.Vars(r)["id"]
+	id, err := uuid.Parse(idstr)
+	if err != nil {
+		api.logger.Printf("error serving event logs: bad event id: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	elog, err := api.dl.GetEventLogByID(id)
+	if err != nil {
+		api.logger.Printf("error serving event logs: error getting event log: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if elog == nil {
+		api.logger.Printf("error serving event logs: missing event log")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	if elog.LogKey != lkuuid {
+		api.logger.Printf("error serving event logs: mismatched log key")
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	j, err := json.Marshal(&elog.Log)
+	if err != nil {
+		api.logger.Printf("error serving event logs: error marshaling log: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	w.Header().Add("Content-Type", "application/json")
 	w.Write(j)

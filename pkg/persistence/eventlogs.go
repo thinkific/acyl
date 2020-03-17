@@ -39,6 +39,13 @@ func (pg *PGLayer) GetEventLogsByRepoAndPR(repo string, pr uint) ([]models.Event
 
 // CreateEventLog creates a new EventLog
 func (pg *PGLayer) CreateEventLog(elog *models.EventLog) error {
+	if elog.LogKey == uuid.Nil {
+		lk, err := uuid.NewRandom()
+		if err != nil {
+			return errors.Wrap(err, "error generating log key")
+		}
+		elog.LogKey = lk
+	}
 	q := `INSERT INTO event_logs (` + elog.InsertColumns() + `) VALUES (` + elog.InsertParams() + `);`
 	_, err := pg.db.Exec(q, elog.InsertValues()...)
 	return errors.Wrap(err, "error inserting event log")

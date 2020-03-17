@@ -8,7 +8,8 @@
         "log": [
             "some line",
             "some other line"
-        ]
+        ],
+        "log_key": "b5b76164-830c-4076-b3f3-ceb7d3da304b"
     },
     {
         "id": "9beb4f55-bc47-4411-b17d-78e2c0bccb25",
@@ -18,7 +19,8 @@
         "webhook_payload": "YXNkZjIzNAo=",
         "log": [
             "an event"
-        ]
+        ],
+        "log_key": "d3016949-8724-400a-9ec9-b129bdb6e3c0"
     },
     {
         "id": "c1e1e229-86d8-4d99-a3d5-62b2f6390bbe",
@@ -29,6 +31,7 @@
         "log": [
             "this other thing"
         ],
+        "log_key": "b0af0c97-a146-4de2-ba7d-6f08a136d92d",
         "status": {
             "config": {
                 "status": 1,

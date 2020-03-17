@@ -327,7 +327,9 @@ func server(cmd *cobra.Command, args []string) {
 		regops = append(regops, api.WithDebugEndpoints(), api.WithIPWhitelist(serverConfig.DebugEndpointsIPWhitelists))
 	}
 
-	httpapi.RegisterVersions(deps, regops...)
+	if err := httpapi.RegisterVersions(deps, regops...); err != nil {
+		log.Fatalf("error registering api versions: %v", err)
+	}
 	go func() {
 		for _ = range stop {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -23,23 +23,24 @@ type EventLog struct {
 	PullRequest    uint               `json:"pull_request"`
 	WebhookPayload []byte             `json:"webhook_payload"`
 	Log            []string           `json:"log"`
+	LogKey         uuid.UUID          `json:"log_key"` // additional secret needed for logs via web UI (no API key)
 	Status         EventStatusSummary `json:"status"`
 }
 
 func (el EventLog) Columns() string {
-	return strings.Join([]string{"id", "created", "updated", "env_name", "repo", "pull_request", "webhook_payload", "log"}, ",")
+	return strings.Join([]string{"id", "created", "updated", "env_name", "repo", "pull_request", "webhook_payload", "log", "log_key"}, ",")
 }
 
 func (el EventLog) InsertColumns() string {
-	return strings.Join([]string{"id", "env_name", "repo", "pull_request", "webhook_payload", "log"}, ",")
+	return strings.Join([]string{"id", "env_name", "repo", "pull_request", "webhook_payload", "log", "log_key"}, ",")
 }
 
 func (el *EventLog) ScanValues() []interface{} {
-	return []interface{}{&el.ID, &el.Created, &el.Updated, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, pq.Array(&el.Log)}
+	return []interface{}{&el.ID, &el.Created, &el.Updated, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, pq.Array(&el.Log), &el.LogKey}
 }
 
 func (el *EventLog) InsertValues() []interface{} {
-	return []interface{}{&el.ID, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, pq.Array(&el.Log)}
+	return []interface{}{&el.ID, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, pq.Array(&el.Log), &el.LogKey}
 }
 
 func (el EventLog) InsertParams() string {
