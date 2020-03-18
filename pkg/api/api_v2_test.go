@@ -265,4 +265,10 @@ func TestAPIv2EventStatus(t *testing.T) {
 	if n := len(res.Tree); n != 1 {
 		t.Fatalf("bad tree: %+v", res.Tree)
 	}
+	if rsd := res.Config.RenderedStatus.Description; rsd != "something happened" {
+		t.Fatalf("bad rendered description: %+v", rsd)
+	}
+	if rsl := res.Config.RenderedStatus.LinkTargetURL; rsl != "https://foobar.com" {
+		t.Fatalf("bad rendered link url: %+v", rsl)
+	}
 }

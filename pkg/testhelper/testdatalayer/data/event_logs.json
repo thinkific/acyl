@@ -35,6 +35,10 @@
         "status": {
             "config": {
                 "status": 1,
+                "rendered_status" : {
+                    "description": "something happened",
+                    "link_target_url": "https://foobar.com"
+                },
                 "type": 1,
                 "env_name": "asdf-asdf",
                 "triggering_repo": "acme/somethingelse",

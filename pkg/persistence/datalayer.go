@@ -80,4 +80,5 @@ type EventLoggerDataLayer interface {
 	SetEventStatusChartStarted(id uuid.UUID, name string, status models.NodeChartStatus) error
 	SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error
 	GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error)
+	SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error
 }

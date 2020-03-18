@@ -21,6 +21,27 @@ function millisToMinutesAndSeconds(millis) {
 }
 
 function updateConfig(cfg) {
+    let sicon = document.getElementById("status-icon");
+    switch (cfg.status) {
+        case "pending":
+            sicon.style.color = "#0000ff";
+            sicon.innerHTML = "\uf28b";
+            break;
+        case "done":
+            sicon.style.color = "#00ff00";
+            sicon.innerHTML = "\uf058";
+            break;
+        case "failed":
+            sicon.style.color = "#ff0000";
+            sicon.innerHTML = "\uf071";
+            break;
+        default:
+            sicon.style.color = "#ffffff";
+            sicon.innerHTML = "";
+    }
+    let slink = document.getElementById("rendered-status-link");
+    slink.text = cfg.rendered_status.description;
+    slink.href = cfg.rendered_status.link_target_url;
     const repourl = `https://github.com/${cfg.triggering_repo}`;
     document.getElementById("trepo-link").text = repourl;
     document.getElementById("trepo-link").href = repourl;
@@ -338,7 +359,10 @@ function updateTree(treedata) {
                     if (d.data.image !== null && !d.data.image.error && d.data.image.completed === null) {
                         return "Chart: Waiting (img)";
                     } else {
-                        return "Chart: Waiting (deps)";
+                        if (d.children || d._children) {
+                            return "Chart: Waiting (deps)";
+                        }
+                        return "Chart: Waiting";
                     }
                 case "installing":
                     return `Chart: Installing (${millisToMinutesAndSeconds(end - start)})`;

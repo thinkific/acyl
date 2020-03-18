@@ -63,6 +63,7 @@ type Manager struct {
 	failureTemplate      *template.Template
 	s3p                  s3Pusher
 	OperationTimeout     time.Duration
+	UIBaseURL            string
 }
 
 var DefaultOperationTimeout = 30 * time.Minute
@@ -184,11 +185,18 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 	if err != nil {
 		return nil, errors.Wrap(err, "error rendering template")
 	}
+	eid := eventlogger.GetLogger(ctx).ID
+	if err := m.DL.SetEventStatusRenderedStatus(eid, models.RenderedEventStatus{
+		Description:   renderedCSTemplate.Description,
+		LinkTargetURL: renderedCSTemplate.TargetURL,
+	}); err != nil {
+		return nil, errors.Wrap(err, "error setting event status rendered status")
+	}
 	cs := &ghclient.CommitStatus{
 		Context:     "Acyl",
 		Status:      ncs.Key(),
 		Description: renderedCSTemplate.Description,
-		TargetURL:   renderedCSTemplate.TargetURL,
+		TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, eid.String()),
 	}
 	err = m.RC.SetStatus(context.Background(), rd.Repo, rd.SourceSHA, cs)
 	if err != nil {

@@ -11,6 +11,12 @@ No auth needed.
 		"type": "create",
 		// valid statuses: pending, done, failed
 		"status": "pending",
+        // Rendered output of the acyl.yml template fields: notifications.github.commit_statuses.templates
+        // This will change depending upon the current status of the event: success, failure, pending
+        "rendered_status": {
+            "description": "something happened",
+            "link_target_url": "https://example.com"
+        },
 		// Environment name that is being created/updated/destroyed
 		"env_name": "elegant-passenger",
 		// Pull Request associated with this event

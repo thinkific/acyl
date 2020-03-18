@@ -675,6 +675,20 @@ func (mr *MockDataLayerMockRecorder) SetEventStatusImageStarted(arg0, arg1 inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusImageStarted", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusImageStarted), arg0, arg1)
 }
 
+// SetEventStatusRenderedStatus mocks base method
+func (m *MockDataLayer) SetEventStatusRenderedStatus(arg0 uuid.UUID, arg1 models.RenderedEventStatus) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusRenderedStatus", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusRenderedStatus indicates an expected call of SetEventStatusRenderedStatus
+func (mr *MockDataLayerMockRecorder) SetEventStatusRenderedStatus(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusRenderedStatus", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusRenderedStatus), arg0, arg1)
+}
+
 // SetEventStatusTree mocks base method
 func (m *MockDataLayer) SetEventStatusTree(arg0 uuid.UUID, arg1 map[string]models.EventStatusTreeNode) error {
 	m.ctrl.T.Helper()

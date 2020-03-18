@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
@@ -1322,7 +1324,8 @@ func TestSetGithubCommitStatus(t *testing.T) {
 		RC: &ghclient.FakeRepoClient{
 			SetStatusFunc: func(context.Context, string, string, *ghclient.CommitStatus) error { return nil },
 		},
-		DL: dl,
+		DL:        dl,
+		UIBaseURL: "https://foobar.com",
 	}
 
 	tests := []struct {
@@ -1358,7 +1361,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 				Context:     "Acyl",
 				Status:      "success",
 				Description: "An environment for some-environment-name has been created",
-				TargetURL:   "https://some-environment-name.shave.io",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
 			},
 		},
 		{
@@ -1387,7 +1390,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 				Context:     "Acyl",
 				Status:      "pending",
 				Description: "An environment for some-environment-name is being created",
-				TargetURL:   "https://some-environment-name.shave.io",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
 			},
 		},
 		{
@@ -1416,7 +1419,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 				Context:     "Acyl",
 				Status:      "failure",
 				Description: "An environment for some-environment-name has failed",
-				TargetURL:   "https://some-environment-name.shave.io",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
 			},
 		},
 		{
@@ -1432,7 +1435,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 				Context:     "Acyl",
 				Status:      "success",
 				Description: "The Acyl environment some-environment-name was created successfully.",
-				TargetURL:   models.DefaultCommitStatusTemplates["success"].TargetURL,
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
 			},
 		},
 		{
@@ -1448,7 +1451,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 				Context:     "Acyl",
 				Status:      "pending",
 				Description: "The Acyl environment some-environment-name is being created.",
-				TargetURL:   models.DefaultCommitStatusTemplates["pending"].TargetURL,
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
 			},
 		},
 		{
@@ -1465,7 +1468,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 				Context:     "Acyl",
 				Status:      "failure",
 				Description: "The Acyl environment some-environment-name failed.",
-				TargetURL:   models.DefaultCommitStatusTemplates["failure"].TargetURL,
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
 			},
 		},
 		{
@@ -1495,7 +1498,7 @@ func TestSetGithubCommitStatus(t *testing.T) {
 				Context:     "Acyl",
 				Status:      "failure",
 				Description: "The Acyl environment for some-environment-name failed. Reason: invalid helm chart",
-				TargetURL:   "",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
 			},
 		},
 	}

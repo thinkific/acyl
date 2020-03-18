@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -46,6 +47,10 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 
 	fdl.data.Lock()
 	fdl.data.elogs[id].Log = append(fdl.data.elogs[id].Log, randomLogLines(10)...)
+	fdl.data.elogs[id].Status.Config.RenderedStatus = models.RenderedEventStatus{
+		Description:   fmt.Sprintf("The Acyl environment %v is being created.", name),
+		LinkTargetURL: "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
+	}
 	fdl.data.elogs[id].Status.Config.EnvName = name
 	fdl.data.elogs[id].Status.Config.ProcessingTime = models.ConfigProcessingDuration{Duration: cfgd}
 	fdl.data.elogs[id].Status.Config.RefMap = map[string]string{"foo/somethingelse": "master", "foo/dependency": "feature-foo"}
@@ -191,6 +196,10 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 	// complete foo-bar install, mark event as completed
 	time.Sleep(randomDuration(1000, 2000))
 	fdl.data.Lock()
+	fdl.data.elogs[id].Status.Config.RenderedStatus = models.RenderedEventStatus{
+		Description:   fmt.Sprintf("The Acyl environment %v was created successfully.", name),
+		LinkTargetURL: "https://media.giphy.com/media/SRO0ZwmImic0/giphy.gif",
+	}
 	fdl.data.elogs[id].Log = append(fdl.data.elogs[id].Log, randomLogLines(10)...)
 	i = fdl.data.elogs[id].Status.Tree["foo-bar"]
 	i.Chart.Status = models.DoneChartStatus

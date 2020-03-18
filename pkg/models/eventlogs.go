@@ -121,9 +121,15 @@ func (d *ConfigProcessingDuration) UnmarshalJSON(b []byte) error {
 	}
 }
 
+type RenderedEventStatus struct {
+	Description   string `json:"description"`
+	LinkTargetURL string `json:"link_target_url"`
+}
+
 type EventStatusSummaryConfig struct {
 	Type           EventStatusType          `json:"type"`
 	Status         EventStatus              `json:"status"`
+	RenderedStatus RenderedEventStatus      `json:"rendered_status"`
 	EnvName        string                   `json:"env_name"`
 	TriggeringRepo string                   `json:"triggering_repo"`
 	PullRequest    uint                     `json:"pull_request"`

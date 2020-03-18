@@ -29,6 +29,7 @@ type ServerConfig struct {
 	NitroFeatureFlag           bool
 	NotificationsDefaultsJSON  string
 	OperationTimeoutOverride   time.Duration
+	UIBaseURL                  string
 }
 
 type PGConfig struct {

@@ -114,6 +114,7 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&datadogTracingAgentAddr, "datadog-tracing-agent-addr", "127.0.0.1:8126", "Address of datadog tracing agent")
 	serverCmd.PersistentFlags().StringVar(&datadogServiceName, "datadog-service-name", "acyl", "Default service name to be used for Datadog APM")
 	serverCmd.PersistentFlags().DurationVar(&serverConfig.OperationTimeoutOverride, "operation-timeout-override", 0, "Override for operation timeout (ex: 10m)")
+	serverCmd.PersistentFlags().StringVar(&serverConfig.UIBaseURL, "ui-base-url", "", "External base URL (https://somedomain.com) for UI links")
 	RootCmd.AddCommand(serverCmd)
 }
 
@@ -265,6 +266,7 @@ func server(cmd *cobra.Command, args []string) {
 			AWSCreds:             awsCreds,
 			S3Config:             s3config,
 			GlobalLimit:          serverConfig.GlobalEnvironmentLimit,
+			UIBaseURL:            serverConfig.UIBaseURL,
 		}
 		nitromgr.OperationTimeout = serverConfig.OperationTimeoutOverride // Zero means use default defined in pkg/nitro/env
 		loadFailureTemplate(nitromgr)

@@ -1385,3 +1385,29 @@ func TestDataLayerGetEventStatus(t *testing.T) {
 		t.Fatalf("get should have succeeded: %v", err)
 	}
 }
+
+func TestDataLayerSetEventStatusRenderedStatus(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	rstat := models.RenderedEventStatus{
+		Description:   "something",
+		LinkTargetURL: "https://foobar.com",
+	}
+	if err := dl.SetEventStatusRenderedStatus(id, rstat); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if rsd := s.Config.RenderedStatus.Description; rsd != rstat.Description {
+		t.Fatalf("unexpected description: %v", rsd)
+	}
+	if rsl := s.Config.RenderedStatus.LinkTargetURL; rsl != rstat.LinkTargetURL {
+		t.Fatalf("unexpected link: %v", rsl)
+	}
+}

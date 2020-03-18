@@ -149,19 +149,25 @@ func statusNodeChartStatus(n models.NodeChartStatus) string {
 	}
 }
 
+type V2RenderedEventStatus struct {
+	Description   string `json:"description"`
+	LinkTargetURL string `json:"link_target_url"`
+}
+
 type V2EventStatusSummaryConfig struct {
-	Type           string            `json:"type"`
-	Status         string            `json:"status"`
-	EnvName        string            `json:"env_name"`
-	TriggeringRepo string            `json:"triggering_repo"`
-	PullRequest    uint              `json:"pull_request"`
-	GitHubUser     string            `json:"github_user"`
-	Branch         string            `json:"branch"`
-	Revision       string            `json:"revision"`
-	ProcessingTime string            `json:"processing_time"`
-	Started        *time.Time        `json:"started"`
-	Completed      *time.Time        `json:"completed"`
-	RefMap         map[string]string `json:"ref_map"`
+	Type           string                `json:"type"`
+	Status         string                `json:"status"`
+	RenderedStatus V2RenderedEventStatus `json:"rendered_status"`
+	EnvName        string                `json:"env_name"`
+	TriggeringRepo string                `json:"triggering_repo"`
+	PullRequest    uint                  `json:"pull_request"`
+	GitHubUser     string                `json:"github_user"`
+	Branch         string                `json:"branch"`
+	Revision       string                `json:"revision"`
+	ProcessingTime string                `json:"processing_time"`
+	Started        *time.Time            `json:"started"`
+	Completed      *time.Time            `json:"completed"`
+	RefMap         map[string]string     `json:"ref_map"`
 }
 
 type V2EventStatusTreeNodeImage struct {
@@ -216,11 +222,19 @@ func v2EventStatusTreeFromTree(tree map[string]models.EventStatusTreeNode) map[s
 	return out
 }
 
+func V2RenderedStatusFromRenderedStatus(rs models.RenderedEventStatus) V2RenderedEventStatus {
+	return V2RenderedEventStatus{
+		Description:   rs.Description,
+		LinkTargetURL: rs.LinkTargetURL,
+	}
+}
+
 func V2EventStatusSummaryFromEventStatusSummary(sum *models.EventStatusSummary) *V2EventStatusSummary {
 	return &V2EventStatusSummary{
 		Config: V2EventStatusSummaryConfig{
 			Type:           statusSummaryType(sum.Config.Type),
 			Status:         statusSummaryStatus(sum.Config.Status),
+			RenderedStatus: V2RenderedStatusFromRenderedStatus(sum.Config.RenderedStatus),
 			EnvName:        sum.Config.EnvName,
 			TriggeringRepo: sum.Config.TriggeringRepo,
 			PullRequest:    sum.Config.PullRequest,

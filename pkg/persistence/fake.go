@@ -994,3 +994,14 @@ func (fdl *FakeDataLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSumma
 	out := *elog
 	return &out.Status, nil
 }
+
+func (fdl *FakeDataLayer) SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog != nil {
+		elog.Status.Config.RenderedStatus = rstatus
+	}
+	return nil
+}

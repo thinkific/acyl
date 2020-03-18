@@ -45,6 +45,13 @@
                 stroke-width: 2px;
             }
 
+            .status-icon {
+                font-family: "Font Awesome 5 Free";
+                font-weight: 900;
+                font-size: 16pt;
+                opacity: 1;
+            }
+
             .tree-tooltip {
                 position: absolute;
                 text-align: left;
@@ -119,6 +126,25 @@
             </div>
         </div>
         <div class="accordion" id="mainAccordion">
+            <div class="card">
+                <div class="card-header" id="statusHeading">
+                    <h2 class="mb-0">
+                        <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapseStatus" aria-expanded="true" aria-controls="collapseStatus">
+                            Status
+                        </button>
+                        <span id="status-icon" class="fas status-icon"></span>
+                    </h2>
+                </div>
+                <div id="collapseStatus" class="collapse show" aria-labelledby="envStatus">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg d-flex justify-content-left">
+                                <a id="rendered-status-link" href="" alt="status link"></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="card">
                 <div class="card-header" id="envTreeHeading">
                     <h2 class="mb-0">

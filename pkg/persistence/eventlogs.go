@@ -136,6 +136,18 @@ func (pg *PGLayer) SetEventStatusConfig(id uuid.UUID, processingTime time.Durati
 	return errors.Wrap(err, "error setting event status config")
 }
 
+func (pg *PGLayer) SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error {
+	j, err := json.Marshal(rstatus)
+	if err != nil {
+		return errors.Wrap(err, "error marshaling rendered event status")
+	}
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, '{config,rendered_status}', $1::jsonb)
+		  WHERE id = $2;`
+	_, err = pg.db.Exec(q, string(j), id)
+	return errors.Wrap(err, "error setting event status rendered status")
+}
+
 func (pg *PGLayer) SetEventStatusTree(id uuid.UUID, tree map[string]models.EventStatusTreeNode) error {
 	if len(tree) == 0 {
 		return errors.New("tree cannot be empty")
