@@ -360,9 +360,6 @@ function updateTree(treedata) {
 
     // Define node entry
     let nodeEnter = node.enter().append("g")
-        // .on("mouseover", function(d) { ttmouseover(d); })
-        // .on("mousemove", function(d){ ttmousemove(d); })
-        // .on("mouseout", ttmouseout)
         .on("mouseover", function(d) {
             d3.select(`#tooltip-${d.id}`)
                 .style("display", "block")

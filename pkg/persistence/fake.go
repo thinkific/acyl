@@ -805,7 +805,10 @@ func (fdl *FakeDataLayer) SetEventLogEnvName(id uuid.UUID, name string) error {
 	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
-	fdl.data.elogs[id].EnvName = name
+	elog := fdl.data.elogs[id]
+	if elog != nil {
+		fdl.data.elogs[id].EnvName = name
+	}
 	return nil
 }
 
