@@ -100,6 +100,12 @@ spec:
           - "{{ .Values.app.operation_timeout_override }}"
           {{ end }}
     {{ end }}
+          - "--ui-base-url"
+          {{ if .Values.is_dqa }}
+          - "https://{{ .Values.env_name }}-acyl.dqa.email"
+          {{ else }}
+          - "{{ .Values.app.ui_base_url }}"
+          {{ end }}
         ports:
         - containerPort: {{ .Values.service.internalPort }}
         livenessProbe:

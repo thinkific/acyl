@@ -13,6 +13,7 @@ COPY --from=0 /go/src/github.com/dollarshaveclub/acyl/testdata/integration/* /op
 COPY --from=0 /go/src/github.com/dollarshaveclub/acyl/data/words.json.gz /opt/
 COPY --from=0 /go/src/github.com/dollarshaveclub/acyl/assets/html/* /opt/html/
 COPY --from=0 /go/src/github.com/dollarshaveclub/acyl/migrations/* /opt/migrations/
+COPY --from=0 /go/src/github.com/dollarshaveclub/acyl/ui/ /opt/ui/
 
 ENV MIGRATIONS_PATH /opt/migrations
 
