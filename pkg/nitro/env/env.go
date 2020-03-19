@@ -198,7 +198,8 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 		Description: renderedCSTemplate.Description,
 		TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, eid.String()),
 	}
-	err = m.RC.SetStatus(context.Background(), rd.Repo, rd.SourceSHA, cs)
+	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx))
+	err = m.RC.SetStatus(ctx2, rd.Repo, rd.SourceSHA, cs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error setting commit status")
 	}

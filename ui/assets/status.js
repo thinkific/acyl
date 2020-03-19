@@ -22,25 +22,30 @@ function millisToMinutesAndSeconds(millis) {
 
 function updateConfig(cfg) {
     let sicon = document.getElementById("status-icon");
+    let slinkbtnclass = "";
     switch (cfg.status) {
         case "pending":
+            slinkbtnclass = "btn-outline-primary";
             sicon.style.color = "#0000ff";
             sicon.innerHTML = "\uf28b";
             break;
         case "done":
+            slinkbtnclass = "btn-outline-success";
             sicon.style.color = "#00ff00";
             sicon.innerHTML = "\uf058";
             break;
         case "failed":
+            slinkbtnclass = "btn-outline-danger";
             sicon.style.color = "#ff0000";
             sicon.innerHTML = "\uf071";
             break;
         default:
+            slinkbtnclass = "btn-outline-warning";
             sicon.style.color = "#ffffff";
             sicon.innerHTML = "";
     }
     let slink = document.getElementById("rendered-status-link");
-    slink.text = cfg.rendered_status.description;
+    slink.innerHTML = `<button class="btn ${slinkbtnclass}">${cfg.rendered_status.description}</button>`;
     slink.href = cfg.rendered_status.link_target_url;
     const repourl = `https://github.com/${cfg.triggering_repo}`;
     document.getElementById("trepo-link").text = repourl;
@@ -79,31 +84,29 @@ let tree, svg, diagonal = null;
 // createTree creates the initial D3 tree w/o any node definitions after initial page load
 function createTree() {
 
-    let margin = {top: 50, right: 0, bottom: 0, left: 100},
-        width = 600 - margin.right - margin.left,
+    let viewwidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+
+    let margin = {top: 50, right: 0, bottom: 0, left: 0},
+        width = viewwidth - margin.right - margin.left,
         height = 400 - margin.top - margin.bottom;
 
     tree = d3.layout.tree()
-        .size([height, width])
-        .separation(function(a,b) { return a.parent == b.parent ? 8 : 2 });
+        .nodeSize([4,4])
+        .separation(function(a,b) { return a.parent == b.parent ? 25 : 20 });
 
     diagonal = d3.svg.diagonal()
         .projection(function (d) {
             return [d.x, d.y];
         });
 
-    svg = d3.select("#envtree").append("svg")
-        .attr("width", width + margin.right + margin.left)
-        .attr("height", height + margin.top + margin.bottom)
-        .append("g")
-        .style("transform", "translate(12%, 12%)");
+    let h = height + margin.top + margin.bottom;
+    let w = width + margin.right + margin.left;
 
-    svg.append("text")
-        .attr("class", "env-tree-title")
-        .attr("x", width/2)
-        .attr("y", 0 - (margin.top / 2))
-        .attr("text-anchor", "middle")
-        .text("Environment Tree");
+    svg = d3.select("#envtree").append("svg")
+        .attr("width", w)
+        .attr("height", h)
+        .append("g")
+        .style("transform", "translate(50%, 12%)");
 }
 
 // stratify processes the flat object of nodes into a nested structure for D3
@@ -128,11 +131,9 @@ function updateTree(treedata) {
 
     // Normalize for fixed-depth.
     nodes.forEach(function(d) {
-        // Root node should be vertically offset to allow margin between the title text and node
+        // Root node should be vertically offset to allow margin between the container and root node
         if (d.depth == 0) {
-            //d.fixed = true;
-            //d.x = 300;
-            d.y = 50;
+            d.y = 25;
         } else {
             // fixed depth of 90 pixels per tree level
             d.y = d.depth * 90;
@@ -143,6 +144,9 @@ function updateTree(treedata) {
             .attr("id", `tooltip-${d.id}`)
             .attr("class", "tree-tooltip btn-group-vertical")
             .style("display", "none");
+
+        nttd.append("h5")
+            .attr("id", `tooltip-${d.id}-name`);
 
         nttd.append("button")
             .attr("type", "button")
@@ -211,6 +215,11 @@ function updateTree(treedata) {
     }
 
     function getNodeIconVisibility(d) {
+        if (d.data.image !== null) {
+            if (d.data.image.error) {
+                return "visible";
+            }
+        }
         switch (d.data.chart.status) {
             case "waiting":
             case "installing":
@@ -269,6 +278,11 @@ function updateTree(treedata) {
                 case "installing":
                 case "upgrading":
                     return "#ffffff";
+                case "waiting":
+                case "done":
+                    break;
+                default:
+                    console.log(`circle: got unknown chart status: ${d.data.chart.status}`);
             }
             return "gray";
         });
@@ -285,6 +299,9 @@ function updateTree(treedata) {
         .text(getNodeIconValue);
 
     let tt = d3.selectAll(".tree-tooltip").data(nodes);
+
+    tt.select("h5")
+        .html(function(d) { return d.id; });
 
     tt.select(".tt-repo-btn")
         .style("display", function(d) {
@@ -323,7 +340,8 @@ function updateTree(treedata) {
                 return `Image: Building... (${millisToMinutesAndSeconds(end - start)})`;
             }
             end = new Date(d.data.image.completed).getTime();
-            return `Image: Done (${millisToMinutesAndSeconds(end - start)})`;
+            const txt = (d.data.image.error) ? "Error" : "Done";
+            return `Image: ${txt} (${millisToMinutesAndSeconds(end - start)})`;
         });
 
     tt.select(".tt-chart-btn")
@@ -357,10 +375,10 @@ function updateTree(treedata) {
             switch (d.data.chart.status) {
                 case "waiting":
                     if (d.data.image !== null && !d.data.image.error && d.data.image.completed === null) {
-                        return "Chart: Waiting (img)";
+                        return "Chart: Waiting (image)";
                     } else {
                         if (d.children || d._children) {
-                            return "Chart: Waiting (deps)";
+                            return "Chart: Waiting (dependencies)";
                         }
                         return "Chart: Waiting";
                     }
@@ -447,7 +465,17 @@ function updateTree(treedata) {
         .attr("dy", ".35em")
         .attr("text-anchor", "middle")
         .attr("font-weight", 700)
-        .text(function(d) { return d.id; })
+        .text(function(d) {
+            // root node label should not be elided
+            if (d.depth === 0) {
+                return d.id;
+            }
+            let name = d.id;
+            if (name.length <= 10) {
+                return name;
+            }
+            return name.substring(0, 9) + "...";
+        })
         .style("fill-opacity", 1);
 
     // Declare the links

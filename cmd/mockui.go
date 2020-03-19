@@ -46,7 +46,7 @@ func mockui(cmd *cobra.Command, args []string) {
 		Logger:       logger,
 	}
 
-	if err := httpapi.RegisterVersions(deps, api.WithUIBaseURL(apiBaseURL), api.WithUIAssetsPath(assetsPath), api.WithUIRoutePrefix(routePrefix)); err != nil {
+	if err := httpapi.RegisterVersions(deps, api.WithUIBaseURL(apiBaseURL), api.WithUIAssetsPath(assetsPath), api.WithUIRoutePrefix(routePrefix), api.WithUIReload()); err != nil {
 		log.Fatalf("error registering api versions: %v", err)
 	}
 

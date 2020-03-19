@@ -99,6 +99,7 @@ type Manager interface {
 }
 
 type uiRegisterOptions struct {
+	reload      bool
 	apiBaseURL  string
 	assetsPath  string
 	routePrefix string
@@ -164,6 +165,12 @@ func WithUIRoutePrefix(routePrefix string) RegisterOption {
 	}
 }
 
+func WithUIReload() RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.reload = true
+	}
+}
+
 // Dispatcher is the concrete implementation of Manager
 type Dispatcher struct {
 	s          *http.Server
@@ -223,7 +230,7 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	d.waitgroups = append(d.waitgroups, &apiv2.wg)
 
 	// The UI API does not participate in the wait group
-	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL, ropts.uiOptions.assetsPath, ropts.uiOptions.routePrefix, deps.DataLayer, deps.Logger)
+	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL, ropts.uiOptions.assetsPath, ropts.uiOptions.routePrefix, ropts.uiOptions.reload, deps.DataLayer, deps.Logger)
 	if err != nil {
 		return fmt.Errorf("error creating UI api: %v", err)
 	}

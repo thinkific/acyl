@@ -65,6 +65,12 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 				Status: models.WaitingChartStatus,
 			},
 		},
+		"memcache": models.EventStatusTreeNode{
+			Parent: "foo-bar",
+			Chart: models.EventStatusTreeNodeChart{
+				Status: models.WaitingChartStatus,
+			},
+		},
 		"foo-somethingelse": models.EventStatusTreeNode{
 			Parent: "foo-bar",
 			Image: models.EventStatusTreeNodeImage{
@@ -97,6 +103,24 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 				Status: models.WaitingChartStatus,
 			},
 		},
+		"foo-dependency-some-long-name-asdf12345": models.EventStatusTreeNode{
+			Parent: "foo-dependency",
+			Chart: models.EventStatusTreeNodeChart{
+				Status: models.WaitingChartStatus,
+			},
+		},
+		"foo-dependency-some-long-name-asdf12345-asdf": models.EventStatusTreeNode{
+			Parent: "foo-dependency",
+			Chart: models.EventStatusTreeNodeChart{
+				Status: models.WaitingChartStatus,
+			},
+		},
+		"foo-dependency-some-long-name-asdf12345-2": models.EventStatusTreeNode{
+			Parent: "foo-dependency",
+			Chart: models.EventStatusTreeNodeChart{
+				Status: models.WaitingChartStatus,
+			},
+		},
 	}
 	fdl.data.Unlock()
 
@@ -104,28 +128,24 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 	time.Sleep(randomDuration(500, 5000))
 	fdl.data.Lock()
 	fdl.data.elogs[id].Log = append(fdl.data.elogs[id].Log, randomLogLines(10)...)
-	c := fdl.data.elogs[id].Status.Tree["foo-dependency-redis"]
-	c.Chart.Status = models.InstallingChartStatus
-	c.Chart.Started = time.Now().UTC()
-	fdl.data.elogs[id].Status.Tree["foo-dependency-redis"] = c
-	c = fdl.data.elogs[id].Status.Tree["foo-dependency-postgres"]
-	c.Chart.Status = models.InstallingChartStatus
-	c.Chart.Started = time.Now().UTC()
-	fdl.data.elogs[id].Status.Tree["foo-dependency-postgres"] = c
+	for _, n := range []string{"foo-dependency-postgres", "foo-dependency-redis", "foo-dependency-some-long-name-asdf12345", "foo-dependency-some-long-name-asdf12345-asdf", "foo-dependency-some-long-name-asdf12345-2"} {
+		c := fdl.data.elogs[id].Status.Tree[n]
+		c.Chart.Status = models.InstallingChartStatus
+		c.Chart.Started = time.Now().UTC()
+		fdl.data.elogs[id].Status.Tree[n] = c
+	}
 	fdl.data.Unlock()
 
 	// complete leaf dependencies
 	time.Sleep(randomDuration(0, 3000))
 	fdl.data.Lock()
 	fdl.data.elogs[id].Log = append(fdl.data.elogs[id].Log, randomLogLines(10)...)
-	c = fdl.data.elogs[id].Status.Tree["foo-dependency-redis"]
-	c.Chart.Status = models.DoneChartStatus
-	c.Chart.Completed = time.Now().UTC()
-	fdl.data.elogs[id].Status.Tree["foo-dependency-redis"] = c
-	c = fdl.data.elogs[id].Status.Tree["foo-dependency-postgres"]
-	c.Chart.Status = models.DoneChartStatus
-	c.Chart.Completed = time.Now().UTC()
-	fdl.data.elogs[id].Status.Tree["foo-dependency-postgres"] = c
+	for _, n := range []string{"foo-dependency-postgres", "foo-dependency-redis", "foo-dependency-some-long-name-asdf12345", "foo-dependency-some-long-name-asdf12345-asdf", "foo-dependency-some-long-name-asdf12345-2"} {
+		c := fdl.data.elogs[id].Status.Tree[n]
+		c.Chart.Status = models.DoneChartStatus
+		c.Chart.Completed = time.Now().UTC()
+		fdl.data.elogs[id].Status.Tree[n] = c
+	}
 	fdl.data.Unlock()
 
 	// finish foo-dependency image build & start installing
@@ -163,6 +183,18 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 	fdl.data.elogs[id].Status.Tree["foo-bar"] = i
 	fdl.data.Unlock()
 
+	// start memcache install
+	time.Sleep(randomDuration(0, 5000))
+	fdl.data.Lock()
+	fdl.data.elogs[id].Log = append(fdl.data.elogs[id].Log, randomLogLines(10)...)
+	i = fdl.data.elogs[id].Status.Tree["memcache"]
+	i.Image.Completed = time.Now().UTC()
+	i.Image.Error = false
+	i.Chart.Status = models.InstallingChartStatus
+	i.Chart.Started = time.Now().UTC()
+	fdl.data.elogs[id].Status.Tree["memcache"] = i
+	fdl.data.Unlock()
+
 	// complete foo-dependency install
 	time.Sleep(randomDuration(0, 4000))
 	fdl.data.Lock()
@@ -181,6 +213,16 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 	i.Chart.Status = models.DoneChartStatus
 	i.Chart.Completed = time.Now().UTC()
 	fdl.data.elogs[id].Status.Tree["foo-somethingelse"] = i
+	fdl.data.Unlock()
+
+	// complete memcache install
+	time.Sleep(randomDuration(0, 4000))
+	fdl.data.Lock()
+	fdl.data.elogs[id].Log = append(fdl.data.elogs[id].Log, randomLogLines(10)...)
+	i = fdl.data.elogs[id].Status.Tree["memcache"]
+	i.Chart.Status = models.DoneChartStatus
+	i.Chart.Completed = time.Now().UTC()
+	fdl.data.elogs[id].Status.Tree["memcache"] = i
 	fdl.data.Unlock()
 
 	// start foo-bar install

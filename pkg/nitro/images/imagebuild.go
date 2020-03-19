@@ -116,7 +116,7 @@ func (b *ImageBuilder) StartBuilds(ctx context.Context, envname string, rc *mode
 		err := b.Backend.BuildImage(ctx, envname, repo, image, ref, BuildOptions{DockerfilePath: dockerfilepath})
 		end(fmt.Sprintf("success:%v", err == nil))
 
-		eventlogger.GetLogger(ctx).SetImageCompleted(name, err == nil)
+		eventlogger.GetLogger(ctx).SetImageCompleted(name, err != nil)
 
 		batch.outcomes.Lock()
 		batch.outcomes.completed[buildid(envname, name)] = nitroerrors.UserError(err)

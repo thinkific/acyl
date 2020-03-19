@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"sync"
 	"text/template"
 
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
@@ -21,14 +22,16 @@ type uiapi struct {
 	apiBaseURL  string
 	assetsPath  string
 	routePrefix string
+	reload      bool
 	views       map[string]*template.Template
+	viewmtx     sync.RWMutex
 }
 
 var viewPaths = map[string]string{
 	"status": path.Join("views", "status.html"),
 }
 
-func newUIAPI(baseURL, assetsPath, routePrefix string, dl persistence.DataLayer, logger *log.Logger) (*uiapi, error) {
+func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, dl persistence.DataLayer, logger *log.Logger) (*uiapi, error) {
 	if baseURL == "" || assetsPath == "" || routePrefix == "" ||
 		dl == nil {
 		return nil, errors.New("all deps required")
@@ -41,21 +44,35 @@ func newUIAPI(baseURL, assetsPath, routePrefix string, dl persistence.DataLayer,
 		assetsPath:  assetsPath,
 		routePrefix: routePrefix,
 		dl:          dl,
+		reload:      reload,
 		views:       make(map[string]*template.Template, len(viewPaths)),
 	}
-	for k, v := range viewPaths {
-		p := path.Join(api.assetsPath, v)
-		d, err := ioutil.ReadFile(p)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error reading asset: %v", p)
+	for k := range viewPaths {
+		if err := api.loadTemplate(k); err != nil {
+			return nil, errors.Wrap(err, "error reading view template")
 		}
-		tmpl, err := template.New(k).Parse(string(d))
-		if err != nil {
-			return nil, errors.Wrapf(err, "error parsing asset template: %v", p)
-		}
-		api.views[k] = tmpl
 	}
 	return api, nil
+}
+
+func (api *uiapi) loadTemplate(name string) error {
+	v := viewPaths[name]
+	if v == "" {
+		return fmt.Errorf("view not found: %v", name)
+	}
+	p := path.Join(api.assetsPath, v)
+	d, err := ioutil.ReadFile(p)
+	if err != nil {
+		return errors.Wrapf(err, "error reading asset: %v", p)
+	}
+	tmpl, err := template.New(name).Parse(string(d))
+	if err != nil {
+		return errors.Wrapf(err, "error parsing asset template: %v", p)
+	}
+	api.viewmtx.Lock()
+	api.views[name] = tmpl
+	api.viewmtx.Unlock()
+	return nil
 }
 
 func (api *uiapi) register(r *muxtrace.Router) error {
@@ -95,6 +112,7 @@ func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if elog == nil {
+		api.logger.Printf("error serving status page: event log not found: %v", id)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -106,6 +124,15 @@ func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
 		LogKey:     elog.LogKey.String(),
 	}
 	w.Header().Add("Content-Type", "text/html")
+	if api.reload {
+		if err := api.loadTemplate("status"); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			api.logger.Printf("error serving ui template: %v", err)
+			return
+		}
+	}
+	api.viewmtx.RLock()
+	defer api.viewmtx.RUnlock()
 	if err := api.views["status"].Execute(w, &tmpldata); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		api.logger.Printf("error serving ui template: status: %v", err)

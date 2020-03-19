@@ -115,6 +115,8 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&datadogServiceName, "datadog-service-name", "acyl", "Default service name to be used for Datadog APM")
 	serverCmd.PersistentFlags().DurationVar(&serverConfig.OperationTimeoutOverride, "operation-timeout-override", 0, "Override for operation timeout (ex: 10m)")
 	serverCmd.PersistentFlags().StringVar(&serverConfig.UIBaseURL, "ui-base-url", "", "External base URL (https://somedomain.com) for UI links")
+	serverCmd.PersistentFlags().StringVar(&serverConfig.UIPath, "ui-path", "/opt/ui", "Local filesystem path to UI assets")
+	serverCmd.PersistentFlags().StringVar(&serverConfig.UIBaseRoute, "ui-base-route", "ui/", "Base prefix for UI HTTP routes")
 	RootCmd.AddCommand(serverCmd)
 }
 
@@ -324,7 +326,7 @@ func server(cmd *cobra.Command, args []string) {
 		Logger:             logger,
 		DatadogServiceName: apiServiceName,
 	}
-	regops := []api.RegisterOption{api.WithAPIKeys(serverConfig.APIKeys)}
+	regops := []api.RegisterOption{api.WithAPIKeys(serverConfig.APIKeys), api.WithUIBaseURL(serverConfig.UIBaseURL), api.WithUIAssetsPath(serverConfig.UIPath), api.WithUIRoutePrefix(serverConfig.UIBaseRoute)}
 	if serverConfig.DebugEndpoints {
 		regops = append(regops, api.WithDebugEndpoints(), api.WithIPWhitelist(serverConfig.DebugEndpointsIPWhitelists))
 	}

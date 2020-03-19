@@ -23,11 +23,6 @@
 
             /* These classes are used by D3 */
 
-            .env-tree-title {
-                font: 20px sans-serif;
-                font-weight: bold;
-            }
-
             .node circle {
                 fill: gray;
                 stroke: black;
@@ -139,7 +134,7 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-lg d-flex justify-content-left">
-                                <a id="rendered-status-link" href="" alt="status link"></a>
+                                <a target="_blank" id="rendered-status-link" href="" alt="status link"></a>
                             </div>
                         </div>
                     </div>
@@ -156,9 +151,7 @@
                 <div id="collapseEnvTree" class="collapse show" aria-labelledby="envTreeHeading">
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-lg d-flex justify-content-center overflow-auto border">
-                                <div id="envtree"></div>
-                            </div>
+                            <div class="col-lg d-flex justify-content-center overflow-auto border" id="envtree"></div>
                         </div>
                     </div>
                 </div>

@@ -401,8 +401,13 @@ func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, name
 	}
 	var builderr error
 	imageReady := func(c metahelm.Chart) metahelm.InstallCallbackAction {
+		status := models.InstallingChartStatus
+		if upgrade {
+			status = models.UpgradingChartStatus
+		}
 		if !b.Started(env.Env.Name, c.Title) { // if it hasn't been started, we aren't doing an image build so there's no need to wait
 			ci.log(ctx, "metahelm: %v: not waiting on build for chart install/upgrade; continuing", c.Title)
+			eventlogger.GetLogger(ctx).SetChartStarted(c.Title, status)
 			return metahelm.Continue
 		}
 		done, err := b.Completed(env.Env.Name, c.Title)
@@ -413,10 +418,6 @@ func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, name
 		}
 		if done {
 			ci.dl.AddEvent(ctx, env.Env.Name, "image build complete; "+actingStr+"ing chart for "+c.Title)
-			status := models.InstallingChartStatus
-			if upgrade {
-				status = models.UpgradingChartStatus
-			}
 			eventlogger.GetLogger(ctx).SetChartStarted(c.Title, status)
 			return metahelm.Continue
 		}

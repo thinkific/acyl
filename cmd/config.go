@@ -15,6 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/dollarshaveclub/acyl/pkg/persistence"
+
 	"k8s.io/helm/pkg/lint"
 	"k8s.io/helm/pkg/lint/support"
 
@@ -126,7 +130,7 @@ func init() {
 	RootCmd.AddCommand(configCmd)
 }
 
-func generateLocalMetaGetter() (*meta.DataGetter, ghclient.LocalRepoInfo, string, context.Context) {
+func generateLocalMetaGetter(dl persistence.DataLayer, scb ghclient.StatusCallback) (*meta.DataGetter, ghclient.LocalRepoInfo, string, context.Context) {
 	var lf func(string, ...interface{})
 	var elsink io.Writer
 	logw, stdlogw := ioutil.Discard, ioutil.Discard
@@ -141,7 +145,6 @@ func generateLocalMetaGetter() (*meta.DataGetter, ghclient.LocalRepoInfo, string
 		log.Fatalf("GITHUB_TOKEN is empty: make sure you have that environment variable set with a valid token")
 	}
 	logger = log.New(logw, "", log.LstdFlags)
-	ctx := eventlogger.NewEventLoggerContext(context.Background(), &eventlogger.Logger{ExcludeID: true, Sink: elsink})
 	f := ghclient.RepoFinder{
 		GitHubHostname: githubHostname,
 		FSFunc:         func(path string) afero.Fs { return afero.NewOsFs() },
@@ -162,14 +165,20 @@ func generateLocalMetaGetter() (*meta.DataGetter, ghclient.LocalRepoInfo, string
 	if err != nil {
 		log.Fatalf("error getting repo info for current directory: %v", err)
 	}
+	el := &eventlogger.Logger{ExcludeID: true, ID: uuid.Must(uuid.NewRandom()), Sink: elsink, DL: dl}
+	if err := el.Init([]byte{}, ri.GitHubRepoName, testEnvCfg.pullRequest); err != nil {
+		log.Fatalf("error initializing event: %v", err)
+	}
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
 	if triggeringRepoUsesWorkingTree {
 		workingTreeRepos = append(workingTreeRepos, ri.GitHubRepoName)
 	}
 	lw := &ghclient.LocalWrapper{
-		WorkingTreeRepos: workingTreeRepos,
-		Backend:          ghclient.NewGitHubClient(os.Getenv("GITHUB_TOKEN")),
-		FSFunc:           func(path string) billy.Filesystem { return osfs.New(path) },
-		RepoPathMap:      repos,
+		WorkingTreeRepos:  workingTreeRepos,
+		Backend:           ghclient.NewGitHubClient(os.Getenv("GITHUB_TOKEN")),
+		FSFunc:            func(path string) billy.Filesystem { return osfs.New(path) },
+		RepoPathMap:       repos,
+		SetStatusCallback: scb,
 	}
 	// override refs (and therefore docker image tags) for local repos so we don't use the HEAD commit SHA
 	// for working tree changes
@@ -205,7 +214,7 @@ func configCheck(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 	}()
-	mg, ri, wd, ctx := generateLocalMetaGetter()
+	mg, ri, wd, ctx := generateLocalMetaGetter(persistence.NewFakeDataLayer(), nil)
 	rrd := models.RepoRevisionData{
 		PullRequest:  999,
 		Repo:         ri.GitHubRepoName,
@@ -251,7 +260,7 @@ func configCheck(cmd *cobra.Command, args []string) {
 }
 
 func configInfo(cmd *cobra.Command, args []string) {
-	mg, ri, wd, ctx := generateLocalMetaGetter()
+	mg, ri, wd, ctx := generateLocalMetaGetter(persistence.NewFakeDataLayer(), nil)
 	rrd := models.RepoRevisionData{
 		PullRequest:  999,
 		Repo:         ri.GitHubRepoName,
@@ -813,10 +822,21 @@ func renderTree(root *tview.TreeNode, rc *models.RepoConfig) {
 		return d.Name
 	}
 
+	reqtargetmap := map[string]string{}
+	for _, d := range rc.Dependencies.All() {
+		for _, r := range d.Requires {
+			reqtargetmap[r] = d.Name
+		}
+	}
+
 	if len(rc.Dependencies.Direct) > 0 {
 		ddeps := tview.NewTreeNode("[white::b]Direct Dependencies").SetSelectable(false)
 		for _, d := range rc.Dependencies.Direct {
-			if d.Parent == "" {
+			parent := d.Parent
+			if r, ok := reqtargetmap[d.Name]; ok {
+				parent = r
+			}
+			if parent == "" {
 				dn := tview.NewTreeNode(nodename(d)).SetSelectable(true).SetReference(d)
 				ddeps.AddChild(dn)
 				depmap[d.Name] = dn
@@ -827,7 +847,11 @@ func renderTree(root *tview.TreeNode, rc *models.RepoConfig) {
 	if len(rc.Dependencies.Environment) > 0 {
 		edeps := tview.NewTreeNode("[white::b]Environment Dependencies").SetSelectable(false)
 		for _, d := range rc.Dependencies.Environment {
-			if d.Parent == "" {
+			parent := d.Parent
+			if r, ok := reqtargetmap[d.Name]; ok {
+				parent = r
+			}
+			if parent == "" {
 				dn := tview.NewTreeNode(nodename(d)).SetSelectable(true).SetReference(d)
 				edeps.AddChild(dn)
 				depmap[d.Name] = dn
@@ -840,8 +864,12 @@ func renderTree(root *tview.TreeNode, rc *models.RepoConfig) {
 			return
 		}
 		for _, d := range rc.Dependencies.All() {
-			if d.Parent != "" {
-				if n, ok := depmap[d.Parent]; ok {
+			parent := d.Parent
+			if r, ok := reqtargetmap[d.Name]; ok {
+				parent = r
+			}
+			if parent != "" {
+				if n, ok := depmap[parent]; ok {
 					dn := tview.NewTreeNode(nodename(d)).SetSelectable(true).SetReference(d)
 					n.AddChild(dn)
 					depmap[d.Name] = dn

@@ -53,9 +53,22 @@ func (l *Logger) SetInitialStatus(rc *models.RepoConfig, processingTime time.Dur
 			Name: rc.Application.Image,
 		},
 	}
+	reqmap := map[string]string{}
 	for _, dep := range rc.Dependencies.All() {
+		for _, r := range dep.Requires {
+			reqmap[r] = dep.Name
+		}
+	}
+	for _, dep := range rc.Dependencies.All() {
+		p := dep.Parent
+		if r, ok := reqmap[dep.Name]; ok {
+			p = r
+		}
+		if p == "" {
+			p = models.GetName(rc.Application.Repo)
+		}
 		node := models.EventStatusTreeNode{
-			Parent: dep.Parent,
+			Parent: p,
 			Chart: models.EventStatusTreeNodeChart{
 				Status: models.WaitingChartStatus,
 			},

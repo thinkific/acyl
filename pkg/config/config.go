@@ -30,6 +30,8 @@ type ServerConfig struct {
 	NotificationsDefaultsJSON  string
 	OperationTimeoutOverride   time.Duration
 	UIBaseURL                  string
+	UIPath                     string
+	UIBaseRoute                string
 }
 
 type PGConfig struct {
