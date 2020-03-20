@@ -16,6 +16,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/locker"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/namegen"
+	ncontext "github.com/dollarshaveclub/acyl/pkg/nitro/context"
 	nitroerrors "github.com/dollarshaveclub/acyl/pkg/nitro/errors"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/meta"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/metahelm"
@@ -449,6 +450,8 @@ func (m *Manager) enforceTimeout(ctx context.Context, cf context.CancelFunc, new
 		m.pushNotification(ctx, newenv, notifier.Failure, fmt.Sprintf("timeout reached (%v), aborting", to))
 		m.log(ctx, "timed out (%v), cancelling context and aborting", to)
 		cf()
+		// cancel root context and all child contexts
+		ncontext.GetCancelFunc(ctx)()
 	case <-ctx.Done():
 	}
 }
