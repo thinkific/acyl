@@ -116,7 +116,7 @@ func init() {
 	serverCmd.PersistentFlags().DurationVar(&serverConfig.OperationTimeoutOverride, "operation-timeout-override", 0, "Override for operation timeout (ex: 10m)")
 	serverCmd.PersistentFlags().StringVar(&serverConfig.UIBaseURL, "ui-base-url", "", "External base URL (https://somedomain.com) for UI links")
 	serverCmd.PersistentFlags().StringVar(&serverConfig.UIPath, "ui-path", "/opt/ui", "Local filesystem path to UI assets")
-	serverCmd.PersistentFlags().StringVar(&serverConfig.UIBaseRoute, "ui-base-route", "ui/", "Base prefix for UI HTTP routes")
+	serverCmd.PersistentFlags().StringVar(&serverConfig.UIBaseRoute, "ui-base-route", "/ui", "Base prefix for UI HTTP routes")
 	RootCmd.AddCommand(serverCmd)
 }
 
