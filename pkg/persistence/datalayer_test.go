@@ -1239,6 +1239,25 @@ func TestDataLayerSetEventStatusConfig(t *testing.T) {
 	}
 }
 
+func TestDataLayerSetEventStatusConfigK8sNS(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusConfigK8sNS(id, "nitro-93938-some-name"); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if s.Config.K8sNamespace != "nitro-93938-some-name" {
+		t.Fatalf("unexpected k8s ns: %v", s.Config.K8sNamespace)
+	}
+}
+
 func TestDataLayerSetEventStatusTree(t *testing.T) {
 	dl, tdl := NewTestDataLayer(t)
 	if err := tdl.Setup(testDataPath); err != nil {

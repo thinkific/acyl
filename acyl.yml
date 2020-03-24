@@ -11,14 +11,14 @@ application:
   value_overrides:
     - "app.furan_addr=furan:4001"
 # local:
-#   - "app.dogstatsd_addr=1.2.3.4:8125"
-#   - "app.secrets_backend=env"
-#   - "app.secrets_mapping=ACYL_{{ .ID }}"
-#   - "app.secrets_from_env=true"
-#   - "app.k8s_secret_injections="
-#   - "ingress.traefik.enabled=false"
-#   - "app.operation_timeout_override=10m"
-#   - "app.k8s_secret_injections=image-pull-secret=k8s/image_pull_secret"
+#    - "app.dogstatsd_addr=1.2.3.4:8125"
+#    - "app.secrets_backend=env"
+#    - "app.secrets_mapping=ACYL_{{ .ID }}"
+#    - "app.secrets_from_env=true"
+#    - "app.k8s_secret_injections="
+#    - "ingress.traefik.enabled=false"
+#    - "app.operation_timeout_override=10m"
+#    - "app.k8s_secret_injections=image-pull-secret=k8s/image_pull_secret"
 
 dependencies:
   direct:

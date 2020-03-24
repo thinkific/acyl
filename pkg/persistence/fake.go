@@ -877,6 +877,18 @@ func (fdl *FakeDataLayer) SetEventStatusConfig(id uuid.UUID, processingTime time
 	return nil
 }
 
+func (fdl *FakeDataLayer) SetEventStatusConfigK8sNS(id uuid.UUID, ns string) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Config.K8sNamespace = ns
+	return nil
+}
+
 func (fdl *FakeDataLayer) SetEventStatusTree(id uuid.UUID, tree map[string]models.EventStatusTreeNode) error {
 	fdl.doDelay()
 	fdl.data.Lock()

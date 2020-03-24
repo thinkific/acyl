@@ -83,6 +83,12 @@ func (l *Logger) SetInitialStatus(rc *models.RepoConfig, processingTime time.Dur
 	}
 }
 
+func (l *Logger) SetK8sNamespace(ns string) {
+	if err := l.DL.SetEventStatusConfigK8sNS(l.ID, ns); err != nil {
+		l.Printf("error setting config k8s namespace: %v: %v", ns, err)
+	}
+}
+
 // SetImageStarted marks the image build for the named dependency to started (name is assumed to exist)
 func (l *Logger) SetImageStarted(name string) {
 	if err := l.DL.SetEventStatusImageStarted(l.ID, name); err != nil {

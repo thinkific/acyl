@@ -179,10 +179,6 @@
                                         <td id="event-status"></td>
                                     </tr>
                                     <tr>
-                                        <th scope="row">Triggering Repository</th>
-                                        <td><a id="trepo-link" href=""></a></td>
-                                    </tr>
-                                    <tr>
                                         <th scope="row">Pull Request</th>
                                         <td><a id="trepo-pr-link" href=""></a></td>
                                     </tr>
@@ -203,20 +199,32 @@
                                         <td id="env-name"></td>
                                     </tr>
                                     <tr>
+                                        <th scope="row">Kubernetes Namespace</th>
+                                        <td id="k8s-ns"></td>
+                                    </tr>
+                                    <tr>
                                         <th scope="row">Config Processing Duration</th>
                                         <td id="config-processing-duration"></td>
                                     </tr>
                                     <tr>
-                                        <th scope="row">Started</th>
+                                        <th scope="row">Event Started</th>
                                         <td id="event-started-time"></td>
                                     </tr>
                                     <tr>
-                                        <th scope="row">Completed</th>
+                                        <th scope="row">Event Completed</th>
                                         <td id="event-completed-time"></td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Elapsed</th>
                                         <td id="event-elapsed"></td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                                <table id="refmap-table" class="table table-sm table-striped table-dark table-hover">
+                                    <tbody>
+                                    <tr id="refmap-table-header">
+                                        <th scope="col">Repo</th>
+                                        <th scope="col">Ref</th>
                                     </tr>
                                     </tbody>
                                 </table>

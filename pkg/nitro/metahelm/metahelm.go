@@ -395,6 +395,7 @@ func (ci ChartInstaller) BuildAndInstallCharts(ctx context.Context, newenv *EnvI
 }
 
 func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, namespace string, csl []metahelm.Chart, env *EnvInfo, b images.Batch, upgrade bool) error {
+	eventlogger.GetLogger(ctx).SetK8sNamespace(namespace)
 	actStr, actingStr := "install", "install"
 	if upgrade {
 		actStr, actingStr = "upgrade", "upgrad"

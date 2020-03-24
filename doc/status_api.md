@@ -19,6 +19,8 @@ No auth needed.
         },
 		// Environment name that is being created/updated/destroyed
 		"env_name": "elegant-passenger",
+        // Kubernetes namespace, if available (empty string otherwise)
+        "k8s_ns": "nitro-20394-elegant-passenger",
 		// Pull Request associated with this event
 		"repo": "foo/bar",
 		"pr": 99,

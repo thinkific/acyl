@@ -119,6 +119,30 @@ func TestSetInitialStatus(t *testing.T) {
 	}
 }
 
+func TestSetSetK8sNamespace(t *testing.T) {
+	dl := persistence.NewFakeDataLayer()
+	id, _ := uuid.NewRandom()
+	elog := Logger{DL: dl, ID: id, Sink: os.Stderr}
+	elog.Init([]byte{}, "foo/bar", 99)
+
+	rrd := models.RepoRevisionData{Repo: "foo/bar", PullRequest: 12, User: "john.doe", SourceBranch: "feature-foo", SourceSHA: "asdf"}
+	elog.SetNewStatus(models.CreateEvent, "some-name", rrd)
+
+	elog.SetInitialStatus(&testRC, 10*time.Millisecond)
+
+	ns := "nitro-38393-some-name"
+	elog.SetK8sNamespace(ns)
+
+	el2, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("error getting event status: %v", err)
+	}
+
+	if el2.Config.K8sNamespace != ns {
+		t.Fatalf("bad k8s ns: %v", el2.Config.K8sNamespace)
+	}
+}
+
 func TestSetImageStarted(t *testing.T) {
 	dl := persistence.NewFakeDataLayer()
 	id, _ := uuid.NewRandom()

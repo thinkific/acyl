@@ -136,6 +136,14 @@ func (pg *PGLayer) SetEventStatusConfig(id uuid.UUID, processingTime time.Durati
 	return errors.Wrap(err, "error setting event status config")
 }
 
+func (pg *PGLayer) SetEventStatusConfigK8sNS(id uuid.UUID, ns string) error {
+	q := `UPDATE event_logs SET
+			status = jsonb_set(status, '{config}', status->'config' || json_build_object('k8s_ns', $1::text)::jsonb)
+		  WHERE id = $2;`
+	_, err := pg.db.Exec(q, ns, id)
+	return errors.Wrap(err, "error setting event status config k8s namespace")
+}
+
 func (pg *PGLayer) SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error {
 	j, err := json.Marshal(rstatus)
 	if err != nil {

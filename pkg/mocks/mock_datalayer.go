@@ -647,6 +647,20 @@ func (mr *MockDataLayerMockRecorder) SetEventStatusConfig(arg0, arg1, arg2 inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusConfig", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusConfig), arg0, arg1, arg2)
 }
 
+// SetEventStatusConfigK8sNS mocks base method
+func (m *MockDataLayer) SetEventStatusConfigK8sNS(arg0 uuid.UUID, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEventStatusConfigK8sNS", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetEventStatusConfigK8sNS indicates an expected call of SetEventStatusConfigK8sNS
+func (mr *MockDataLayerMockRecorder) SetEventStatusConfigK8sNS(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventStatusConfigK8sNS", reflect.TypeOf((*MockDataLayer)(nil).SetEventStatusConfigK8sNS), arg0, arg1)
+}
+
 // SetEventStatusImageCompleted mocks base method
 func (m *MockDataLayer) SetEventStatusImageCompleted(arg0 uuid.UUID, arg1 string, arg2 bool) error {
 	m.ctrl.T.Helper()

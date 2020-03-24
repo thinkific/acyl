@@ -36,7 +36,7 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 	cfgd := randomDuration(50, 200)
 	time.Sleep(cfgd)
 
-	ng, _ := namegen.NewWordnetNameGenerator("../../data/words.json.gz", log.New(os.Stderr, "", log.LstdFlags))
+	ng, _ := namegen.NewWordnetNameGenerator("data/words.json.gz", log.New(os.Stderr, "", log.LstdFlags))
 	name := "foonly-receptacle"
 	if ng != nil {
 		rn, err := ng.New()
@@ -52,8 +52,13 @@ func (fdl *FakeDataLayer) updateEvent(id uuid.UUID) {
 		LinkTargetURL: "https://media.giphy.com/media/oiymhxu13VYEo/giphy.gif",
 	}
 	fdl.data.elogs[id].Status.Config.EnvName = name
+	fdl.data.elogs[id].Status.Config.K8sNamespace = "nitro-84930-" + name
 	fdl.data.elogs[id].Status.Config.ProcessingTime = models.ConfigProcessingDuration{Duration: cfgd}
-	fdl.data.elogs[id].Status.Config.RefMap = map[string]string{"foo/somethingelse": "master", "foo/dependency": "feature-foo"}
+	fdl.data.elogs[id].Status.Config.RefMap = map[string]string{
+		"foo/bar":           "asdf1234",
+		"foo/somethingelse": "master",
+		"foo/dependency":    "feature-foo",
+	}
 	fdl.data.elogs[id].Status.Tree = map[string]models.EventStatusTreeNode{
 		"foo-bar": models.EventStatusTreeNode{
 			Parent: "",

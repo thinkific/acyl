@@ -20,6 +20,46 @@ function millisToMinutesAndSeconds(millis) {
     return (seconds == 60 ? (minutes+1) + ":00" : minutes + ":" + (seconds < 10 ? "0" : "") + seconds);
 }
 
+function updateRefmap(refmap) {
+    let header = document.getElementById("refmap-table-header");
+    for (const [repo, ref] of Object.entries(refmap)) {
+        if (document.getElementById(`refmap-table-row-${repo}`) === null) {
+            let repolink = `https://github.com/${repo}`;
+            let reflink = `https://github.com/${repo}/tree/${ref}`;
+            let tr = document.createElement("tr");
+            tr.id = `refmap-table-row-${repo}`;
+            let tdrepo = document.createElement("td");
+            tdrepo.innerHTML = `<a href="${repolink}">${repo}</a>`;
+            let tdref = document.createElement("td");
+            tdref.innerHTML = `<a href="${reflink}">${ref}</a>`;
+            tr.appendChild(tdrepo);
+            tr.appendChild(tdref);
+            header.parentNode.insertBefore(tr, header.nextSibling);
+        }
+    }
+}
+
+function updateNSCopyBtn(k8s_ns) {
+    if (k8s_ns === "") {
+        document.getElementById("k8s-ns").innerHTML = "n/a";
+        return;
+    }
+    if (document.getElementById("ns-copy-btn") === null) {
+        const copybtn = `<button id="ns-copy-btn" class="btn btn-sm btn-light p-1" data-toggle="tooltip" title="Copied!" data-trigger="click"><img height="12" width="12" src="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/svg/clippy.svg" alt="Copy to clipboard"></button>`;
+        document.getElementById("k8s-ns").innerHTML = `${k8s_ns} ${copybtn}`;
+        // have to use JQuery to manage the copy button tooltip
+        $("#ns-copy-btn").tooltip();
+        // copy namespace to clipboard button
+        document.getElementById("ns-copy-btn").onclick = function(event) {
+            event.preventDefault();
+            navigator.clipboard.writeText(k8s_ns);
+        };
+        $("#ns-copy-btn").on('shown.bs.tooltip', function() {
+            setTimeout(function() { $("#ns-copy-btn").tooltip('hide'); }, 500);
+        });
+    }
+}
+
 function updateConfig(cfg) {
     let sicon = document.getElementById("status-icon");
     let slinkbtnclass = "";
@@ -47,23 +87,19 @@ function updateConfig(cfg) {
     let slink = document.getElementById("rendered-status-link");
     slink.innerHTML = `<button class="btn ${slinkbtnclass}">${cfg.rendered_status.description}</button>`;
     slink.href = cfg.rendered_status.link_target_url;
-    const repourl = `https://github.com/${cfg.triggering_repo}`;
-    document.getElementById("trepo-link").text = repourl;
-    document.getElementById("trepo-link").href = repourl;
     const prurl = `https://github.com/${cfg.triggering_repo}/pull/${cfg.pull_request}`;
     document.getElementById("trepo-pr-link").text = prurl;
     document.getElementById("trepo-pr-link").href = prurl;
     const userurl = `https://github.com/${cfg.github_user}`;
     document.getElementById("trepo-user-link").text = userurl;
     document.getElementById("trepo-user-link").href = userurl;
-
     document.getElementById("env-name").innerHTML = `<b>${cfg.env_name}</b>`;
-
+    updateNSCopyBtn(cfg.k8s_ns);
     document.getElementById("trepo-branch").innerHTML = cfg.branch;
-    document.getElementById("trepo-revision").innerHTML = cfg.revision;
+    const revlink = `https://github.com/${cfg.triggering_repo}/commit/${cfg.revision}`;
+    document.getElementById("trepo-revision").innerHTML = `<a href="${revlink}">${cfg.revision}</a>`;
     document.getElementById("event-type").innerHTML = cfg.type;
     document.getElementById("event-status").innerHTML = cfg.status;
-
     document.getElementById("config-processing-duration").innerHTML = cfg.processing_time;
     document.getElementById("event-started-time").innerHTML = cfg.started;
 
@@ -77,6 +113,7 @@ function updateConfig(cfg) {
     }
 
     document.getElementById("event-elapsed").innerHTML = millisToMinutesAndSeconds(end - start);
+    updateRefmap(cfg.ref_map);
 }
 
 let tree, svg, diagonal = null;
@@ -138,38 +175,40 @@ function updateTree(treedata) {
             // fixed depth of 90 pixels per tree level
             d.y = d.depth * 90;
         }
-        let nttd = d3.select("body").append("div")
-            .attr("class", "container")
-            .append("div")
-            .attr("id", `tooltip-${d.id}`)
-            .attr("class", "tree-tooltip btn-group-vertical")
-            .style("display", "none");
+        if (document.getElementById(`tooltip-${d.id}`) === null) {
+            let nttd = d3.select("body").append("div")
+                .attr("class", "container")
+                .append("div")
+                .attr("id", `tooltip-${d.id}`)
+                .attr("class", "tree-tooltip btn-group-vertical")
+                .style("display", "none");
 
-        nttd.append("h5")
-            .attr("id", `tooltip-${d.id}-name`);
+            nttd.append("h5")
+                .attr("id", `tooltip-${d.id}-name`);
 
-        nttd.append("button")
-            .attr("type", "button")
-            .attr("class", "tt-helm-btn btn btn-info btn-sm")
-            .style("display", "none")
-            .html(`<img src="https://helm.sh/img/helm.svg" height="16" width="16"> Chart Dependency`);
+            nttd.append("button")
+                .attr("type", "button")
+                .attr("class", "tt-helm-btn btn btn-info btn-sm")
+                .style("display", "none")
+                .html(`<img src="https://helm.sh/img/helm.svg" height="16" width="16"> Chart Dependency`);
 
-        nttd.append("button")
-            .attr("type", "button")
-            .style("display", "none")
-            .attr("class", "tt-repo-btn btn btn-light btn-sm");
+            nttd.append("button")
+                .attr("type", "button")
+                .style("display", "none")
+                .attr("class", "tt-repo-btn btn btn-light btn-sm");
 
-        nttd.append("button")
-            .attr("type", "button")
-            .style("display", "none")
-            .attr("class", "tt-image-btn btn btn-primary btn-sm")
-            .html("Image: Building");
+            nttd.append("button")
+                .attr("type", "button")
+                .style("display", "none")
+                .attr("class", "tt-image-btn btn btn-primary btn-sm")
+                .html("Image: Building");
 
-        nttd.append("button")
-            .attr("type", "button")
-            .style("display", "none")
-            .attr("class", "tt-chart-btn btn btn-secondary btn-sm")
-            .html("Chart: Waiting");
+            nttd.append("button")
+                .attr("type", "button")
+                .style("display", "none")
+                .attr("class", "tt-chart-btn btn btn-secondary btn-sm")
+                .html("Chart: Waiting");
+        }
     });
 
     function getSVGClass(d) {

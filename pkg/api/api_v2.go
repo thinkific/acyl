@@ -159,6 +159,7 @@ type V2EventStatusSummaryConfig struct {
 	Status         string                `json:"status"`
 	RenderedStatus V2RenderedEventStatus `json:"rendered_status"`
 	EnvName        string                `json:"env_name"`
+	K8sNamespace   string                `json:"k8s_ns"`
 	TriggeringRepo string                `json:"triggering_repo"`
 	PullRequest    uint                  `json:"pull_request"`
 	GitHubUser     string                `json:"github_user"`
@@ -236,6 +237,7 @@ func V2EventStatusSummaryFromEventStatusSummary(sum *models.EventStatusSummary) 
 			Status:         statusSummaryStatus(sum.Config.Status),
 			RenderedStatus: V2RenderedStatusFromRenderedStatus(sum.Config.RenderedStatus),
 			EnvName:        sum.Config.EnvName,
+			K8sNamespace:   sum.Config.K8sNamespace,
 			TriggeringRepo: sum.Config.TriggeringRepo,
 			PullRequest:    sum.Config.PullRequest,
 			GitHubUser:     sum.Config.GitHubUser,

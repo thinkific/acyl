@@ -620,6 +620,8 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		return errors.New("missing k8s environment")
 	}
 
+	eventlogger.GetLogger(ctx).SetK8sNamespace(k8senv.Namespace)
+
 	// Delete k8s resources asynchronously with retries
 	go m.deleteNamespace(ctx, k8senv, rd.Repo)
 

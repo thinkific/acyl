@@ -131,6 +131,7 @@ type EventStatusSummaryConfig struct {
 	Status         EventStatus              `json:"status"`
 	RenderedStatus RenderedEventStatus      `json:"rendered_status"`
 	EnvName        string                   `json:"env_name"`
+	K8sNamespace   string                   `json:"k8s_ns"`
 	TriggeringRepo string                   `json:"triggering_repo"`
 	PullRequest    uint                     `json:"pull_request"`
 	GitHubUser     string                   `json:"github_user"`
