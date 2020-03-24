@@ -3,9 +3,17 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
+	"strings"
+	"syscall"
+
+	"github.com/google/uuid"
 
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 
@@ -27,7 +35,7 @@ func init() {
 	mockuiCmd.PersistentFlags().StringVar(&apiBaseURL, "base-url", "http://localhost:4000", "API base URL")
 	mockuiCmd.PersistentFlags().StringVar(&assetsPath, "assets-path", "ui/", "local filesystem path for UI assets")
 	mockuiCmd.PersistentFlags().StringVar(&routePrefix, "route-prefix", "/ui", "UI base URL prefix")
-	mockuiCmd.PersistentFlags().StringVar(&listenAddr, "listen-addr", "0.0.0.0:4000", "Listen address")
+	mockuiCmd.PersistentFlags().StringVar(&listenAddr, "listen-addr", "localhost:4000", "Listen address")
 	RootCmd.AddCommand(mockuiCmd)
 }
 
@@ -50,6 +58,24 @@ func mockui(cmd *cobra.Command, args []string) {
 		log.Fatalf("error registering api versions: %v", err)
 	}
 
-	logger.Printf("listening on: %v", listenAddr)
-	logger.Println(server.ListenAndServe())
+	go func() {
+		logger.Printf("listening on: %v", listenAddr)
+		logger.Println(server.ListenAndServe())
+	}()
+
+	opencmd := fmt.Sprintf("%v http://%v/ui/event/status?id=%v", openPath, listenAddr, uuid.Must(uuid.NewRandom()))
+	shellsl := strings.Split(shell, " ")
+	cmdsl := append(shellsl, opencmd)
+	c := exec.Command(cmdsl[0], cmdsl[1:]...)
+	if out, err := c.CombinedOutput(); err != nil {
+		log.Fatalf("error opening UI browser: %v: %v: %v", strings.Join(cmdsl, " "), string(out), err)
+	}
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	output.Green().Progress().Println("Keeping UI server running (ctrl-c to exit)...")
+	<-done
+	if server != nil {
+		server.Shutdown(context.Background())
+	}
 }
