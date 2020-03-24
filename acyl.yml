@@ -36,6 +36,12 @@ dependencies:
       chart_vars_path: './.helm/charts/consul/values.yaml'
 
 notifications:
+  github:
+    commit_statuses:
+      templates:
+        success:
+          description: 'The Acyl environment {{ .EnvName }} was created successfully.'
+          target_url: 'https://{{ .EnvName }}-acyl.dqa.email'
   templates:
     success:
       title: "🏁 Success"
