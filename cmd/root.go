@@ -12,6 +12,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// set by the main pkg
+var (
+	Version, Commit, Date string
+)
+
 var vaultConfig config.VaultConfig
 var awsCreds config.AWSCreds
 var awsConfig config.AWSConfig
