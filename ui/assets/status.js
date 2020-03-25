@@ -321,6 +321,7 @@ function updateTree(treedata) {
                     return "#ffffff";
                 case "waiting":
                 case "done":
+                case "failed":
                     break;
                 default:
                     console.log(`circle: got unknown chart status: ${d.data.chart.status}`);
