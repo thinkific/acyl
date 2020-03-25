@@ -45,7 +45,7 @@ function updateNSCopyBtn(k8s_ns) {
         return;
     }
     if (document.getElementById("ns-copy-btn") === null) {
-        const copybtn = `<button id="ns-copy-btn" class="btn btn-sm btn-light p-1" data-toggle="tooltip" title="Copied!" data-trigger="click"><img height="12" width="12" src="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/svg/clippy.svg" alt="Copy to clipboard"></button>`;
+        const copybtn = `<span id="ns-copy-btn" data-toggle="tooltip" title="Copied!" data-trigger="click"><img class="nscopybtn" height="18" width="18" src="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/svg/clippy.svg" alt="Copy to clipboard"></span>`;
         document.getElementById("k8s-ns").innerHTML = `${k8s_ns} ${copybtn}`;
         // have to use JQuery to manage the copy button tooltip
         $("#ns-copy-btn").tooltip();
