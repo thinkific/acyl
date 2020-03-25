@@ -193,11 +193,15 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 	}); err != nil {
 		return nil, errors.Wrap(err, "error setting event status rendered status")
 	}
+	turl := renderedCSTemplate.TargetURL
+	if m.UIBaseURL != "" {
+		turl = fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, eid.String())
+	}
 	cs := &ghclient.CommitStatus{
 		Context:     "Acyl",
 		Status:      ncs.Key(),
 		Description: renderedCSTemplate.Description,
-		TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, eid.String()),
+		TargetURL:   turl,
 	}
 	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx))
 	err = m.RC.SetStatus(ctx2, rd.Repo, rd.SourceSHA, cs)
