@@ -102,7 +102,11 @@ spec:
     {{ end }}
           - "--ui-base-url"
           {{ if .Values.is_dqa }}
-          - "https://{{ .Values.env_name }}-acyl.dqa.email"
+            {{ if .Values.ingress.traefik.enabled }}
+          - "https://{{ .Values.env_name }}-{{ .Values.ingress.traefik.host }}"
+            {{ else }}
+          - "{{ .Values.app.ui_base_url }}"  # local DQA hostname
+            {{ end }}
           {{ else }}
           - "{{ .Values.app.ui_base_url }}"
           {{ end }}

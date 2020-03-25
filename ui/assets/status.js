@@ -246,6 +246,8 @@ function updateTree(treedata) {
 
     function getCircleStroke(d) {
         switch (d.data.chart.status) {
+            case "waiting":
+                return "gray";
             case "installing":
             case "upgrading":
                 return "#2f3d4c";

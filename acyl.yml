@@ -9,7 +9,8 @@ application:
   chart_vars_repo_path: 'dollarshaveclub/helm-charts@master:releases/kube.shave.io/acyl/dqa.yml'
   image: quay.io/dollarshaveclub/acyl
   value_overrides:
-    - "app.furan_addr=furan:4001"
+# uncomment to use in-environment Furan
+#    - "app.furan_addr=furan:4001"
 # local:
 #    - "app.dogstatsd_addr=1.2.3.4:8125"
 #    - "app.secrets_backend=env"
@@ -19,6 +20,7 @@ application:
 #    - "ingress.traefik.enabled=false"
 #    - "app.operation_timeout_override=10m"
 #    - "app.k8s_secret_injections=image-pull-secret=k8s/image_pull_secret"
+#    - "app.ui_base_url=http://192.168.64.10:4000"
 
 dependencies:
   direct:

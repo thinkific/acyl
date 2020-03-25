@@ -34,7 +34,7 @@ var viewPaths = map[string]string{
 func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, dl persistence.DataLayer, logger *log.Logger) (*uiapi, error) {
 	if baseURL == "" || assetsPath == "" || routePrefix == "" ||
 		dl == nil {
-		return nil, errors.New("all deps required")
+		return nil, errors.New("all dependencies required")
 	}
 	api := &uiapi{
 		apiBase: apiBase{
