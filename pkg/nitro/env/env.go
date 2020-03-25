@@ -233,6 +233,7 @@ func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(
 		case <-preempt: // Lock got preempted, cancel action
 			m.MC.Increment(mpfx+"lock_preempt", "triggering_repo:"+repo)
 			m.log(ctx, "operation preempted: %v: %v", repo, pr)
+			eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		case <-stop:
 		}
 		cf()
@@ -240,6 +241,7 @@ func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(
 	endop := m.MC.Timing(mpfx+"operation", "triggering_repo:"+repo)
 	err = f(ctx)
 	if err != nil {
+		eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		m.log(ctx, "operation error (user: %v, sys: %v): %v: %v: %v", nitroerrors.IsUserError(err), nitroerrors.IsSystemError(err), repo, pr, err)
 	}
 	endop(fmt.Sprintf("success:%v", err == nil), fmt.Sprintf("user_error:%v", nitroerrors.IsUserError(err)), fmt.Sprintf("system_error:%v", nitroerrors.IsSystemError(err)))
@@ -689,6 +691,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 			m.MC.Increment(mpfx+"update_create", "triggering_repo:"+rd.Repo)
 			return m.create(ctx, rd)
 		}
+		eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		return "", errors.Wrap(nitroerrors.SystemError(err), "error getting extant environment")
 	}
 	eventlogger.GetLogger(ctx).SetNewStatus(models.UpdateEvent, env.Name, *rd)
