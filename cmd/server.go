@@ -114,9 +114,7 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&datadogTracingAgentAddr, "datadog-tracing-agent-addr", "127.0.0.1:8126", "Address of datadog tracing agent")
 	serverCmd.PersistentFlags().StringVar(&datadogServiceName, "datadog-service-name", "acyl", "Default service name to be used for Datadog APM")
 	serverCmd.PersistentFlags().DurationVar(&serverConfig.OperationTimeoutOverride, "operation-timeout-override", 0, "Override for operation timeout (ex: 10m)")
-	serverCmd.PersistentFlags().StringVar(&serverConfig.UIBaseURL, "ui-base-url", "", "External base URL (https://somedomain.com) for UI links")
-	serverCmd.PersistentFlags().StringVar(&serverConfig.UIPath, "ui-path", "/opt/ui", "Local filesystem path to UI assets")
-	serverCmd.PersistentFlags().StringVar(&serverConfig.UIBaseRoute, "ui-base-route", "/ui", "Base prefix for UI HTTP routes")
+	addUIFlags(serverCmd)
 	RootCmd.AddCommand(serverCmd)
 }
 
@@ -316,6 +314,11 @@ func server(cmd *cobra.Command, args []string) {
 	addr := fmt.Sprintf("%v:%v", serverConfig.HTTPSAddr, serverConfig.HTTPSPort)
 	server := &http.Server{Addr: addr, TLSConfig: tlsconfig}
 
+	var branding config.UIBrandingConfig
+	if err := json.Unmarshal([]byte(serverConfig.UIBrandingJSON), &branding); err != nil {
+		log.Fatalf("error unmarshaling branding config: %v", err)
+	}
+
 	httpapi := api.NewDispatcher(server)
 	apiServiceName := strings.Join([]string{datadogServiceName, "http"}, ".")
 	deps := &api.Dependencies{
@@ -326,7 +329,13 @@ func server(cmd *cobra.Command, args []string) {
 		Logger:             logger,
 		DatadogServiceName: apiServiceName,
 	}
-	regops := []api.RegisterOption{api.WithAPIKeys(serverConfig.APIKeys), api.WithUIBaseURL(serverConfig.UIBaseURL), api.WithUIAssetsPath(serverConfig.UIPath), api.WithUIRoutePrefix(serverConfig.UIBaseRoute)}
+	regops := []api.RegisterOption{
+		api.WithAPIKeys(serverConfig.APIKeys),
+		api.WithUIBaseURL(serverConfig.UIBaseURL),
+		api.WithUIAssetsPath(serverConfig.UIPath),
+		api.WithUIRoutePrefix(serverConfig.UIBaseRoute),
+		api.WithUIBranding(branding),
+	}
 	if serverConfig.DebugEndpoints {
 		regops = append(regops, api.WithDebugEndpoints(), api.WithIPWhitelist(serverConfig.DebugEndpointsIPWhitelists))
 	}

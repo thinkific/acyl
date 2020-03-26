@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 
 	"github.com/dollarshaveclub/acyl/pkg/api"
@@ -29,13 +31,22 @@ var mockuiCmd = &cobra.Command{
 	Run:   mockui,
 }
 
-var apiBaseURL, assetsPath, routePrefix, listenAddr string
+var listenAddr string
+
+func addUIFlags(cmd *cobra.Command) {
+	brj, err := json.Marshal(&config.DefaultUIBranding)
+	if err != nil {
+		log.Fatalf("error marshaling default UI branding: %v", err)
+	}
+	cmd.PersistentFlags().StringVar(&serverConfig.UIBaseURL, "ui-base-url", "", "External base URL (https://somedomain.com) for UI links")
+	cmd.PersistentFlags().StringVar(&serverConfig.UIPath, "ui-path", "/opt/ui", "Local filesystem path to UI assets")
+	cmd.PersistentFlags().StringVar(&serverConfig.UIBaseRoute, "ui-base-route", "/ui", "Base prefix for UI HTTP routes")
+	cmd.PersistentFlags().StringVar(&serverConfig.UIBrandingJSON, "ui-branding", string(brj), "Branding JSON configuration (see doc)")
+}
 
 func init() {
-	mockuiCmd.PersistentFlags().StringVar(&apiBaseURL, "base-url", "http://localhost:4000", "API base URL")
-	mockuiCmd.PersistentFlags().StringVar(&assetsPath, "assets-path", "ui/", "local filesystem path for UI assets")
-	mockuiCmd.PersistentFlags().StringVar(&routePrefix, "route-prefix", "/ui", "UI base URL prefix")
 	mockuiCmd.PersistentFlags().StringVar(&listenAddr, "listen-addr", "localhost:4000", "Listen address")
+	addUIFlags(mockuiCmd)
 	RootCmd.AddCommand(mockuiCmd)
 }
 
@@ -54,7 +65,19 @@ func mockui(cmd *cobra.Command, args []string) {
 		Logger:       logger,
 	}
 
-	if err := httpapi.RegisterVersions(deps, api.WithUIBaseURL(apiBaseURL), api.WithUIAssetsPath(assetsPath), api.WithUIRoutePrefix(routePrefix), api.WithUIReload()); err != nil {
+	serverConfig.UIBaseURL = "http://" + listenAddr
+
+	var branding config.UIBrandingConfig
+	if err := json.Unmarshal([]byte(serverConfig.UIBrandingJSON), &branding); err != nil {
+		log.Fatalf("error unmarshaling branding config: %v", err)
+	}
+
+	if err := httpapi.RegisterVersions(deps,
+		api.WithUIBaseURL(serverConfig.UIBaseURL),
+		api.WithUIAssetsPath(serverConfig.UIPath),
+		api.WithUIRoutePrefix(serverConfig.UIBaseRoute),
+		api.WithUIReload(),
+		api.WithUIBranding(branding)); err != nil {
 		log.Fatalf("error registering api versions: %v", err)
 	}
 

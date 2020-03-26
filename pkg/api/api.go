@@ -103,6 +103,7 @@ type uiRegisterOptions struct {
 	apiBaseURL  string
 	assetsPath  string
 	routePrefix string
+	branding    config.UIBrandingConfig
 }
 
 type registerOptions struct {
@@ -171,6 +172,12 @@ func WithUIReload() RegisterOption {
 	}
 }
 
+func WithUIBranding(branding config.UIBrandingConfig) RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.branding = branding
+	}
+}
+
 // Dispatcher is the concrete implementation of Manager
 type Dispatcher struct {
 	s          *http.Server
@@ -230,7 +237,7 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	d.waitgroups = append(d.waitgroups, &apiv2.wg)
 
 	// The UI API does not participate in the wait group
-	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL, ropts.uiOptions.assetsPath, ropts.uiOptions.routePrefix, ropts.uiOptions.reload, deps.DataLayer, deps.Logger)
+	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL, ropts.uiOptions.assetsPath, ropts.uiOptions.routePrefix, ropts.uiOptions.reload, ropts.uiOptions.branding, deps.DataLayer, deps.Logger)
 	if err != nil {
 		return fmt.Errorf("error creating UI api: %v", err)
 	}

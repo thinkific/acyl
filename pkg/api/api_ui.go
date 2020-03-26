@@ -5,9 +5,13 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"path"
+	"path/filepath"
 	"sync"
 	"text/template"
+
+	"github.com/dollarshaveclub/acyl/pkg/config"
 
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/google/uuid"
@@ -15,6 +19,11 @@ import (
 
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
 )
+
+type uiBranding struct {
+	config.UIBrandingConfig
+	FaviconType string
+}
 
 type uiapi struct {
 	apiBase
@@ -25,13 +34,14 @@ type uiapi struct {
 	reload      bool
 	views       map[string]*template.Template
 	viewmtx     sync.RWMutex
+	branding    uiBranding
 }
 
 var viewPaths = map[string]string{
 	"status": path.Join("views", "status.html"),
 }
 
-func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, dl persistence.DataLayer, logger *log.Logger) (*uiapi, error) {
+func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding config.UIBrandingConfig, dl persistence.DataLayer, logger *log.Logger) (*uiapi, error) {
 	if baseURL == "" || assetsPath == "" || routePrefix == "" ||
 		dl == nil {
 		return nil, errors.New("all dependencies required")
@@ -52,7 +62,30 @@ func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, dl persisten
 			return nil, errors.Wrap(err, "error reading view template")
 		}
 	}
-	return api, nil
+	if branding.LogoURL == "" && branding.Title == "" {
+		branding = config.DefaultUIBranding
+	}
+	return api, api.processBranding(branding)
+}
+
+func (api *uiapi) processBranding(b config.UIBrandingConfig) error {
+	api.branding.UIBrandingConfig = b
+	fiurl, err := url.Parse(b.FaviconURL)
+	if err != nil {
+		return errors.Wrap(err, "error in favicon url")
+	}
+	switch filepath.Ext(fiurl.Path) {
+	case ".ico":
+		api.branding.FaviconType = "image/x-icon"
+	case ".gif":
+		api.branding.FaviconType = "image/gif"
+	case ".png":
+		api.branding.FaviconType = "image/png"
+	}
+	if _, err := url.Parse(b.LogoURL); err != nil {
+		return errors.Wrap(err, "error in logo url")
+	}
+	return nil
 }
 
 func (api *uiapi) loadTemplate(name string) error {
@@ -92,6 +125,12 @@ func (api *uiapi) register(r *muxtrace.Router) error {
 	return nil
 }
 
+type StatusTemplateData struct {
+	APIBaseURL string
+	LogKey     string
+	Branding   uiBranding
+}
+
 func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
 	ids := r.URL.Query()["id"]
 	if len(ids) != 1 {
@@ -116,10 +155,8 @@ func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	tmpldata := struct {
-		APIBaseURL string
-		LogKey     string
-	}{
+	tmpldata := StatusTemplateData{
+		Branding:   api.branding,
 		APIBaseURL: api.apiBaseURL,
 		LogKey:     elog.LogKey.String(),
 	}

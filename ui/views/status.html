@@ -117,14 +117,15 @@
                 }
             }
         </style>
+        <link rel="icon" type="{{ .Branding.FaviconType }}" href="{{ .Branding.FaviconURL }}">
     </head>
     <body>
         <div class="container-fluid">
             <div class="title">
-                <a href="https://github.com/dollarshaveclub/acyl">
-                    <img width=64 src="https://s3.amazonaws.com/dsc-misc/img/acyl.png" alt="Acyl chloride" />
+                <a href="{{ .Branding.LogoLink }}">
+                    <img width="{{ .Branding.LogoWidth }}" height="{{ .Branding.LogoHeight }}" style="{{ .Branding.LogoStyle }}" src="{{ .Branding.LogoURL }}" alt="{{ .Branding.LogoAlt }}" />
                 </a>
-                Acyl Event Status
+                <span style="{{ .Branding.TitleStyle }}">{{ .Branding.Title }}</span>
             </div>
         </div>
         <div class="accordion" id="mainAccordion">
