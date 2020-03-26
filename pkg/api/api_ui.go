@@ -42,7 +42,7 @@ var viewPaths = map[string]string{
 }
 
 func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding config.UIBrandingConfig, dl persistence.DataLayer, logger *log.Logger) (*uiapi, error) {
-	if baseURL == "" || assetsPath == "" || routePrefix == "" ||
+	if assetsPath == "" || routePrefix == "" ||
 		dl == nil {
 		return nil, errors.New("all dependencies required")
 	}
