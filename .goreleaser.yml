@@ -24,6 +24,7 @@ archives:
       freebsd: FreeBSD
       amd64: x86_64
     files:
+      - ui/**/*
       - data/words.json.gz
       - README.md
 checksum:
@@ -157,3 +158,4 @@ brews:
       bin.install "acyl"
       pkgshare.mkpath
       pkgshare.install "data/words.json.gz"
+      pkgshare.install Dir["ui/**/*"]
