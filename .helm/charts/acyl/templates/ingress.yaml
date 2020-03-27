@@ -1,30 +1,24 @@
-{{- if .Values.ingress.enabled }}
-{{- $isDQA := .Values.is_dqa -}}
-{{- $envName := .Values.env_name }}
-{{- $serviceName := .Values.service.name }}
-{{- $servicePort := .Values.service.internalPort }}
+{{- if .Values.ingress.argo }}
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: {{ .Values.ingress.name }}
+  name: fastly-dqa
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
   namespace: {{ .Values.namespace }}
   annotations:
-    kubernetes.io/ingress.class: "{{ .Values.ingress.ingress_class }}"
+      kubernetes.io/ingress.class: 
 spec:
   rules:
-    {{- range $host := .Values.ingress.hosts }}
-      {{- if $isDQA }}
-      - host: {{ $envName }}-{{ $host }}
-      {{- else }}
-      - host: {{ $host }}
-      {{- end }}
+    {{- if .Values.is_dqa }}
+    - host: {{ .Values.env_name }}-{{ .Values.ingress.argo_host }}
+    {{- else }}
+    - host: {{ .Values.ingress.argo_host }}
+    {{- end }}
       http:
         paths:
           - path: /
             backend:
-              serviceName: {{ $serviceName }}
-              servicePort: {{ $servicePort }}
-    {{- end -}}
+              serviceName: {{ .Values.service.name }}
+              servicePort: {{ .Values.service.internalPort }}
 {{- end }}
