@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -119,6 +118,7 @@ type testEnvConfig struct {
 	dockerCfg                                            *dockerconfigfile.ConfigFile
 	k8sCfg                                               config.K8sConfig
 	uiPort                                               int
+	uiAssets                                             string
 }
 
 var testEnvCfg testEnvConfig
@@ -164,6 +164,12 @@ func init() {
 		defaultDataDir = filepath.Join(hd, ".acyl")
 	}
 	configTestCmd.PersistentFlags().StringVar(&testEnvCfg.wordnetpath, "wordnet-file", filepath.Join(defaultDataDir, "acyl", "words.json.gz"), "path to wordnet file for name generation")
+	// prefer assets within this working directory if they exist
+	uiAssetsPath := filepath.Join(wd, "ui")
+	if _, err := os.Stat(uiAssetsPath); err != nil {
+		uiAssetsPath = filepath.Join(defaultDataDir, "acyl", "ui")
+	}
+	configTestCmd.PersistentFlags().StringVar(&testEnvCfg.uiAssets, "ui-assets", uiAssetsPath, "path to UI assets")
 	configTestCmd.AddCommand(configTestCreateCmd)
 	configTestCmd.AddCommand(configTestUpdateCmd)
 	configTestCmd.AddCommand(configTestDeleteCmd)
@@ -436,8 +442,10 @@ func runUI(dl persistence.DataLayer) (*http.Server, error) {
 		ServerConfig: serverConfig,
 		Logger:       uilogger,
 	}
-	uiassets := path.Join(os.Getenv("GOPATH"), "src", "github.com", "dollarshaveclub", "acyl", "ui")
-	if err := httpapi.RegisterVersions(deps, api.WithUIBaseURL(fmt.Sprintf("http://localhost:%v", testEnvCfg.uiPort)), api.WithUIAssetsPath(uiassets), api.WithUIRoutePrefix("/ui")); err != nil {
+	if err := httpapi.RegisterVersions(deps,
+		api.WithUIBaseURL(fmt.Sprintf("http://localhost:%v", testEnvCfg.uiPort)),
+		api.WithUIAssetsPath(testEnvCfg.uiAssets),
+		api.WithUIRoutePrefix("/ui")); err != nil {
 		return nil, errors.Wrap(err, "error registering api versions")
 	}
 	go func() {
