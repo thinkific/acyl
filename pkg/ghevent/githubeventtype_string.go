@@ -4,6 +4,14 @@ package ghevent
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[UnknownEvent-0]
+	_ = x[PullRequestEvent-1]
+}
+
 const _GitHubEventType_name = "UnknownEventPullRequestEvent"
 
 var _GitHubEventType_index = [...]uint8{0, 12, 28}

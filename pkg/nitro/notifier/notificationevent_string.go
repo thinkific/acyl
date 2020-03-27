@@ -4,6 +4,18 @@ package notifier
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[CreateEnvironment-0]
+	_ = x[UpdateEnvironment-1]
+	_ = x[DestroyEnvironment-2]
+	_ = x[Success-3]
+	_ = x[Failure-4]
+	_ = x[EnvironmentLimitExceeded-5]
+}
+
 const _NotificationEvent_name = "CreateEnvironmentUpdateEnvironmentDestroyEnvironmentSuccessFailureEnvironmentLimitExceeded"
 
 var _NotificationEvent_index = [...]uint8{0, 17, 34, 52, 59, 66, 90}

@@ -4,6 +4,16 @@ package models
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[UnknownEventStatusType-0]
+	_ = x[CreateEvent-1]
+	_ = x[UpdateEvent-2]
+	_ = x[DestroyEvent-3]
+}
+
 const _EventStatusType_name = "UnknownEventStatusTypeCreateEventUpdateEventDestroyEvent"
 
 var _EventStatusType_index = [...]uint8{0, 22, 33, 44, 56}
