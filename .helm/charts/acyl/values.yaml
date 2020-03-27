@@ -72,7 +72,9 @@ ingress:
   enabled: true
   name: acyl-argo
   ingress_class: 'argo-tunnel'
-  host: foo.bar.com
+  hosts:
+    - foo.bar.com
+    - foo.baz.com
   traefik:
     entry_point: web
     enabled: false
