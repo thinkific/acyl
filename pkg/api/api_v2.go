@@ -93,6 +93,165 @@ func v2EventLogFromEventLog(el *models.EventLog) *v2EventLog {
 	}
 }
 
+func timeOrNil(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+func statusSummaryType(t models.EventStatusType) string {
+	switch t {
+	case models.UnknownEventStatusType:
+		return "unknown"
+	case models.CreateEvent:
+		return "create"
+	case models.UpdateEvent:
+		return "update"
+	case models.DestroyEvent:
+		return "destroy"
+	default:
+		return "default"
+	}
+}
+
+func statusSummaryStatus(s models.EventStatus) string {
+	switch s {
+	case models.UnknownEventStatus:
+		return "unknown"
+	case models.PendingStatus:
+		return "pending"
+	case models.DoneStatus:
+		return "done"
+	case models.FailedStatus:
+		return "failed"
+	default:
+		return "default"
+	}
+}
+
+func statusNodeChartStatus(n models.NodeChartStatus) string {
+	switch n {
+	case models.UnknownChartStatus:
+		return "unknown"
+	case models.WaitingChartStatus:
+		return "waiting"
+	case models.InstallingChartStatus:
+		return "installing"
+	case models.UpgradingChartStatus:
+		return "upgrading"
+	case models.DoneChartStatus:
+		return "done"
+	case models.FailedChartStatus:
+		return "failed"
+	default:
+		return "default"
+	}
+}
+
+type V2RenderedEventStatus struct {
+	Description   string `json:"description"`
+	LinkTargetURL string `json:"link_target_url"`
+}
+
+type V2EventStatusSummaryConfig struct {
+	Type           string                `json:"type"`
+	Status         string                `json:"status"`
+	RenderedStatus V2RenderedEventStatus `json:"rendered_status"`
+	EnvName        string                `json:"env_name"`
+	K8sNamespace   string                `json:"k8s_ns"`
+	TriggeringRepo string                `json:"triggering_repo"`
+	PullRequest    uint                  `json:"pull_request"`
+	GitHubUser     string                `json:"github_user"`
+	Branch         string                `json:"branch"`
+	Revision       string                `json:"revision"`
+	ProcessingTime string                `json:"processing_time"`
+	Started        *time.Time            `json:"started"`
+	Completed      *time.Time            `json:"completed"`
+	RefMap         map[string]string     `json:"ref_map"`
+}
+
+type V2EventStatusTreeNodeImage struct {
+	Name      string     `json:"name"`
+	Error     bool       `json:"error"`
+	Completed *time.Time `json:"completed"`
+	Started   *time.Time `json:"started"`
+}
+
+type V2EventStatusTreeNodeChart struct {
+	Status    string     `json:"status"`
+	Started   *time.Time `json:"started"`
+	Completed *time.Time `json:"completed"`
+}
+
+func statusImageOrNil(image models.EventStatusTreeNodeImage) *V2EventStatusTreeNodeImage {
+	if image.Name == "" {
+		return nil
+	}
+	return &V2EventStatusTreeNodeImage{
+		Name:      image.Name,
+		Error:     image.Error,
+		Completed: timeOrNil(image.Completed),
+		Started:   timeOrNil(image.Started),
+	}
+}
+
+type V2EventStatusTreeNode struct {
+	Parent string                      `json:"parent"`
+	Image  *V2EventStatusTreeNodeImage `json:"image"`
+	Chart  V2EventStatusTreeNodeChart  `json:"chart"`
+}
+
+type V2EventStatusSummary struct {
+	Config V2EventStatusSummaryConfig       `json:"config"`
+	Tree   map[string]V2EventStatusTreeNode `json:"tree"`
+}
+
+func v2EventStatusTreeFromTree(tree map[string]models.EventStatusTreeNode) map[string]V2EventStatusTreeNode {
+	out := make(map[string]V2EventStatusTreeNode, len(tree))
+	for k, v := range tree {
+		out[k] = V2EventStatusTreeNode{
+			Parent: v.Parent,
+			Image:  statusImageOrNil(v.Image),
+			Chart: V2EventStatusTreeNodeChart{
+				Status:    statusNodeChartStatus(v.Chart.Status),
+				Completed: timeOrNil(v.Chart.Completed),
+				Started:   timeOrNil(v.Chart.Started),
+			},
+		}
+	}
+	return out
+}
+
+func V2RenderedStatusFromRenderedStatus(rs models.RenderedEventStatus) V2RenderedEventStatus {
+	return V2RenderedEventStatus{
+		Description:   rs.Description,
+		LinkTargetURL: rs.LinkTargetURL,
+	}
+}
+
+func V2EventStatusSummaryFromEventStatusSummary(sum *models.EventStatusSummary) *V2EventStatusSummary {
+	return &V2EventStatusSummary{
+		Config: V2EventStatusSummaryConfig{
+			Type:           statusSummaryType(sum.Config.Type),
+			Status:         statusSummaryStatus(sum.Config.Status),
+			RenderedStatus: V2RenderedStatusFromRenderedStatus(sum.Config.RenderedStatus),
+			EnvName:        sum.Config.EnvName,
+			K8sNamespace:   sum.Config.K8sNamespace,
+			TriggeringRepo: sum.Config.TriggeringRepo,
+			PullRequest:    sum.Config.PullRequest,
+			GitHubUser:     sum.Config.GitHubUser,
+			Branch:         sum.Config.Branch,
+			Revision:       sum.Config.Revision,
+			ProcessingTime: sum.Config.ProcessingTime.String(),
+			Started:        timeOrNil(sum.Config.Started),
+			Completed:      timeOrNil(sum.Config.Completed),
+			RefMap:         sum.Config.RefMap,
+		},
+		Tree: v2EventStatusTreeFromTree(sum.Tree),
+	}
+}
+
 type v2api struct {
 	apiBase
 	dl persistence.DataLayer
@@ -121,6 +280,8 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/envs/_search", middlewareChain(api.envSearchHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/envs/{name}", middlewareChain(api.envDetailHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/eventlog/{id}", middlewareChain(api.eventLogHandler, authMiddleware.authRequest)).Methods("GET")
+	r.HandleFunc("/v2/event/{id}/status", middlewareChain(api.eventStatusHandler)).Methods("GET")
+	r.HandleFunc("/v2/event/{id}/logs", middlewareChain(api.logsHandler)).Methods("GET")
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
 	return nil
 }
@@ -251,6 +412,81 @@ func (api *v2api) eventLogHandler(w http.ResponseWriter, r *http.Request) {
 	j, err := json.Marshal(v2EventLogFromEventLog(el))
 	if err != nil {
 		api.internalError(w, errors.Wrap(err, "error marshaling event log"))
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(j)
+}
+
+func (api *v2api) eventStatusHandler(w http.ResponseWriter, r *http.Request) {
+	idstr := mux.Vars(r)["id"]
+	id, err := uuid.Parse(idstr)
+	if err != nil {
+		api.badRequestError(w, errors.Wrap(err, "error parsing id"))
+		return
+	}
+	es, err := api.dl.GetEventStatus(id)
+	if err != nil {
+		api.internalError(w, errors.Wrap(err, "error fetching event status"))
+		return
+	}
+	if es == nil {
+		api.notfoundError(w)
+		return
+	}
+	j, err := json.Marshal(V2EventStatusSummaryFromEventStatusSummary(es))
+	if err != nil {
+		api.internalError(w, errors.Wrap(err, "error marshaling event status"))
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(j)
+}
+
+// logsHandler is an unauthenticated event log API endpoint for the UI that only returns event log lines
+// and not the full EventLog object
+// Instead of a global API token (like /v2/eventlog/{id}) it requires an event-scoped
+// log key (UUID) passed in the "Acyl-Log-Key" request header
+func (api *v2api) logsHandler(w http.ResponseWriter, r *http.Request) {
+	lk := r.Header.Get("Acyl-Log-Key")
+	if lk == "" {
+		api.logger.Printf("error serving event logs: missing log key")
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	lkuuid, err := uuid.Parse(lk)
+	if err != nil {
+		api.logger.Printf("error serving event logs: bad log key: %v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	idstr := mux.Vars(r)["id"]
+	id, err := uuid.Parse(idstr)
+	if err != nil {
+		api.logger.Printf("error serving event logs: bad event id: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	elog, err := api.dl.GetEventLogByID(id)
+	if err != nil {
+		api.logger.Printf("error serving event logs: error getting event log: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if elog == nil {
+		api.logger.Printf("error serving event logs: missing event log")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	if elog.LogKey != lkuuid {
+		api.logger.Printf("error serving event logs: mismatched log key")
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	j, err := json.Marshal(&elog.Log)
+	if err != nil {
+		api.logger.Printf("error serving event logs: error marshaling log: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	w.Header().Add("Content-Type", "application/json")
 	w.Write(j)

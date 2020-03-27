@@ -1013,6 +1013,9 @@ func TestDataLayerGetEventLogByID(t *testing.T) {
 	if el.Created.Equal(time.Time{}) {
 		t.Fatalf("zero value for created: %v", el.Created)
 	}
+	if el.LogKey == uuid.Nil {
+		t.Fatalf("unset log key: %v", el.LogKey)
+	}
 }
 
 func TestDataLayerGetEventLogsByEnvName(t *testing.T) {
@@ -1070,6 +1073,9 @@ func TestDataLayerCreateEventLog(t *testing.T) {
 	}
 	if el2.Log[0] != el.Log[0] {
 		t.Fatalf("bad log: %v", el2.Log)
+	}
+	if el2.LogKey == uuid.Nil {
+		t.Fatalf("unset log key: %v", el2.LogKey)
 	}
 }
 
@@ -1174,5 +1180,253 @@ func TestDataLayerDeleteEventLogsByRepoAndPR(t *testing.T) {
 	}
 	if i := len(logs); i != 0 {
 		t.Fatalf("expected empty results: len: %v: %v", i, logs)
+	}
+}
+
+func TestDataLayerSetEventStatus(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	logs, err := dl.GetEventLogsByEnvName("foo-bar")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if i := len(logs); i != 2 {
+		t.Fatalf("expected length of 2: %v", i)
+	}
+	elog := logs[0]
+	s := models.EventStatusSummary{
+		Config: models.EventStatusSummaryConfig{
+			Status: models.PendingStatus,
+		},
+		Tree: map[string]models.EventStatusTreeNode{
+			"foo/bar": models.EventStatusTreeNode{},
+		},
+	}
+	if err := dl.SetEventStatus(elog.ID, s); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s2, err := dl.GetEventStatus(elog.ID)
+	if err != nil {
+		t.Fatalf("get 2 should have succeeded: %v", err)
+	}
+	if s2.Config.Status != models.PendingStatus {
+		t.Fatalf("unexpected status: %v (%v)", s2.Config.Status, s2.Config.Status.String())
+	}
+}
+
+func TestDataLayerSetEventStatusConfig(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusConfig(id, 10*time.Millisecond, map[string]string{"foo/bar": "asdf"}); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if refmap := s.Config.RefMap; len(refmap) != 1 {
+		t.Fatalf("unexpected refmap: %+v", refmap)
+	}
+	if s.Config.ProcessingTime.Duration == 0 {
+		t.Fatalf("processing_time should have been set")
+	}
+}
+
+func TestDataLayerSetEventStatusConfigK8sNS(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusConfigK8sNS(id, "nitro-93938-some-name"); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if s.Config.K8sNamespace != "nitro-93938-some-name" {
+		t.Fatalf("unexpected k8s ns: %v", s.Config.K8sNamespace)
+	}
+}
+
+func TestDataLayerSetEventStatusTree(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusTree(id, map[string]models.EventStatusTreeNode{
+		"foo/bar": models.EventStatusTreeNode{Parent: "foo"},
+	}); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if tree := s.Tree; len(tree) != 1 {
+		t.Fatalf("unexpected tree: %+v", tree)
+	}
+	if node, ok := s.Tree["foo/bar"]; !ok || node.Parent != "foo" {
+		t.Fatalf("unexpected or missing node: %v: %+v", ok, node)
+	}
+}
+
+func TestDataLayerSetEventStatusCompleted(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusCompleted(id, models.DoneStatus); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if status := s.Config.Status; status != models.DoneStatus {
+		t.Fatalf("unexpected status: %v", status)
+	}
+	if s.Config.Completed.IsZero() {
+		t.Fatalf("completed should have been set")
+	}
+}
+
+func TestDataLayerSetEventStatusImageStarted(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusImageStarted(id, "foo/bar"); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if s.Tree["foo/bar"].Image.Started.IsZero() {
+		t.Fatalf("started should have been set")
+	}
+}
+
+func TestDataLayerSetEventStatusImageCompleted(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusImageCompleted(id, "foo/bar", true); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if s.Tree["foo/bar"].Image.Completed.IsZero() {
+		t.Fatalf("completed should have been set")
+	}
+	if !s.Tree["foo/bar"].Image.Error {
+		t.Fatalf("error should have been set")
+	}
+}
+
+func TestDataLayerSetEventStatusChartStarted(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusChartStarted(id, "foo/bar", models.InstallingChartStatus); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if s.Tree["foo/bar"].Chart.Started.IsZero() {
+		t.Fatalf("started should have been set")
+	}
+	if status := s.Tree["foo/bar"].Chart.Status; status != models.InstallingChartStatus {
+		t.Fatalf("unexpected chart status: %v", status)
+	}
+}
+
+func TestDataLayerSetEventStatusChartCompleted(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusChartCompleted(id, "foo/bar", models.DoneChartStatus); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if s.Tree["foo/bar"].Chart.Completed.IsZero() {
+		t.Fatalf("completed should have been set")
+	}
+	if status := s.Tree["foo/bar"].Chart.Status; status != models.DoneChartStatus {
+		t.Fatalf("unexpected chart status: %v", status)
+	}
+}
+
+func TestDataLayerGetEventStatus(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusChartCompleted(id, "foo/bar", models.DoneChartStatus); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	_, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+}
+
+func TestDataLayerSetEventStatusRenderedStatus(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	rstat := models.RenderedEventStatus{
+		Description:   "something",
+		LinkTargetURL: "https://foobar.com",
+	}
+	if err := dl.SetEventStatusRenderedStatus(id, rstat); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if rsd := s.Config.RenderedStatus.Description; rsd != rstat.Description {
+		t.Fatalf("unexpected description: %v", rsd)
+	}
+	if rsl := s.Config.RenderedStatus.LinkTargetURL; rsl != rstat.LinkTargetURL {
+		t.Fatalf("unexpected link: %v", rsl)
 	}
 }

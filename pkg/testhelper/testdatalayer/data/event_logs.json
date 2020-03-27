@@ -8,7 +8,8 @@
         "log": [
             "some line",
             "some other line"
-        ]
+        ],
+        "log_key": "b5b76164-830c-4076-b3f3-ceb7d3da304b"
     },
     {
         "id": "9beb4f55-bc47-4411-b17d-78e2c0bccb25",
@@ -18,7 +19,8 @@
         "webhook_payload": "YXNkZjIzNAo=",
         "log": [
             "an event"
-        ]
+        ],
+        "log_key": "d3016949-8724-400a-9ec9-b129bdb6e3c0"
     },
     {
         "id": "c1e1e229-86d8-4d99-a3d5-62b2f6390bbe",
@@ -28,6 +30,43 @@
         "webhook_payload": "cXdlcnR5Cg==",
         "log": [
             "this other thing"
-        ]
+        ],
+        "log_key": "b0af0c97-a146-4de2-ba7d-6f08a136d92d",
+        "status": {
+            "config": {
+                "status": 1,
+                "rendered_status" : {
+                    "description": "something happened",
+                    "link_target_url": "https://foobar.com"
+                },
+                "type": 1,
+                "env_name": "asdf-asdf",
+                "triggering_repo": "acme/somethingelse",
+                "pull_request": 2,
+                "github_user": "john.smith",
+                "branch": "feature-foo",
+                "revision": "asdf1234",
+                "processing_time":100000000,
+                "started":"0001-01-01T00:00:00Z",
+                "completed":"0001-01-01T00:00:00Z",
+                "ref_map":null
+            },
+            "tree": {
+                "foo/bar": {
+                    "parent":"",
+                    "image": {
+                        "name":"asdf",
+                        "error":false,
+                        "completed":"0001-01-01T00:00:00Z",
+                        "started":"0001-01-01T00:00:00Z"
+                    },
+                    "chart": {
+                        "status":1,
+                        "started":"0001-01-01T00:00:00Z",
+                        "completed":"0001-01-01T00:00:00Z"
+                    }
+                }
+            }
+        }
     }
 ]

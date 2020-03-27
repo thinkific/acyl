@@ -98,10 +98,19 @@ type Manager interface {
 	Wait()
 }
 
+type uiRegisterOptions struct {
+	reload      bool
+	apiBaseURL  string
+	assetsPath  string
+	routePrefix string
+	branding    config.UIBrandingConfig
+}
+
 type registerOptions struct {
 	debugEndpoints bool
 	apiKeys        []string
 	ipWhitelist    []*net.IPNet
+	uiOptions      uiRegisterOptions
 }
 
 // RegisterOption is an option for RegisterVersions()
@@ -136,6 +145,36 @@ func WithIPWhitelist(ips []string) RegisterOption {
 	}
 	return func(ropts *registerOptions) {
 		ropts.ipWhitelist = ipwl
+	}
+}
+
+func WithUIBaseURL(baseURL string) RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.apiBaseURL = baseURL
+	}
+}
+
+func WithUIAssetsPath(assetsPath string) RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.assetsPath = assetsPath
+	}
+}
+
+func WithUIRoutePrefix(routePrefix string) RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.routePrefix = routePrefix
+	}
+}
+
+func WithUIReload() RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.reload = true
+	}
+}
+
+func WithUIBranding(branding config.UIBrandingConfig) RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.branding = branding
 	}
 }
 
@@ -196,6 +235,16 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		return fmt.Errorf("error registering api v2: %v", err)
 	}
 	d.waitgroups = append(d.waitgroups, &apiv2.wg)
+
+	// The UI API does not participate in the wait group
+	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL, ropts.uiOptions.assetsPath, ropts.uiOptions.routePrefix, ropts.uiOptions.reload, ropts.uiOptions.branding, deps.DataLayer, deps.Logger)
+	if err != nil {
+		return fmt.Errorf("error creating UI api: %v", err)
+	}
+	err = uiapi.register(r)
+	if err != nil {
+		return fmt.Errorf("error registering UI api: %v", err)
+	}
 
 	if ropts.debugEndpoints {
 		dbg := newDebugEndpoints()

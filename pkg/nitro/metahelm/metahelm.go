@@ -395,14 +395,20 @@ func (ci ChartInstaller) BuildAndInstallCharts(ctx context.Context, newenv *EnvI
 }
 
 func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, namespace string, csl []metahelm.Chart, env *EnvInfo, b images.Batch, upgrade bool) error {
+	eventlogger.GetLogger(ctx).SetK8sNamespace(namespace)
 	actStr, actingStr := "install", "install"
 	if upgrade {
 		actStr, actingStr = "upgrade", "upgrad"
 	}
 	var builderr error
 	imageReady := func(c metahelm.Chart) metahelm.InstallCallbackAction {
+		status := models.InstallingChartStatus
+		if upgrade {
+			status = models.UpgradingChartStatus
+		}
 		if !b.Started(env.Env.Name, c.Title) { // if it hasn't been started, we aren't doing an image build so there's no need to wait
 			ci.log(ctx, "metahelm: %v: not waiting on build for chart install/upgrade; continuing", c.Title)
+			eventlogger.GetLogger(ctx).SetChartStarted(c.Title, status)
 			return metahelm.Continue
 		}
 		done, err := b.Completed(env.Env.Name, c.Title)
@@ -413,6 +419,7 @@ func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, name
 		}
 		if done {
 			ci.dl.AddEvent(ctx, env.Env.Name, "image build complete; "+actingStr+"ing chart for "+c.Title)
+			eventlogger.GetLogger(ctx).SetChartStarted(c.Title, status)
 			return metahelm.Continue
 		}
 		ci.dl.AddEvent(ctx, env.Env.Name, "image build still pending; waiting to "+actStr+" chart for "+c.Title)
@@ -442,11 +449,19 @@ func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, name
 
 var metahelmTimeout = 60 * time.Minute
 
+func completedCB(ctx context.Context, c metahelm.Chart, err error) {
+	status := models.DoneChartStatus
+	if err != nil {
+		status = models.FailedChartStatus
+	}
+	eventlogger.GetLogger(ctx).SetChartCompleted(c.Title, status)
+}
+
 func (ci ChartInstaller) install(ctx context.Context, mhm *metahelm.Manager, cb func(c metahelm.Chart) metahelm.InstallCallbackAction, taddr, namespace string, csl []metahelm.Chart, env *EnvInfo) error {
 	defer ci.mc.Timing(mpfx+"install", "triggering_repo:"+env.Env.Repo)()
 	ctx, cf := context.WithTimeout(ctx, 30*time.Minute)
 	defer cf()
-	relmap, err := mhm.Install(ctx, csl, metahelm.WithK8sNamespace(namespace), metahelm.WithTillerNamespace(namespace), metahelm.WithInstallCallback(cb), metahelm.WithTimeout(metahelmTimeout))
+	relmap, err := mhm.Install(ctx, csl, metahelm.WithK8sNamespace(namespace), metahelm.WithTillerNamespace(namespace), metahelm.WithInstallCallback(cb), metahelm.WithCompletedCallback(func(c metahelm.Chart, err error) { completedCB(ctx, c, err) }), metahelm.WithTimeout(metahelmTimeout))
 	if err != nil {
 		if _, ok := err.(metahelm.ChartError); ok {
 			return err
@@ -467,7 +482,7 @@ func (ci ChartInstaller) upgrade(ctx context.Context, mhm *metahelm.Manager, cb 
 	defer ci.mc.Timing(mpfx+"upgrade", "triggering_repo:"+env.Env.Repo)()
 	ctx, cf := context.WithTimeout(ctx, 30*time.Minute)
 	defer cf()
-	err := mhm.Upgrade(ctx, env.Releases, csl, metahelm.WithK8sNamespace(namespace), metahelm.WithTillerNamespace(namespace), metahelm.WithInstallCallback(cb), metahelm.WithTimeout(metahelmTimeout))
+	err := mhm.Upgrade(ctx, env.Releases, csl, metahelm.WithK8sNamespace(namespace), metahelm.WithTillerNamespace(namespace), metahelm.WithInstallCallback(cb), metahelm.WithCompletedCallback(func(c metahelm.Chart, err error) { completedCB(ctx, c, err) }), metahelm.WithTimeout(metahelmTimeout))
 	if err != nil {
 		if _, ok := err.(metahelm.ChartError); ok {
 			return err

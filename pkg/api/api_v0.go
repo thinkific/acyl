@@ -14,6 +14,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/models"
+	ncontext "github.com/dollarshaveclub/acyl/pkg/nitro/context"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/gorilla/mux"
@@ -122,7 +123,7 @@ func (api *v0api) register(r *muxtrace.Router) error {
 // MaxAsyncActionTimeout is the maximum amount of time an asynchronous action can take before it's forcibly cancelled
 // This is mainly a failsafe against leaking goroutines, additional more strict timeout logic is implemented by environment operations code.
 // If this timeout occurs, no notifications will be sent to the user.
-var MaxAsyncActionTimeout = 45 * time.Minute
+var MaxAsyncActionTimeout = 32 * time.Minute
 
 func setTagsForGithubWebhookHandler(span tracer.Span, rd *models.RepoRevisionData) {
 	span.SetTag("base_branch", rd.BaseBranch)
@@ -179,7 +180,10 @@ func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log := out.Logger.Printf
-	ctx := eventlogger.NewEventLoggerContext(context.Background(), out.Logger)
+
+	// embed the cancel func into the context for later cancellation
+	ctx := ncontext.NewCancelFuncContext(context.WithCancel(context.Background()))
+	ctx = eventlogger.NewEventLoggerContext(ctx, out.Logger)
 
 	if out.Action == ghevent.NotRelevant {
 		log("event not relevant: %v", out.Action)

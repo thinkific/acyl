@@ -1,0 +1,264 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <script type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
+        <script type="text/javascript" src="https://d3js.org/d3-hierarchy.v1.min.js"></script>
+        <script type="text/javascript">
+            const urlParams = new URLSearchParams(window.location.search);
+            const event_id = urlParams.get('id');
+
+            const apiBaseURL = "{{ .APIBaseURL }}";
+            const logKey = "{{ .LogKey }}";
+            const statusEndpoint = `${apiBaseURL}/v2/event/${event_id}/status`;
+            const logsEndpoint = `${apiBaseURL}/v2/event/${event_id}/logs`;
+        </script>
+        <script type="text/javascript" src="{{ .APIBaseURL }}/ui/static/status.js"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/solid.min.css" integrity="sha256-APTxfVyJgjHUS35EeuRpYs2tAbIQO7UF0nAV6krdYJ0=" crossorigin="anonymous" />
+        <style>
+
+            .title {
+                font: 32px sans-serif;
+                font-weight: bold;
+            }
+
+            /* These classes are used by D3 */
+
+            .node circle {
+                fill: gray;
+                stroke: black;
+                stroke-width: 3px;
+            }
+
+            .node-label {
+                font: 14px sans-serif;
+                font-weight: bold;
+            }
+
+            .link {
+                fill: none;
+                stroke: #000;
+                stroke-width: 2px;
+            }
+
+            .status-icon {
+                font-family: "Font Awesome 5 Free";
+                font-weight: 900;
+                font-size: 16pt;
+                opacity: 1;
+            }
+
+            .nscopybtn {
+                text-align: center;
+                padding-bottom: 3px;
+                /* change clipboard icon to white */
+                filter: invert(100%) sepia(0%) saturate(0%) hue-rotate(127deg) brightness(103%) contrast(101%);
+            }
+
+            .tree-tooltip {
+                position: absolute;
+                text-align: left;
+                opacity: 1e-6;
+                padding: 8px;
+                font: 12px sans-serif;
+                background: darkgray;
+                border: solid 1px #aaa;
+                border-radius: 8px;
+                pointer-events: none;
+            }
+
+            /* Spinner circle animation */
+            /* based on: https://glennmccomb.com/articles/building-a-pure-css-animated-svg-spinner/ */
+            .spinning-svg {
+                animation: 2s linear infinite svg-animation;
+                max-width: 100px;
+            }
+
+            /* SVG animation */
+            @keyframes svg-animation {
+                0% {
+                    transform: rotateZ(0deg);
+                }
+                100% {
+                    transform: rotateZ(360deg)
+                }
+            }
+
+            /* Circle styles. */
+            .spinning-circle {
+                   animation: 1.4s ease-in-out infinite both circle-animation;
+                   display: block;
+                   fill: transparent;
+                   stroke: #2f3d4c;
+                   stroke-linecap: round;
+                   stroke-dasharray: 283;
+                   stroke-dashoffset: 280;
+                   stroke-width: 3px;
+                   transform-origin: 0% 0% 0;
+               }
+
+            /* Circle animation. */
+            @keyframes circle-animation {
+                0%,
+                25% {
+                    stroke-dashoffset: 280;
+                    transform: rotate(0deg);
+                }
+
+                50%,
+                75% {
+                    /* the correct value varies depending upon circle radius */
+                    stroke-dashoffset: 235;  /* radius: 10 */
+                    transform: rotate(45deg);
+                }
+
+                100% {
+                    stroke-dashoffset: 280;
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
+        <link rel="icon" type="{{ .Branding.FaviconType }}" href="{{ .Branding.FaviconURL }}">
+    </head>
+    <body>
+        <div class="container-fluid">
+            <div class="title">
+                <a href="{{ .Branding.LogoLink }}">
+                    <img width="{{ .Branding.LogoWidth }}" height="{{ .Branding.LogoHeight }}" style="{{ .Branding.LogoStyle }}" src="{{ .Branding.LogoURL }}" alt="{{ .Branding.LogoAlt }}" />
+                </a>
+                <span style="{{ .Branding.TitleStyle }}">{{ .Branding.Title }}</span>
+            </div>
+        </div>
+        <div class="accordion" id="mainAccordion">
+            <div class="card">
+                <div class="card-header" id="statusHeading">
+                    <h2 class="mb-0">
+                        <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapseStatus" aria-expanded="true" aria-controls="collapseStatus">
+                            Status
+                        </button>
+                        <span id="status-icon" class="fas status-icon"></span>
+                    </h2>
+                </div>
+                <div id="collapseStatus" class="collapse show" aria-labelledby="envStatus">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg d-flex justify-content-left">
+                                <a target="_blank" id="rendered-status-link" href="" alt="status link"></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header" id="envTreeHeading">
+                    <h2 class="mb-0">
+                        <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapseEnvTree" aria-expanded="true" aria-controls="collapseEnvTree">
+                            Environment Tree
+                        </button>
+                    </h2>
+                </div>
+                <div id="collapseEnvTree" class="collapse show" aria-labelledby="envTreeHeading">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg d-flex justify-content-center overflow-auto border" id="envtree"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header" id="detailsHeading">
+                    <h2 class="mb-0">
+                        <button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#collapseDetails" aria-expanded="true" aria-controls="collapseDetails">
+                            Event Details
+                        </button>
+                    </h2>
+                </div>
+                <div id="collapseDetails" class="collapse" aria-labelledby="detailsHeading">
+                    <div class="card-body">
+                        <div class="container">
+                            <div id="cfg-table-div" class="container">
+                                <table class="table table-sm table-striped table-dark table-hover">
+                                    <tbody>
+                                    <tr>
+                                        <th scope="row">Event Type</th>
+                                        <td id="event-type"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Status</th>
+                                        <td id="event-status"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Pull Request</th>
+                                        <td><a id="trepo-pr-link" href=""></a></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">GitHub User</th>
+                                        <td><a id="trepo-user-link" href=""></a></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Branch</th>
+                                        <td id="trepo-branch"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Revision</th>
+                                        <td id="trepo-revision"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Environment Name</th>
+                                        <td id="env-name"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Kubernetes Namespace</th>
+                                        <td id="k8s-ns"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Config Processing Duration</th>
+                                        <td id="config-processing-duration"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Event Started</th>
+                                        <td id="event-started-time"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Event Completed</th>
+                                        <td id="event-completed-time"></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Elapsed</th>
+                                        <td id="event-elapsed"></td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                                <table id="refmap-table" class="table table-sm table-striped table-dark table-hover">
+                                    <tbody>
+                                    <tr id="refmap-table-header">
+                                        <th scope="col">Repo</th>
+                                        <th scope="col">Ref</th>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header" id="logsHeading">
+                    <h2 class="mb-0">
+                        <button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#collapseLogs" aria-expanded="true" aria-controls="collapseLogs">
+                            Debug Logs
+                        </button>
+                    </h2>
+                </div>
+                <div id="collapseLogs" class="collapse" aria-labelledby="logsHeading">
+                    <div class="card-body">
+                        <div class="container overflow-auto" id="logsContainer" style="width: 80rem; max-height: 25rem; font-family: monospace">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+    </body>
+</html>

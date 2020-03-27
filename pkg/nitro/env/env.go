@@ -16,6 +16,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/locker"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/namegen"
+	ncontext "github.com/dollarshaveclub/acyl/pkg/nitro/context"
 	nitroerrors "github.com/dollarshaveclub/acyl/pkg/nitro/errors"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/meta"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/metahelm"
@@ -63,6 +64,7 @@ type Manager struct {
 	failureTemplate      *template.Template
 	s3p                  s3Pusher
 	OperationTimeout     time.Duration
+	UIBaseURL            string
 }
 
 var DefaultOperationTimeout = 30 * time.Minute
@@ -184,13 +186,25 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 	if err != nil {
 		return nil, errors.Wrap(err, "error rendering template")
 	}
+	eid := eventlogger.GetLogger(ctx).ID
+	if err := m.DL.SetEventStatusRenderedStatus(eid, models.RenderedEventStatus{
+		Description:   renderedCSTemplate.Description,
+		LinkTargetURL: renderedCSTemplate.TargetURL,
+	}); err != nil {
+		return nil, errors.Wrap(err, "error setting event status rendered status")
+	}
+	turl := renderedCSTemplate.TargetURL
+	if m.UIBaseURL != "" {
+		turl = fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, eid.String())
+	}
 	cs := &ghclient.CommitStatus{
 		Context:     "Acyl",
 		Status:      ncs.Key(),
 		Description: renderedCSTemplate.Description,
-		TargetURL:   renderedCSTemplate.TargetURL,
+		TargetURL:   turl,
 	}
-	err = m.RC.SetStatus(context.Background(), rd.Repo, rd.SourceSHA, cs)
+	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx))
+	err = m.RC.SetStatus(ctx2, rd.Repo, rd.SourceSHA, cs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error setting commit status")
 	}
@@ -219,6 +233,7 @@ func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(
 		case <-preempt: // Lock got preempted, cancel action
 			m.MC.Increment(mpfx+"lock_preempt", "triggering_repo:"+repo)
 			m.log(ctx, "operation preempted: %v: %v", repo, pr)
+			eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		case <-stop:
 		}
 		cf()
@@ -226,6 +241,7 @@ func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(
 	endop := m.MC.Timing(mpfx+"operation", "triggering_repo:"+repo)
 	err = f(ctx)
 	if err != nil {
+		eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		m.log(ctx, "operation error (user: %v, sys: %v): %v: %v: %v", nitroerrors.IsUserError(err), nitroerrors.IsSystemError(err), repo, pr, err)
 	}
 	endop(fmt.Sprintf("success:%v", err == nil), fmt.Sprintf("user_error:%v", nitroerrors.IsUserError(err)), fmt.Sprintf("system_error:%v", nitroerrors.IsSystemError(err)))
@@ -440,6 +456,8 @@ func (m *Manager) enforceTimeout(ctx context.Context, cf context.CancelFunc, new
 		m.pushNotification(ctx, newenv, notifier.Failure, fmt.Sprintf("timeout reached (%v), aborting", to))
 		m.log(ctx, "timed out (%v), cancelling context and aborting", to)
 		cf()
+		// cancel root context and all child contexts
+		ncontext.GetCancelFunc(ctx)()
 	case <-ctx.Done():
 	}
 }
@@ -456,6 +474,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 	if err != nil {
 		return "", errors.Wrap(err, "error generating environment data")
 	}
+	eventlogger.GetLogger(ctx).SetNewStatus(models.CreateEvent, env.Name, *rd)
 	m.setloggername(ctx, env.Name)
 	newenv := &newEnv{env: env}
 	ctx, cf := context.WithCancel(ctx)
@@ -469,17 +488,22 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 			errmsg := "error creating: " + err.Error()
 			m.pushNotification(ctx, newenv, notifier.Failure, errmsg)
 			m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusFailure, errmsg)
+			eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 			m.MC.Increment(mpfx+"create_errors", "triggering_repo:"+rd.Repo)
 			return
 		}
 		// metahelm.Manager sets the success status on QAEnvironment
 		m.pushNotification(ctx, newenv, notifier.Success, "")
 		m.setGithubCommitStatus(ctx, rd, newenv, models.CommitStatusSuccess, "")
+		eventlogger.GetLogger(ctx).SetCompletedStatus(models.DoneStatus)
 	}()
+	start := time.Now().UTC()
 	newenv, err = m.processEnvConfig(ctx, env, rd)
 	if err != nil {
 		return "", errors.Wrap(err, "error processing environment config")
 	}
+	elapsed := time.Since(start)
+	eventlogger.GetLogger(ctx).SetInitialStatus(newenv.rc, elapsed)
 	select {
 	case <-ctx.Done():
 		return "", nitroerrors.UserError(fmt.Errorf("context was cancelled in create"))
@@ -547,6 +571,8 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 	}()
 	env, err := m.getenv(ctx, rd)
 	if err != nil {
+		eventlogger.GetLogger(ctx).SetNewStatus(models.DestroyEvent, "<unknown>", *rd)
+		defer eventlogger.GetLogger(ctx).SetCompletedStatus(models.DoneStatus)
 		if err == extantEnvsErr {
 			// if there's no extant envs, set all associated with the repo & PR to status destroyed
 			m.log(ctx, "no extant envs for destroy request")
@@ -566,17 +592,24 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		}
 		return errors.Wrap(nitroerrors.SystemError(err), "error getting extant environment")
 	}
+	eventlogger.GetLogger(ctx).SetNewStatus(models.DestroyEvent, env.Name, *rd)
 	m.setloggername(ctx, env.Name)
+	started := time.Now().UTC()
 	ne, err := m.processEnvConfig(ctx, env, rd)
 	if err != nil {
 		// if there's an error getting or processing the config, continue on with default notifications
 		// processEnvConfig() always returns a valid newenv
 		m.log(ctx, "error processing environment config: %v", err)
 	}
+	elapsed := time.Since(started)
+	eventlogger.GetLogger(ctx).SetInitialStatus(ne.rc, elapsed)
 	defer func() {
 		if err != nil {
 			m.pushNotification(ctx, ne, notifier.Failure, "error destroying: "+err.Error())
+			eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
+			return
 		}
+		eventlogger.GetLogger(ctx).SetCompletedStatus(models.DoneStatus)
 	}()
 	select {
 	case <-ctx.Done():
@@ -593,6 +626,8 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 		return errors.New("missing k8s environment")
 	}
 
+	eventlogger.GetLogger(ctx).SetK8sNamespace(k8senv.Namespace)
+
 	// Delete k8s resources asynchronously with retries
 	go m.deleteNamespace(ctx, k8senv, rd.Repo)
 
@@ -603,7 +638,7 @@ func (m *Manager) delete(ctx context.Context, rd *models.RepoRevisionData, reaso
 
 // deleteNamespace deletes a namespace and cleans up the database
 func (m *Manager) deleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment, repo string) {
-	
+
 	// new context with independent timeout, but preserve the eventlogger from the original context
 	ctx, cf := context.WithTimeout(eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx)), 10*time.Minute)
 	defer cf()
@@ -656,8 +691,10 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 			m.MC.Increment(mpfx+"update_create", "triggering_repo:"+rd.Repo)
 			return m.create(ctx, rd)
 		}
+		eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		return "", errors.Wrap(nitroerrors.SystemError(err), "error getting extant environment")
 	}
+	eventlogger.GetLogger(ctx).SetNewStatus(models.UpdateEvent, env.Name, *rd)
 	m.setloggername(ctx, env.Name)
 	ne := &newEnv{env: env}
 	ctx, cf := context.WithCancel(ctx)
@@ -670,16 +707,21 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 			}
 			m.pushNotification(ctx, ne, notifier.Failure, err.Error())
 			m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusFailure, err.Error())
+			eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 			return
 		}
 		// metahelm.Manager sets the success status on QAEnvironment
 		m.pushNotification(ctx, ne, notifier.Success, "")
 		m.setGithubCommitStatus(ctx, rd, ne, models.CommitStatusSuccess, "")
+		eventlogger.GetLogger(ctx).SetCompletedStatus(models.DoneStatus)
 	}()
+	started := time.Now().UTC()
 	ne, err = m.processEnvConfig(ctx, env, rd)
 	if err != nil {
 		return "", errors.Wrap(err, "error processing environment config for update")
 	}
+	elapsed := time.Since(started)
+	eventlogger.GetLogger(ctx).SetInitialStatus(ne.rc, elapsed)
 	k8senv, err := m.DL.GetK8sEnv(ctx, env.Name)
 	if err != nil {
 		return "", errors.Wrap(nitroerrors.SystemError(err), "error getting k8s environment")
@@ -729,7 +771,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 	}
 	m.log(ctx, "config signature mismatch or previous environment failed: tearing down namespace and building new env from scratch")
 	m.MC.Increment(mpfx+"update_tear_down", "triggering_repo:"+rd.Repo)
-	
+
 	go m.deleteNamespace(ctx, k8senv, rd.Repo)
 
 	chartSpan, ctx := tracer.StartSpanFromContext(ctx, "build_and_install_charts")

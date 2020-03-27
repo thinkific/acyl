@@ -100,6 +100,18 @@ spec:
           - "{{ .Values.app.operation_timeout_override }}"
           {{ end }}
     {{ end }}
+          - "--ui-base-url"
+          {{ if .Values.is_dqa }}
+            {{ if .Values.ingress.traefik.enabled }}
+          - "https://{{ .Values.env_name }}-{{ .Values.ingress.traefik.host }}"
+            {{ else }}
+          - "{{ .Values.app.ui.base_url }}"  # local DQA hostname
+            {{ end }}
+          {{ else }}
+          - "{{ .Values.app.ui.base_url }}"
+          {{ end }}
+          - "--ui-branding"
+          - '{{ .Values.app.ui.branding | toJson }}'
         ports:
         - containerPort: {{ .Values.service.internalPort }}
         livenessProbe:

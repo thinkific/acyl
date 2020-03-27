@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	nitroerrors "github.com/dollarshaveclub/acyl/pkg/nitro/errors"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/metrics"
@@ -109,9 +110,13 @@ func (b *ImageBuilder) StartBuilds(ctx context.Context, envname string, rc *mode
 		batch.outcomes.started[buildid(envname, name)] = struct{}{}
 		batch.outcomes.Unlock()
 
+		eventlogger.GetLogger(ctx).SetImageStarted(name)
+
 		end := b.MC.Timing("images.build", "repo:"+repo, "triggering_repo:"+rc.Application.Repo)
 		err := b.Backend.BuildImage(ctx, envname, repo, image, ref, BuildOptions{DockerfilePath: dockerfilepath})
 		end(fmt.Sprintf("success:%v", err == nil))
+
+		eventlogger.GetLogger(ctx).SetImageCompleted(name, err != nil)
 
 		batch.outcomes.Lock()
 		batch.outcomes.completed[buildid(envname, name)] = nitroerrors.UserError(err)

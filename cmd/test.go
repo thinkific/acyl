@@ -6,10 +6,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
+	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
+
+	"github.com/dollarshaveclub/acyl/pkg/api"
+
+	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 
@@ -104,10 +114,11 @@ No image builds are performed.
 type testEnvConfig struct {
 	buildMode, kubeCfgPath, kubeCtx, imagepullsecretPath string
 	statedir, workingdir, wordnetpath                    string
-	privileged                                           bool
+	privileged, enableUI                                 bool
 	pullRequest                                          uint
 	dockerCfg                                            *dockerconfigfile.ConfigFile
 	k8sCfg                                               config.K8sConfig
+	uiPort                                               int
 }
 
 var testEnvCfg testEnvConfig
@@ -121,6 +132,7 @@ func init() {
 	configTestCmd.PersistentFlags().BoolVar(&testEnvCfg.privileged, "privileged", false, "give the environment service account ClusterAdmin privileges via a ClusterRoleBinding (use this if your application requires ClusterAdmin abilities)")
 	configTestCmd.PersistentFlags().StringVar(&k8sGroupBindingsStr, "k8s-group-bindings", "", "optional k8s RBAC group bindings for the environment namespace (comma-separated) in GROUP1=CLUSTER_ROLE1,GROUP2=CLUSTER_ROLE2 format (ex: users=edit)")
 	configTestCmd.PersistentFlags().StringVar(&k8sSecretsStr, "k8s-secret-injections", "", "optional k8s secret injections (comma-separated) for new environment namespaces (other than image-pull-secret) in SECRET_NAME=VAULT_ID (Vault path using secrets mapping) format. Secret value in Vault must be a JSON-encoded object with two keys: 'data' (map of string to base64-encoded bytes), 'type' (string).")
+	configTestCmd.PersistentFlags().BoolVar(&testEnvCfg.enableUI, "ui", false, "enable UI by opening a browser window with status page")
 	wd, err := os.Getwd()
 	if err != nil {
 		log.Printf("error getting working directory: %v", err)
@@ -313,7 +325,26 @@ func getImageBackend(dl persistence.DataLayer, rc ghclient.RepoClient, auths map
 	}
 }
 
-func testConfigSetup() (*nitroenv.Manager, context.Context, *models.RepoRevisionData, error) {
+func getStatusCallback() ghclient.StatusCallback {
+	if testEnvCfg.enableUI {
+		return func(ctx context.Context, repo string, ref string, status *ghclient.CommitStatus) error {
+			// only open a new browser window on the initial pending notification
+			if status.Status == models.CommitStatusPending.Key() {
+				opencmd := fmt.Sprintf("%v http://localhost:%v/ui/event/status?id=%v", openPath, testEnvCfg.uiPort, eventlogger.GetLogger(ctx).ID.String())
+				shellsl := strings.Split(shell, " ")
+				cmdsl := append(shellsl, opencmd)
+				c := exec.Command(cmdsl[0], cmdsl[1:]...)
+				if out, err := c.CombinedOutput(); err != nil {
+					return errors.Wrapf(err, "error opening UI browser: %v: %v", strings.Join(cmdsl, " "), string(out))
+				}
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
+func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Context, *models.RepoRevisionData, error) {
 	err := checkTestEnvConfig()
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error validating options")
@@ -327,17 +358,13 @@ func testConfigSetup() (*nitroenv.Manager, context.Context, *models.RepoRevision
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error getting image pull secret")
 	}
-	dl, err := getState()
-	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "error getting state")
-	}
 	fs := osfs.New("")
 	ng, err := namegen.NewWordnetNameGenerator(testEnvCfg.wordnetpath, logger)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error getting name generator")
 	}
 	mc := &metrics.FakeCollector{}
-	mg, ri, _, ctx := generateLocalMetaGetter()
+	mg, ri, _, ctx := generateLocalMetaGetter(dl, getStatusCallback())
 	ibb, err := getImageBackend(dl, mg.RC, testEnvCfg.dockerCfg.AuthConfigs)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error getting image builder")
@@ -392,6 +419,46 @@ func testConfigSetup() (*nitroenv.Manager, context.Context, *models.RepoRevision
 		}, nil
 }
 
+func runUI(dl persistence.DataLayer) (*http.Server, error) {
+	if !testEnvCfg.enableUI {
+		return nil, nil
+	}
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return nil, errors.Wrap(err, "error starting UI listener")
+	}
+	testEnvCfg.uiPort = l.Addr().(*net.TCPAddr).Port
+	uilogger := log.New(os.Stderr, "ui server: ", log.LstdFlags)
+	server := &http.Server{}
+	httpapi := api.NewDispatcher(server)
+	deps := &api.Dependencies{
+		DataLayer:    dl,
+		ServerConfig: serverConfig,
+		Logger:       uilogger,
+	}
+	uiassets := path.Join(os.Getenv("GOPATH"), "src", "github.com", "dollarshaveclub", "acyl", "ui")
+	if err := httpapi.RegisterVersions(deps, api.WithUIBaseURL(fmt.Sprintf("http://localhost:%v", testEnvCfg.uiPort)), api.WithUIAssetsPath(uiassets), api.WithUIRoutePrefix("/ui")); err != nil {
+		return nil, errors.Wrap(err, "error registering api versions")
+	}
+	go func() {
+		uilogger.Printf("listening on :%v", testEnvCfg.uiPort)
+		uilogger.Printf("error running UI http server: %v", server.Serve(l))
+	}()
+	return server, nil
+}
+
+func waitOnUI(srv *http.Server) {
+	if testEnvCfg.enableUI {
+		done := make(chan os.Signal, 1)
+		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+		output.Green().Progress().Println("Keeping UI server running (ctrl-c to exit)...")
+		<-done
+		if srv != nil {
+			srv.Shutdown(context.Background())
+		}
+	}
+}
+
 func configTestCreate(cmd *cobra.Command, args []string) {
 	perr := func(err error) {
 		output.Red("error: ").White().Println(err.Error())
@@ -402,7 +469,17 @@ func configTestCreate(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 	}()
-	nitromgr, ctx, rrd, err := testConfigSetup()
+	dl, err := getState()
+	if err != nil {
+		perr(err)
+		return
+	}
+	uisrv, err := runUI(dl)
+	if err != nil {
+		perr(err)
+		return
+	}
+	nitromgr, ctx, rrd, err := testConfigSetup(dl)
 	if err != nil {
 		perr(err)
 		return
@@ -419,9 +496,11 @@ func configTestCreate(cmd *cobra.Command, args []string) {
 	name, err := nitromgr.Create(ctx, *rrd)
 	if err != nil {
 		perr(err)
+		waitOnUI(uisrv)
 		return
 	}
 	output.Green().Printf("Success creating environment: %v\n", name)
+	waitOnUI(uisrv)
 }
 
 func configTestUpdate(cmd *cobra.Command, args []string) {
@@ -434,7 +513,17 @@ func configTestUpdate(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 	}()
-	nitromgr, ctx, rrd, err := testConfigSetup()
+	dl, err := getState()
+	if err != nil {
+		perr(err)
+		return
+	}
+	uisrv, err := runUI(dl)
+	if err != nil {
+		perr(err)
+		return
+	}
+	nitromgr, ctx, rrd, err := testConfigSetup(dl)
 	if err != nil {
 		perr(err)
 		return
@@ -461,9 +550,11 @@ func configTestUpdate(cmd *cobra.Command, args []string) {
 	name, err := nitromgr.Update(ctx, *rrd)
 	if err != nil {
 		perr(err)
+		waitOnUI(uisrv)
 		return
 	}
 	output.Green().Printf("Success updating environment: %v\n", name)
+	waitOnUI(uisrv)
 }
 
 func configTestDelete(cmd *cobra.Command, args []string) {
@@ -476,7 +567,17 @@ func configTestDelete(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 	}()
-	nitromgr, ctx, rrd, err := testConfigSetup()
+	dl, err := getState()
+	if err != nil {
+		perr(err)
+		return
+	}
+	uisrv, err := runUI(dl)
+	if err != nil {
+		perr(err)
+		return
+	}
+	nitromgr, ctx, rrd, err := testConfigSetup(dl)
 	if err != nil {
 		perr(err)
 		return
@@ -506,4 +607,5 @@ func configTestDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 	output.Green().Printf("Success deleting environment: %v\n", envs[0].Name)
+	waitOnUI(uisrv)
 }

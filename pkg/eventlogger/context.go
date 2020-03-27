@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"os"
+
+	"github.com/dollarshaveclub/acyl/pkg/persistence"
 )
 
 const (
@@ -21,7 +23,7 @@ func NewEventLoggerContext(ctx context.Context, logger *Logger) context.Context 
 func GetLogger(ctx context.Context) *Logger {
 	l, ok := ctx.Value(EventLoggerContextKey(elogContextKey)).(*Logger)
 	if l == nil || !ok {
-		return &Logger{Sink: os.Stdout}
+		return &Logger{Sink: os.Stdout, DL: persistence.NewFakeDataLayer()}
 	}
 	return l
 }

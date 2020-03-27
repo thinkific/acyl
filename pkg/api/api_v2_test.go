@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -197,5 +198,77 @@ func TestAPIv2EventLog(t *testing.T) {
 	}
 	if res.EnvName != "foo-bar" {
 		t.Fatalf("unexpected env name: %v", res.EnvName)
+	}
+}
+
+func TestAPIv2EventStatus(t *testing.T) {
+	dl, tdl := testdatalayer.New(testlogger, t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	if err != nil {
+		t.Fatalf("error creating api: %v", err)
+	}
+
+	r := muxtrace.NewRouter()
+	apiv2.register(r)
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	req, _ := http.NewRequest("GET", ts.URL+"/v2/event/c1e1e229-86d8-4d99-a3d5-62b2f6390bbe/status", nil)
+
+	hc := &http.Client{}
+	resp, err := hc.Do(req)
+	if err != nil {
+		t.Fatalf("error executing request 3: %v", err)
+	}
+
+	bb, _ := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("should have succeeded: %v: %v", resp.StatusCode, string(bb))
+	}
+	res := V2EventStatusSummary{}
+	fmt.Printf("res: %v\n", string(bb))
+	err = json.Unmarshal(bb, &res)
+	if err != nil {
+		t.Fatalf("error unmarshaling results: %v", err)
+	}
+	if res.Config.Type != "create" {
+		t.Fatalf("bad type: %v", res.Config.Type)
+	}
+	if res.Config.Status != "pending" {
+		t.Fatalf("bad status: %v", res.Config.Status)
+	}
+	if res.Config.TriggeringRepo != "acme/somethingelse" {
+		t.Fatalf("bad repo: %v", res.Config.TriggeringRepo)
+	}
+	if res.Config.EnvName != "asdf-asdf" {
+		t.Fatalf("bad env name: %v", res.Config.EnvName)
+	}
+	if res.Config.PullRequest != 2 {
+		t.Fatalf("bad pr: %v", res.Config.PullRequest)
+	}
+	if res.Config.GitHubUser != "john.smith" {
+		t.Fatalf("bad user: %v", res.Config.GitHubUser)
+	}
+	if res.Config.Branch != "feature-foo" {
+		t.Fatalf("bad branch: %v", res.Config.Branch)
+	}
+	if res.Config.Revision != "asdf1234" {
+		t.Fatalf("bad revision: %v", res.Config.Revision)
+	}
+	if n := len(res.Tree); n != 1 {
+		t.Fatalf("bad tree: %+v", res.Tree)
+	}
+	if rsd := res.Config.RenderedStatus.Description; rsd != "something happened" {
+		t.Fatalf("bad rendered description: %+v", rsd)
+	}
+	if rsl := res.Config.RenderedStatus.LinkTargetURL; rsl != "https://foobar.com" {
+		t.Fatalf("bad rendered link url: %+v", rsl)
 	}
 }

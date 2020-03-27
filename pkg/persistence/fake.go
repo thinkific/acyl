@@ -28,8 +28,9 @@ type lockingDataMap struct {
 
 // FakeDataLayer is a fake implementation of DataLayer that persists data in-memory, for testing purposes
 type FakeDataLayer struct {
-	data *lockingDataMap
-	delay time.Duration
+	CreateMissingEventLog bool
+	data                  *lockingDataMap
+	delay                 time.Duration
 }
 
 var _ DataLayer = &FakeDataLayer{}
@@ -725,9 +726,21 @@ func (fdl *FakeDataLayer) UpdateK8sEnvTillerAddr(ctx context.Context, envname, t
 func (fdl *FakeDataLayer) GetEventLogByID(id uuid.UUID) (*models.EventLog, error) {
 	fdl.doDelay()
 	fdl.data.RLock()
-	defer fdl.data.RUnlock()
 	el, ok := fdl.data.elogs[id]
+	fdl.data.RUnlock()
 	if !ok {
+		if fdl.CreateMissingEventLog {
+			sum := fdl.newStatus(id)
+			out := &models.EventLog{
+				ID:     id,
+				LogKey: uuid.Must(uuid.NewRandom()),
+				Status: *sum,
+			}
+			fdl.data.Lock()
+			fdl.data.elogs[id] = out
+			fdl.data.Unlock()
+			return out, nil
+		}
 		return nil, nil
 	}
 	return el, nil
@@ -764,6 +777,13 @@ func (fdl *FakeDataLayer) CreateEventLog(elog *models.EventLog) error {
 	if elog == nil {
 		return errors.New("input is nil")
 	}
+	if elog.LogKey == uuid.Nil {
+		lk, err := uuid.NewRandom()
+		if err != nil {
+			return errors.Wrap(err, "error generating log key")
+		}
+		elog.LogKey = lk
+	}
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	fdl.data.elogs[elog.ID] = elog
@@ -785,7 +805,10 @@ func (fdl *FakeDataLayer) SetEventLogEnvName(id uuid.UUID, name string) error {
 	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
-	fdl.data.elogs[id].EnvName = name
+	elog := fdl.data.elogs[id]
+	if elog != nil {
+		fdl.data.elogs[id].EnvName = name
+	}
 	return nil
 }
 
@@ -827,4 +850,170 @@ func (fdl *FakeDataLayer) DeleteEventLogsByRepoAndPR(repo string, pr uint) (uint
 	}
 	fdl.data.Unlock()
 	return uint(len(del)), nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatus(id uuid.UUID, status models.EventStatusSummary) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status = status
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusConfig(id uuid.UUID, processingTime time.Duration, refmap map[string]string) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Config.ProcessingTime = models.ConfigProcessingDuration{Duration: processingTime}
+	elog.Status.Config.RefMap = refmap
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusConfigK8sNS(id uuid.UUID, ns string) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Config.K8sNamespace = ns
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusTree(id uuid.UUID, tree map[string]models.EventStatusTreeNode) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Tree = tree
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusCompleted(id uuid.UUID, status models.EventStatus) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Config.Status = status
+	elog.Status.Config.Completed = time.Now().UTC()
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusImageStarted(id uuid.UUID, name string) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	tn, ok := elog.Status.Tree[name]
+	if !ok {
+		keys := make([]string, len(elog.Status.Tree))
+		i := 0
+		for k := range elog.Status.Tree {
+			keys[i] = k
+			i++
+		}
+		return fmt.Errorf("%v not found in tree: %v: %v", name, len(keys), keys)
+	}
+	tn.Image.Started = time.Now().UTC()
+	fdl.data.elogs[id].Status.Tree[name] = tn
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusImageCompleted(id uuid.UUID, name string, err bool) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	tn, ok := elog.Status.Tree[name]
+	if !ok {
+		return fmt.Errorf("%v not found in tree", name)
+	}
+	tn.Image.Error = err
+	tn.Image.Completed = time.Now().UTC()
+	elog.Status.Tree[name] = tn
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusChartStarted(id uuid.UUID, name string, status models.NodeChartStatus) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	tn, ok := elog.Status.Tree[name]
+	if !ok {
+		return fmt.Errorf("%v not found in tree", name)
+	}
+	tn.Chart.Status = status
+	tn.Chart.Started = time.Now().UTC()
+	elog.Status.Tree[name] = tn
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	tn, ok := elog.Status.Tree[name]
+	if !ok {
+		return fmt.Errorf("%v not found in tree", name)
+	}
+	tn.Chart.Status = status
+	tn.Chart.Completed = time.Now().UTC()
+	elog.Status.Tree[name] = tn
+	return nil
+}
+
+func (fdl *FakeDataLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error) {
+	fdl.doDelay()
+	fdl.data.RLock()
+	elog := fdl.data.elogs[id]
+	fdl.data.RUnlock()
+	if elog == nil {
+		if fdl.CreateMissingEventLog {
+			// if id not found, create a new one and begin an async update goroutine
+			return fdl.newStatus(id), nil
+		}
+		return nil, nil
+	}
+	out := *elog
+	return &out.Status, nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog != nil {
+		elog.Status.Config.RenderedStatus = rstatus
+	}
+	return nil
 }
