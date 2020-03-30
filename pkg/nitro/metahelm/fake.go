@@ -8,9 +8,6 @@ import (
 	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/helm/pkg/helm"
-	rls "k8s.io/helm/pkg/proto/hapi/release"
 )
 
 // FakeInstaller satisfies the Installer interface but does nothing
@@ -80,23 +77,9 @@ func (fi FakeInstaller) BuildAndInstallChartsIntoExisting(ctx context.Context, n
 	return nil
 }
 
-func (fi FakeInstaller) DeleteReleases(ctx context.Context, k8senv *models.KubernetesEnvironment) error {
+func (fi FakeInstaller) DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error {
 	if fi.DL != nil {
-		ci := ChartInstaller{dl: fi.DL}
-		rels := []*rls.Release{}
-		for _, r := range fi.HelmReleases {
-			rels = append(rels, &rls.Release{Name: r})
-		}
-		ci.hcf = func(tillerNS, tillerAddr string, rcfg *rest.Config, kc kubernetes.Interface) (helm.Interface, error) {
-			return &helm.FakeClient{Rels: rels}, nil
-		}
-		if err := ci.DeleteReleases(context.Background(), k8senv); err != nil {
-			return err
-		}
 		return fi.DL.DeleteK8sEnv(ctx, k8senv.EnvName)
 	}
-	return nil
-}
-func (fi FakeInstaller) DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error {
 	return nil
 }

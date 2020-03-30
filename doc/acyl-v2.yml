@@ -12,6 +12,18 @@ notifications:
   github:
     # add a new PR comment for each notification
     pr_comments: false
+    # OPTIONAL: modify the commit status to provide context.
+    commit_statuses:
+      templates:
+        success:
+          description: "The Acyl environment {{ .EnvName }} was created successfully."
+          target_url: "https://{{ .EnvName }}-acyl.boogies.io"
+        failure:
+          description: "The Acyl environment {{ .EnvName }} failed."
+          target_url: "https://{{ .EnvName }}-acyl.boogies.io"
+        pending:
+          description: "The Acyl environment {{ .EnvName }} is being created."
+          target_url: "https://{{ .EnvName }}-acyl.boogies.io"
   slack:
     # don't do direct messages to the GitHub user who opened the triggering PR (requires a GitHub user to Slack user mapping, see server settings)
     disable_github_user_dm: false
@@ -98,8 +110,8 @@ dependencies:
       repo: 'acme/something'
       requires:
         - something # requires references the 'name' field of other direct dependencies only
-  
-  # "environment" dependencies are required for the environment but are not transitively evaluated if this repo is included in 
+
+  # "environment" dependencies are required for the environment but are not transitively evaluated if this repo is included in
   # another environment's dependencies. This is used for applications and scaffolding for the triggering application's environments.
   environment:
     - name: thisotherthing
@@ -108,4 +120,3 @@ dependencies:
         - "foo.bar=somethingelse"
       requires:
         - anotherthing # requires references the 'name' field of either direct or environment dependencies
-  

@@ -8,10 +8,14 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/locker"
 	"github.com/dollarshaveclub/acyl/pkg/memfs"
@@ -24,6 +28,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/s3"
 	metahelmlib "github.com/dollarshaveclub/metahelm/pkg/metahelm"
+	"github.com/google/go-cmp/cmp"
 	"github.com/nlopes/slack"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -202,6 +207,44 @@ var testNF = func(lf func(string, ...interface{}), notifications models.Notifica
 	return &notifier.MultiRouter{Backends: []notifier.Backend{sb}}
 }
 
+type notificationTrackerSender struct {
+	sync.Mutex
+	sent []notifier.Notification
+}
+
+func (nts *notificationTrackerSender) FanOut(n notifier.Notification) error {
+	nts.Lock()
+	defer nts.Unlock()
+	nts.sent = append(nts.sent, n)
+	return nil
+}
+
+type notificationTracker struct {
+	Sender *notificationTrackerSender
+}
+
+func newNotificationTracker() *notificationTracker {
+	return &notificationTracker{Sender: &notificationTrackerSender{}}
+}
+
+func (nt *notificationTracker) sender(lf func(string, ...interface{}), notifications models.Notifications, user string) notifier.Router {
+	return nt.Sender
+}
+
+func (nt *notificationTracker) get() []notifier.Notification {
+	nt.Sender.Lock()
+	defer nt.Sender.Unlock()
+	out := make([]notifier.Notification, len(nt.Sender.sent))
+	copy(out, nt.Sender.sent)
+	return out
+}
+
+func (nt *notificationTracker) reset() {
+	nt.Sender.Lock()
+	defer nt.Sender.Unlock()
+	nt.Sender.sent = nil
+}
+
 func TestCreate(t *testing.T) {
 	dl := persistence.NewFakeDataLayer()
 	rdd := models.RepoRevisionData{
@@ -285,11 +328,12 @@ func TestCreate(t *testing.T) {
 		inputBranches      map[string][]ghclient.BranchInfo
 		chartInstallResult map[string]error
 		limit              uint
-		verifyFunc         func(string, error, *testing.T)
+		delay, timeout     time.Duration
+		verifyFunc         func(string, error, *notificationTracker, *testing.T)
 	}{
 		{
-			"branch matching", rdd, rc, cl, bm, cir, 0,
-			func(name string, err error, st *testing.T) {
+			"branch matching", rdd, rc, cl, bm, cir, 0, 0, 0,
+			func(name string, err error, nt *notificationTracker, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
@@ -325,8 +369,8 @@ func TestCreate(t *testing.T) {
 				"foo-bar":    errors.New("install error"),
 				"foo-qwerty": nil,
 				"foo-mysql":  nil,
-			}, 0,
-			func(name string, err error, st *testing.T) {
+			}, 0, 0, 0,
+			func(name string, err error, nt *notificationTracker, st *testing.T) {
 				if err == nil {
 					st.Fatalf("should have failed with install error")
 				}
@@ -336,8 +380,8 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			"global limit enforced", rdd, rc, cl, bm, cir, 1,
-			func(name string, err error, st *testing.T) {
+			"global limit enforced", rdd, rc, cl, bm, cir, 1, 0, 0,
+			func(name string, err error, nt *notificationTracker, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
@@ -354,9 +398,28 @@ func TestCreate(t *testing.T) {
 				}
 			},
 		},
+		{
+			"timeout", rdd, rc, cl, bm, cir, 0, 50 * time.Millisecond, 50 * time.Millisecond,
+			func(name string, err error, nt *notificationTracker, st *testing.T) {
+				if err == nil {
+					st.Fatalf("should have failed with timeout")
+				}
+				ns := nt.get()
+				var found bool
+				for _, n := range ns {
+					if n.Event == notifier.Failure && strings.Contains(n.Data.ErrorMessage, "timeout reached") {
+						found = true
+					}
+				}
+				if !found {
+					st.Fatalf("did not get timeout notification: %+v", ns)
+				}
+			},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			dl.SetDelay(c.delay)
 			fg := &meta.FakeGetter{
 				GetFunc: func(ctx context.Context, rd models.RepoRevisionData) (*models.RepoConfig, error) {
 					return &c.inputRC, nil
@@ -379,6 +442,7 @@ func TestCreate(t *testing.T) {
 				DL: dl,
 				KC: k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "nitro-1234-some-random-name"}}),
 			}
+			nt := newNotificationTracker()
 			m := Manager{
 				DL: dl,
 				LP: &locker.FakePreemptiveLockProvider{
@@ -388,18 +452,22 @@ func TestCreate(t *testing.T) {
 						return lch
 					},
 				},
-				NF:          testNF,
-				MC:          &metrics.FakeCollector{},
-				NG:          &namegen.FakeNameGenerator{},
-				FS:          memfs.New(),
-				MG:          fg,
-				RC:          frc,
-				CI:          ci,
-				GlobalLimit: c.limit,
+				NF:               nt.sender,
+				MC:               &metrics.FakeCollector{},
+				NG:               &namegen.FakeNameGenerator{},
+				FS:               memfs.New(),
+				MG:               fg,
+				RC:               frc,
+				CI:               ci,
+				GlobalLimit:      c.limit,
+				OperationTimeout: c.timeout,
 			}
 
-			name, err := m.Create(context.Background(), c.inputRRD)
-			c.verifyFunc(name, err, t)
+			el := &eventlogger.Logger{DL: dl}
+			el.Init([]byte{}, c.inputRRD.Repo, c.inputRRD.PullRequest)
+			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+			name, err := m.Create(ctx, c.inputRRD)
+			c.verifyFunc(name, err, nt, t)
 		})
 	}
 }
@@ -508,11 +576,12 @@ func TestUpdate(t *testing.T) {
 		inputCL            meta.ChartLocations
 		inputBranches      map[string][]ghclient.BranchInfo
 		chartInstallResult map[string]error
-		verifyFunc         func(error, persistence.DataLayer, *testing.T)
+		delay, timeout     time.Duration
+		verifyFunc         func(error, persistence.DataLayer, *notificationTracker, *testing.T)
 	}{
 		{
-			"update matching signature", rdd, env, k8senv, releases, rc, cl, bm, cir,
-			func(err error, dl persistence.DataLayer, st *testing.T) {
+			"update matching signature", rdd, env, k8senv, releases, rc, cl, bm, cir, 0, 0,
+			func(err error, dl persistence.DataLayer, nt *notificationTracker, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
@@ -541,8 +610,8 @@ func TestUpdate(t *testing.T) {
 			},
 		},
 		{
-			"update different signature", rdd, env, k8senv, releases, rc2, cl2, bm2, cir2,
-			func(err error, dl persistence.DataLayer, st *testing.T) {
+			"update different signature", rdd, env, k8senv, releases, rc2, cl2, bm2, cir2, 0, 0,
+			func(err error, dl persistence.DataLayer, nt *notificationTracker, st *testing.T) {
 				if err != nil {
 					st.Fatalf("should have succeeded: %v", err)
 				}
@@ -575,8 +644,8 @@ func TestUpdate(t *testing.T) {
 			},
 		},
 		{
-			"missing k8senv", rdd, env, models.KubernetesEnvironment{}, releases, rc, cl, bm, cir,
-			func(err error, dl persistence.DataLayer, st *testing.T) {
+			"missing k8senv", rdd, env, models.KubernetesEnvironment{}, releases, rc, cl, bm, cir, 0, 0,
+			func(err error, dl persistence.DataLayer, nt *notificationTracker, st *testing.T) {
 				if err == nil {
 					st.Fatalf("should have failed with missing k8s env")
 				}
@@ -585,10 +654,28 @@ func TestUpdate(t *testing.T) {
 				}
 			},
 		},
+		{
+			"timeout", rdd, env, k8senv, releases, rc, cl, bm, cir, 50 * time.Millisecond, 50 * time.Millisecond,
+			func(err error, dl persistence.DataLayer, nt *notificationTracker, st *testing.T) {
+				if err == nil {
+					st.Fatalf("should have failed with timeout")
+				}
+				ns := nt.get()
+				var found bool
+				for _, n := range ns {
+					if n.Event == notifier.Failure && strings.Contains(n.Data.ErrorMessage, "timeout reached") {
+						found = true
+					}
+				}
+				if !found {
+					st.Fatalf("did not get timeout notification: %+v", ns)
+				}
+			},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dl := persistence.NewFakeDataLayer()
+			dl := persistence.NewDelayedFakeDataLayer(c.delay)
 			dl.CreateQAEnvironment(context.Background(), &c.inputEnv)
 			if c.inputK8sEnv.EnvName != "" {
 				dl.CreateK8sEnv(context.Background(), &c.inputK8sEnv)
@@ -622,7 +709,9 @@ func TestUpdate(t *testing.T) {
 				},
 				DL:           dl,
 				HelmReleases: releases,
+				KC:           k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: c.inputK8sEnv.Namespace}}),
 			}
+			nt := newNotificationTracker()
 			m := Manager{
 				DL: dl,
 				LP: &locker.FakePreemptiveLockProvider{
@@ -632,16 +721,21 @@ func TestUpdate(t *testing.T) {
 						return lch
 					},
 				},
-				NF: testNF,
-				MC: &metrics.FakeCollector{},
-				NG: &namegen.FakeNameGenerator{},
-				FS: memfs.New(),
-				MG: fg,
-				RC: frc,
-				CI: ci,
+				NF:               nt.sender,
+				MC:               &metrics.FakeCollector{},
+				NG:               &namegen.FakeNameGenerator{},
+				FS:               memfs.New(),
+				MG:               fg,
+				RC:               frc,
+				CI:               ci,
+				OperationTimeout: c.timeout,
 			}
-			_, err := m.Update(context.Background(), c.inputRDD)
-			c.verifyFunc(err, dl, t)
+
+			el := &eventlogger.Logger{DL: dl}
+			el.Init([]byte{}, c.inputRDD.Repo, c.inputRDD.PullRequest)
+			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+			_, err := m.Update(ctx, c.inputRDD)
+			c.verifyFunc(err, dl, nt, t)
 		})
 	}
 }
@@ -797,7 +891,12 @@ func TestDelete(t *testing.T) {
 				RC: frc,
 				CI: ci,
 			}
-			err := m.Delete(context.Background(), &c.inputRDD, models.DestroyApiRequest)
+
+			el := &eventlogger.Logger{DL: dl}
+			el.Init([]byte{}, c.inputRDD.Repo, c.inputRDD.PullRequest)
+			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+			err := m.Delete(ctx, &c.inputRDD, models.DestroyApiRequest)
+			time.Sleep(10 * time.Millisecond) // give time for async delete to complete
 			c.verifyFunc(err, t)
 		})
 	}
@@ -1214,6 +1313,204 @@ func TestProcessEnvConfig(t *testing.T) {
 			}
 			if sha, ok := got.env.CommitSHAMap[env.Repo]; !ok || sha != env.SourceSHA {
 				t.Fatalf("missing or bad commit sha map entry: %v, %v", ok, sha)
+			}
+		})
+	}
+}
+
+func TestSetGithubCommitStatus(t *testing.T) {
+	dl := persistence.NewFakeDataLayer()
+	m := &Manager{
+		RC: &ghclient.FakeRepoClient{
+			SetStatusFunc: func(context.Context, string, string, *ghclient.CommitStatus) error { return nil },
+		},
+		DL:        dl,
+		UIBaseURL: "https://foobar.com",
+	}
+
+	tests := []struct {
+		name    string
+		env     *newEnv
+		inputCS models.CommitStatus
+		errMsg  string
+		want    *ghclient.CommitStatus
+	}{
+		{
+			name: "Configured template - success",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"success": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} has been created",
+										TargetURL:   "https://{{.EnvName}}.shave.io",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusSuccess,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "success",
+				Description: "An environment for some-environment-name has been created",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
+			},
+		},
+		{
+			name: "Configured template - pending",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"pending": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} is being created",
+										TargetURL:   "https://{{ .EnvName }}.shave.io",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusPending,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "pending",
+				Description: "An environment for some-environment-name is being created",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
+			},
+		},
+		{
+			name: "Configured template - failure",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"failure": models.CommitStatusTemplate{
+										Description: "An environment for {{ .EnvName }} has failed",
+										TargetURL:   "https://{{ .EnvName }}.shave.io",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusFailure,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "failure",
+				Description: "An environment for some-environment-name has failed",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
+			},
+		},
+		{
+			name: "Default template - success",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{},
+			},
+			inputCS: models.CommitStatusSuccess,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "success",
+				Description: "The Acyl environment some-environment-name was created successfully.",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
+			},
+		},
+		{
+			name: "Default template - pending",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{},
+			},
+			inputCS: models.CommitStatusPending,
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "pending",
+				Description: "The Acyl environment some-environment-name is being created.",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
+			},
+		},
+		{
+			name: "Default template - failure",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{},
+			},
+			inputCS: models.CommitStatusFailure,
+			errMsg:  "invalid helm chart",
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "failure",
+				Description: "The Acyl environment some-environment-name failed.",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
+			},
+		},
+		{
+			name: "Template - error message",
+			env: &newEnv{
+				env: &models.QAEnvironment{
+					Name: "some-environment-name",
+				},
+				rc: &models.RepoConfig{
+					Notifications: models.Notifications{
+						GitHub: models.GitHubNotifications{
+							CommitStatuses: models.CommitStatuses{
+								Templates: map[string]models.CommitStatusTemplate{
+									"failure": models.CommitStatusTemplate{
+										Description: "The Acyl environment for {{ .EnvName }} failed. Reason: {{ .ErrorMessage }}",
+										TargetURL:   "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			inputCS: models.CommitStatusFailure,
+			errMsg:  "invalid helm chart",
+			want: &ghclient.CommitStatus{
+				Context:     "Acyl",
+				Status:      "failure",
+				Description: "The Acyl environment for some-environment-name failed. Reason: invalid helm chart",
+				TargetURL:   fmt.Sprintf("%v/ui/event/status?id=%v", m.UIBaseURL, uuid.UUID{}.String()),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := m.setGithubCommitStatus(context.Background(), &models.RepoRevisionData{}, tt.env, tt.inputCS, tt.errMsg)
+			if err != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
+			if diff := cmp.Diff(out, tt.want); diff != "" {
+				t.Errorf("setGithubCommitStatus() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

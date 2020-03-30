@@ -115,6 +115,8 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&dogstatsdTags, "dogstatsd-tags", "", "Comma-separated list of tags to add to dogstatsd metrics (TAG:VALUE)")
 	serverCmd.PersistentFlags().StringVar(&datadogTracingAgentAddr, "datadog-tracing-agent-addr", "127.0.0.1:8126", "Address of datadog tracing agent")
 	serverCmd.PersistentFlags().StringVar(&datadogServiceName, "datadog-service-name", "acyl", "Default service name to be used for Datadog APM")
+	serverCmd.PersistentFlags().DurationVar(&serverConfig.OperationTimeoutOverride, "operation-timeout-override", 0, "Override for operation timeout (ex: 10m)")
+	addUIFlags(serverCmd)
 	RootCmd.AddCommand(serverCmd)
 }
 
@@ -266,7 +268,9 @@ func server(cmd *cobra.Command, args []string) {
 			AWSCreds:             awsCreds,
 			S3Config:             s3config,
 			GlobalLimit:          serverConfig.GlobalEnvironmentLimit,
+			UIBaseURL:            serverConfig.UIBaseURL,
 		}
+		nitromgr.OperationTimeout = serverConfig.OperationTimeoutOverride // Zero means use default defined in pkg/nitro/env
 		loadFailureTemplate(nitromgr)
 		envspawner = &nitroenv.CombinedSpawner{
 			DL:      dl,
@@ -317,6 +321,11 @@ func server(cmd *cobra.Command, args []string) {
 	addr := fmt.Sprintf("%v:%v", serverConfig.HTTPSAddr, serverConfig.HTTPSPort)
 	server := &http.Server{Addr: addr, TLSConfig: tlsconfig}
 
+	var branding config.UIBrandingConfig
+	if err := json.Unmarshal([]byte(serverConfig.UIBrandingJSON), &branding); err != nil {
+		log.Fatalf("error unmarshaling branding config: %v", err)
+	}
+
 	httpapi := api.NewDispatcher(server)
 	apiServiceName := strings.Join([]string{datadogServiceName, "http"}, ".")
 	deps := &api.Dependencies{
@@ -328,12 +337,20 @@ func server(cmd *cobra.Command, args []string) {
 		DatadogServiceName:      apiServiceName,
 		GitHubAppHandlerFactory: ghapp,
 	}
-	regops := []api.RegisterOption{api.WithAPIKeys(serverConfig.APIKeys)}
+	regops := []api.RegisterOption{
+		api.WithAPIKeys(serverConfig.APIKeys),
+		api.WithUIBaseURL(serverConfig.UIBaseURL),
+		api.WithUIAssetsPath(serverConfig.UIPath),
+		api.WithUIRoutePrefix(serverConfig.UIBaseRoute),
+		api.WithUIBranding(branding),
+	}
 	if serverConfig.DebugEndpoints {
 		regops = append(regops, api.WithDebugEndpoints(), api.WithIPWhitelist(serverConfig.DebugEndpointsIPWhitelists))
 	}
 
-	httpapi.RegisterVersions(deps, regops...)
+	if err := httpapi.RegisterVersions(deps, regops...); err != nil {
+		log.Fatalf("error registering api versions: %v", err)
+	}
 	go func() {
 		for _ = range stop {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dollarshaveclub/pvc"
 	"github.com/pkg/errors"
@@ -27,6 +28,11 @@ type ServerConfig struct {
 	DebugEndpointsIPWhitelists []string
 	NitroFeatureFlag           bool
 	NotificationsDefaultsJSON  string
+	OperationTimeoutOverride   time.Duration
+	UIBaseURL                  string
+	UIPath                     string
+	UIBaseRoute                string
+	UIBrandingJSON             string
 }
 
 type PGConfig struct {
@@ -204,4 +210,26 @@ type MigrateConfig struct {
 type SecretsConfig struct {
 	Backend pvc.SecretsClientOption
 	Mapping string
+}
+
+// UIBrandingConfig defines optional non-default branding for UI pages
+type UIBrandingConfig struct {
+	FaviconURL string `json:"favicon_url"`
+	LogoURL    string `json:"logo_url"`
+	LogoHeight string `json:"logo_height"`
+	LogoWidth  string `json:"logo_width"`
+	LogoStyle  string `json:"logo_style"`
+	LogoLink   string `json:"logo_link"`
+	LogoAlt    string `json:"logo_alt"`
+	Title      string `json:"title"`
+	TitleStyle string `json:"title_style"`
+}
+
+var DefaultUIBranding = UIBrandingConfig{
+	FaviconURL: "https://dsc-misc.s3.amazonaws.com/img/acyl-favicon.png",
+	LogoURL:    "https://s3.amazonaws.com/dsc-misc/img/acyl.png",
+	LogoWidth:  "64",
+	LogoLink:   "https://github.com/dollarshaveclub/acyl",
+	LogoAlt:    "Acyl Chloride",
+	Title:      "Acyl Event Status",
 }

@@ -26,10 +26,12 @@ import (
 	billy "gopkg.in/src-d/go-billy.v4"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/transport"
 
 	// this is to include all auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -56,7 +58,6 @@ type Installer interface {
 	BuildAndInstallCharts(ctx context.Context, newenv *EnvInfo, cl ChartLocations) error
 	BuildAndInstallChartsIntoExisting(ctx context.Context, newenv *EnvInfo, k8senv *models.KubernetesEnvironment, cl ChartLocations) error
 	BuildAndUpgradeCharts(ctx context.Context, env *EnvInfo, k8senv *models.KubernetesEnvironment, cl ChartLocations) error
-	DeleteReleases(ctx context.Context, k8senv *models.KubernetesEnvironment) error
 	DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error
 }
 
@@ -68,7 +69,7 @@ type K8sClientFactoryFunc func(kubecfgpath, kubectx string) (*kubernetes.Clients
 
 // Defaults for Tiller configuration options, if not specified otherwise
 const (
-	DefaultTillerImage                   = "gcr.io/kubernetes-helm/tiller:v2.11.0"
+	DefaultTillerImage                   = "gcr.io/kubernetes-helm/tiller:v2.16.1"
 	DefaultTillerPort                    = 44134
 	DefaultTillerDeploymentName          = "tiller-deploy"
 	DefaultTillerServerConnectRetryDelay = 10 * time.Second
@@ -221,8 +222,8 @@ func NewInClusterK8sClientset(k8sJWTPath string, enableK8sTracing bool) (*kubern
 // wrapTransport encapsulates the kubernetestrace WrapTransport and Kubernetes'
 // default TokenSource WrapTransport.
 func wrapTransport(k8sJWTPath string, enableK8sTracing bool) func(rt http.RoundTripper) http.RoundTripper {
-	ts := rest.NewCachedFileTokenSource(k8sJWTPath)
-	tokenWrappedTransport := rest.TokenSourceWrapTransport(ts)
+	ts := transport.NewCachedFileTokenSource(k8sJWTPath)
+	tokenWrappedTransport := transport.TokenSourceWrapTransport(ts)
 	if enableK8sTracing {
 		return func(rt http.RoundTripper) http.RoundTripper {
 			return kubernetestrace.WrapRoundTripper(tokenWrappedTransport(rt))
@@ -297,7 +298,7 @@ func (ci ChartInstaller) installOrUpgradeIntoExisting(ctx context.Context, env *
 	if ci.kc == nil {
 		return nitroerrors.SystemError(errors.New("k8s client is nil"))
 	}
-	ci.dl.SetQAEnvironmentStatus(ctx, env.Env.Name, models.Updating)
+	ci.dl.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Env.Name, models.Updating)
 	defer func() {
 		if err != nil {
 			if !nitroerrors.IsUserError(err) {
@@ -308,12 +309,12 @@ func (ci ChartInstaller) installOrUpgradeIntoExisting(ctx context.Context, env *
 			if err2 != nil {
 				ci.log(ctx, "error cleaning up namespace: %v", err2)
 			}
-			ci.dl.SetQAEnvironmentStatus(ctx, env.Env.Name, models.Failure)
+			ci.dl.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Env.Name, models.Failure)
 			span.Finish(tracer.WithError(err))
 			return
 		}
 		span.Finish()
-		ci.dl.SetQAEnvironmentStatus(ctx, env.Env.Name, models.Success)
+		ci.dl.SetQAEnvironmentStatus(tracer.ContextWithSpan(context.Background(), span), env.Env.Name, models.Success)
 	}()
 	csl, err := ci.GenerateCharts(ctx, k8senv.Namespace, env, cl)
 	if err != nil {
@@ -359,9 +360,9 @@ func (ci ChartInstaller) BuildAndInstallCharts(ctx context.Context, newenv *EnvI
 			if err2 != nil {
 				ci.log(ctx, "error cleaning up namespace: %v", err2)
 			}
-			ci.dl.SetQAEnvironmentStatus(ctx, newenv.Env.Name, models.Failure)
+			ci.dl.SetQAEnvironmentStatus(context.Background(), newenv.Env.Name, models.Failure)
 		} else {
-			ci.dl.SetQAEnvironmentStatus(ctx, newenv.Env.Name, models.Success)
+			ci.dl.SetQAEnvironmentStatus(context.Background(), newenv.Env.Name, models.Success)
 		}
 	}()
 	if err := ci.writeK8sEnvironment(ctx, newenv, ns); err != nil {
@@ -394,14 +395,20 @@ func (ci ChartInstaller) BuildAndInstallCharts(ctx context.Context, newenv *EnvI
 }
 
 func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, namespace string, csl []metahelm.Chart, env *EnvInfo, b images.Batch, upgrade bool) error {
+	eventlogger.GetLogger(ctx).SetK8sNamespace(namespace)
 	actStr, actingStr := "install", "install"
 	if upgrade {
 		actStr, actingStr = "upgrade", "upgrad"
 	}
 	var builderr error
 	imageReady := func(c metahelm.Chart) metahelm.InstallCallbackAction {
+		status := models.InstallingChartStatus
+		if upgrade {
+			status = models.UpgradingChartStatus
+		}
 		if !b.Started(env.Env.Name, c.Title) { // if it hasn't been started, we aren't doing an image build so there's no need to wait
 			ci.log(ctx, "metahelm: %v: not waiting on build for chart install/upgrade; continuing", c.Title)
+			eventlogger.GetLogger(ctx).SetChartStarted(c.Title, status)
 			return metahelm.Continue
 		}
 		done, err := b.Completed(env.Env.Name, c.Title)
@@ -412,6 +419,7 @@ func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, name
 		}
 		if done {
 			ci.dl.AddEvent(ctx, env.Env.Name, "image build complete; "+actingStr+"ing chart for "+c.Title)
+			eventlogger.GetLogger(ctx).SetChartStarted(c.Title, status)
 			return metahelm.Continue
 		}
 		ci.dl.AddEvent(ctx, env.Env.Name, "image build still pending; waiting to "+actStr+" chart for "+c.Title)
@@ -441,11 +449,19 @@ func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, name
 
 var metahelmTimeout = 60 * time.Minute
 
+func completedCB(ctx context.Context, c metahelm.Chart, err error) {
+	status := models.DoneChartStatus
+	if err != nil {
+		status = models.FailedChartStatus
+	}
+	eventlogger.GetLogger(ctx).SetChartCompleted(c.Title, status)
+}
+
 func (ci ChartInstaller) install(ctx context.Context, mhm *metahelm.Manager, cb func(c metahelm.Chart) metahelm.InstallCallbackAction, taddr, namespace string, csl []metahelm.Chart, env *EnvInfo) error {
 	defer ci.mc.Timing(mpfx+"install", "triggering_repo:"+env.Env.Repo)()
 	ctx, cf := context.WithTimeout(ctx, 30*time.Minute)
 	defer cf()
-	relmap, err := mhm.Install(ctx, csl, metahelm.WithK8sNamespace(namespace), metahelm.WithTillerNamespace(namespace), metahelm.WithInstallCallback(cb), metahelm.WithTimeout(metahelmTimeout))
+	relmap, err := mhm.Install(ctx, csl, metahelm.WithK8sNamespace(namespace), metahelm.WithTillerNamespace(namespace), metahelm.WithInstallCallback(cb), metahelm.WithCompletedCallback(func(c metahelm.Chart, err error) { completedCB(ctx, c, err) }), metahelm.WithTimeout(metahelmTimeout))
 	if err != nil {
 		if _, ok := err.(metahelm.ChartError); ok {
 			return err
@@ -466,7 +482,7 @@ func (ci ChartInstaller) upgrade(ctx context.Context, mhm *metahelm.Manager, cb 
 	defer ci.mc.Timing(mpfx+"upgrade", "triggering_repo:"+env.Env.Repo)()
 	ctx, cf := context.WithTimeout(ctx, 30*time.Minute)
 	defer cf()
-	err := mhm.Upgrade(ctx, env.Releases, csl, metahelm.WithK8sNamespace(namespace), metahelm.WithTillerNamespace(namespace), metahelm.WithInstallCallback(cb), metahelm.WithTimeout(metahelmTimeout))
+	err := mhm.Upgrade(ctx, env.Releases, csl, metahelm.WithK8sNamespace(namespace), metahelm.WithTillerNamespace(namespace), metahelm.WithInstallCallback(cb), metahelm.WithCompletedCallback(func(c metahelm.Chart, err error) { completedCB(ctx, c, err) }), metahelm.WithTimeout(metahelmTimeout))
 	if err != nil {
 		if _, ok := err.(metahelm.ChartError); ok {
 			return err
@@ -607,14 +623,14 @@ func (ci ChartInstaller) GenerateCharts(ctx context.Context, ns string, newenv *
 			overrides[rcd.AppMetadata.ChartTagValue] = rcd.AppMetadata.Ref
 		}
 		for i, lo := range rcd.AppMetadata.ValueOverrides {
-			los := strings.Split(lo, "=")
+			los := strings.SplitN(lo, "=", 2)
 			if len(los) != 2 {
 				return out, fmt.Errorf("malformed application ValueOverride: %v: offset %v: %v", rcd.Repo, i, lo)
 			}
 			overrides[los[0]] = los[1]
 		}
 		for i, lo := range rcd.ValueOverrides {
-			los := strings.Split(lo, "=")
+			los := strings.SplitN(lo, "=", 2)
 			if len(los) != 2 {
 				return out, fmt.Errorf("malformed dependency ValueOverride: %v: offset %v: %v", rcd.Repo, i, lo)
 			}
@@ -963,43 +979,17 @@ func (ci ChartInstaller) getTillerPods(ns string) (*corev1.PodList, error) {
 	return pods, nil
 }
 
-// DeleteReleases deletes all the helm releases for an environment and removes them from the database
-func (ci ChartInstaller) DeleteReleases(ctx context.Context, k8senv *models.KubernetesEnvironment) error {
-	releases, err := ci.dl.GetHelmReleasesForEnv(ctx, k8senv.EnvName)
-	if err != nil {
-		return errors.Wrap(err, "error getting helm releases")
-	}
-	hc, err := ci.hcf(k8senv.Namespace, k8senv.TillerAddr, ci.rcfg, ci.kc)
-	if err != nil {
-		return errors.Wrap(err, "error getting helm client")
-	}
-	for _, r := range releases {
-		select {
-		case <-ctx.Done():
-			return errors.New("context was cancelled")
-		default:
-			break
-		}
-		ci.log(ctx, "using helm to delete release: %v", r.Release)
-		if _, err = hc.DeleteRelease(r.Release, helm.DeletePurge(true)); err != nil {
-			return errors.Wrapf(err, "error deleting release: %v", r.Release)
-		}
-	}
-	n, err := ci.dl.DeleteHelmReleasesForEnv(ctx, k8senv.EnvName)
-	if err != nil {
-		return errors.Wrap(err, "error deleting helm releases from DB")
-	}
-	ci.log(ctx, "deleted %v helm releases from database", n)
-	return nil
-}
-
+// cleanUpNamespace deletes an environment's namespace and ClusterRoleBinding, if they exist
 func (ci ChartInstaller) cleanUpNamespace(ctx context.Context, ns, envname string, privileged bool) error {
 	var zero int64
 	// Delete in background so that we can release the lock as soon as possible
 	bg := meta.DeletePropagationBackground
 	ci.log(ctx, "deleting namespace: %v", ns)
 	if err := ci.kc.CoreV1().Namespaces().Delete(ns, &meta.DeleteOptions{GracePeriodSeconds: &zero, PropagationPolicy: &bg}); err != nil {
-		return errors.Wrap(err, "error deleting namespace")
+		// If the namespace is not found, we do not need to return the error as there is nothing to delete
+		if !k8serrors.IsNotFound(err) {
+			return errors.Wrap(err, "error deleting namespace")
+		}
 	}
 	if privileged {
 		ci.log(ctx, "deleting privileged ClusterRoleBinding: %v", clusterRoleBindingName(envname))
@@ -1010,8 +1000,12 @@ func (ci ChartInstaller) cleanUpNamespace(ctx context.Context, ns, envname strin
 	return nil
 }
 
-// DeleteNamespace deletes the kubernetes namespace and removes k8senv from the database
+// DeleteNamespace deletes the kubernetes namespace and removes k8senv from the database if they exist
 func (ci ChartInstaller) DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error {
+	if k8senv == nil {
+		ci.log(ctx, "unable to delete namespace because k8s env is nil")
+		return nil
+	}
 	if err := ci.cleanUpNamespace(ctx, k8senv.Namespace, k8senv.EnvName, k8senv.Privileged); err != nil {
 		return errors.Wrap(err, "error cleaning up namespace")
 	}

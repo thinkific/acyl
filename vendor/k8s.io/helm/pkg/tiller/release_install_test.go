@@ -21,7 +21,6 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/net/context"
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/proto/hapi/chart"
 	"k8s.io/helm/pkg/proto/hapi/release"
@@ -62,7 +61,7 @@ func TestHasCRDHook(t *testing.T) {
 }
 
 func TestInstallRelease(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest()
@@ -116,7 +115,7 @@ func TestInstallRelease(t *testing.T) {
 }
 
 func TestInstallRelease_WithNotes(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest(
@@ -176,7 +175,7 @@ func TestInstallRelease_WithNotes(t *testing.T) {
 }
 
 func TestInstallRelease_WithNotesRendered(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest(
@@ -238,7 +237,7 @@ func TestInstallRelease_WithNotesRendered(t *testing.T) {
 
 func TestInstallRelease_TillerVersion(t *testing.T) {
 	version.Version = "2.2.0"
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest(
@@ -252,7 +251,7 @@ func TestInstallRelease_TillerVersion(t *testing.T) {
 
 func TestInstallRelease_WrongTillerVersion(t *testing.T) {
 	version.Version = "2.2.0"
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest(
@@ -269,8 +268,8 @@ func TestInstallRelease_WrongTillerVersion(t *testing.T) {
 	}
 }
 
-func TestInstallRelease_WithChartAndDependencyNotes(t *testing.T) {
-	c := helm.NewContext(context.Background())
+func TestInstallRelease_WithChartAndDependencyParentNotes(t *testing.T) {
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest(withChart(
@@ -301,8 +300,41 @@ func TestInstallRelease_WithChartAndDependencyNotes(t *testing.T) {
 	}
 }
 
+func TestInstallRelease_WithChartAndDependencyAllNotes(t *testing.T) {
+	c := helm.NewContext()
+	rs := rsFixture()
+
+	req := installRequest(withSubNotes(),
+		withChart(
+			withNotes(notesText),
+			withDependency(withNotes(notesText+" child")),
+		))
+	res, err := rs.InstallRelease(c, req)
+	if err != nil {
+		t.Fatalf("Failed install: %s", err)
+	}
+	if res.Release.Name == "" {
+		t.Errorf("Expected release name.")
+	}
+
+	rel, err := rs.env.Releases.Get(res.Release.Name, res.Release.Version)
+	if err != nil {
+		t.Errorf("Expected release for %s (%v).", res.Release.Name, rs.env.Releases)
+	}
+
+	t.Logf("rel: %v", rel)
+
+	if !strings.Contains(rel.Info.Status.Notes, notesText) || !strings.Contains(rel.Info.Status.Notes, notesText+" child") {
+		t.Fatalf("Expected '%s', got '%s'", notesText+"\n"+notesText+" child", rel.Info.Status.Notes)
+	}
+
+	if rel.Info.Description != "Install complete" {
+		t.Errorf("unexpected description: %s", rel.Info.Description)
+	}
+}
+
 func TestInstallRelease_DryRun(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest(withDryRun(),
@@ -354,7 +386,7 @@ func TestInstallRelease_DryRun(t *testing.T) {
 }
 
 func TestInstallRelease_NoHooks(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 	rs.env.Releases.Create(releaseStub())
 
@@ -370,7 +402,7 @@ func TestInstallRelease_NoHooks(t *testing.T) {
 }
 
 func TestInstallRelease_CRDInstallHook(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 	rs.env.Releases.Create(releaseStub())
 
@@ -397,7 +429,7 @@ func TestInstallRelease_CRDInstallHook(t *testing.T) {
 }
 
 func TestInstallRelease_DryRunCRDInstallHook(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 	rs.env.Releases.Create(releaseStub())
 
@@ -419,7 +451,7 @@ func TestInstallRelease_DryRunCRDInstallHook(t *testing.T) {
 }
 
 func TestInstallRelease_FailedHooks(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 	rs.env.Releases.Create(releaseStub())
 	rs.env.KubeClient = newHookFailingKubeClient()
@@ -436,7 +468,7 @@ func TestInstallRelease_FailedHooks(t *testing.T) {
 }
 
 func TestInstallRelease_ReuseName(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 	rel := releaseStub()
 	rel.Info.Status.Code = release.Status_DELETED
@@ -466,11 +498,11 @@ func TestInstallRelease_ReuseName(t *testing.T) {
 }
 
 func TestInstallRelease_KubeVersion(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest(
-		withChart(withKube(">=0.0.0")),
+		withChart(withKube(">=0.0.0-0")),
 	)
 	_, err := rs.InstallRelease(c, req)
 	if err != nil {
@@ -479,7 +511,7 @@ func TestInstallRelease_KubeVersion(t *testing.T) {
 }
 
 func TestInstallRelease_WrongKubeVersion(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 
 	req := installRequest(
@@ -498,7 +530,7 @@ func TestInstallRelease_WrongKubeVersion(t *testing.T) {
 }
 
 func TestInstallRelease_Description(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 	rs.env.Releases.Create(releaseStub())
 

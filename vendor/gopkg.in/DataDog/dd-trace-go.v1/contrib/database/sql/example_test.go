@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package sql_test
 
 import (
@@ -42,7 +47,7 @@ func Example_context() {
 	}
 
 	// Create a root span, giving name, server and resource.
-	_, ctx := tracer.StartSpanFromContext(context.Background(), "my-query",
+	span, ctx := tracer.StartSpanFromContext(context.Background(), "my-query",
 		tracer.SpanType(ext.SpanTypeSQL),
 		tracer.ServiceName("my-db"),
 		tracer.ResourceName("initial-access"),
@@ -54,6 +59,7 @@ func Example_context() {
 		log.Fatal(err)
 	}
 	rows.Close()
+	span.Finish(tracer.WithError(err))
 }
 
 func Example_sqlite() {
@@ -67,7 +73,7 @@ func Example_sqlite() {
 	}
 
 	// Create a root span, giving name, server and resource.
-	_, ctx := tracer.StartSpanFromContext(context.Background(), "my-query",
+	span, ctx := tracer.StartSpanFromContext(context.Background(), "my-query",
 		tracer.SpanType("example"),
 		tracer.ServiceName("sqlite-example"),
 		tracer.ResourceName("initial-access"),
@@ -79,4 +85,5 @@ func Example_sqlite() {
 		log.Fatal(err)
 	}
 	rows.Close()
+	span.Finish(tracer.WithError(err))
 }

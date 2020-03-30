@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/match"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/images"
@@ -466,18 +467,9 @@ func TestMetahelmInstallTiller(t *testing.T) {
 			PodIP: ip,
 		},
 	}
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultTillerDeploymentName,
-			Namespace: "foo",
-		},
-		Status: appsv1.DeploymentStatus{
-			AvailableReplicas: 1,
-			Replicas:          1,
-		},
-	}
-	fkc := fake.NewSimpleClientset(pod, deployment)
+	fkc := fake.NewSimpleClientset(pod)
 	dl := persistence.NewFakeDataLayer()
+	dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{Name: "foo-bar"})
 	ci := ChartInstaller{
 		kc: fkc,
 		dl: dl,
@@ -493,14 +485,13 @@ func TestMetahelmInstallTiller(t *testing.T) {
 	if podip != ln.Addr().String() {
 		t.Fatalf("bad pod ip (expected %v): %v", ip, podip)
 	}
-	deployment.Status.AvailableReplicas = 0
 	pod.Status.ContainerStatuses = make([]v1.ContainerStatus, 1)
 	pod.Status.ContainerStatuses[0].State = v1.ContainerState{
 		Waiting: &v1.ContainerStateWaiting{
 			Reason: "ImagePullBackOff",
 		},
 	}
-	fkc = fake.NewSimpleClientset(pod, deployment)
+	fkc = fake.NewSimpleClientset()
 	ci = ChartInstaller{kc: fkc, dl: dl}
 	_, err = ci.installTiller(context.Background(), "foo-bar", "foo")
 	if err == nil {
@@ -597,7 +588,10 @@ func TestMetahelmInstallCharts(t *testing.T) {
 		mc: &metrics.FakeCollector{},
 	}
 	metahelm.ChartWaitPollInterval = 10 * time.Millisecond
-	if err := ci.installOrUpgradeCharts(context.Background(), "127.0.0.1:4404", "foo", charts, nenv, b, false); err != nil {
+	el := &eventlogger.Logger{DL: dl}
+	el.Init([]byte{}, "foo/bar", 99)
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+	if err := ci.installOrUpgradeCharts(ctx, "127.0.0.1:4404", "foo", charts, nenv, b, false); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
 }
@@ -912,16 +906,6 @@ func TestMetahelmBuildAndInstallCharts(t *testing.T) {
 			PodIP: ip,
 		},
 	}
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultTillerDeploymentName,
-			Namespace: "foo",
-		},
-		Status: appsv1.DeploymentStatus{
-			AvailableReplicas: 1,
-			Replicas:          1,
-		},
-	}
 	cl := ChartLocations{
 		"foo": ChartLocation{ChartPath: "foo/bar"},
 		"bar": ChartLocation{ChartPath: "bar/baz"},
@@ -931,7 +915,7 @@ func TestMetahelmBuildAndInstallCharts(t *testing.T) {
 		metahelm.Chart{Title: "bar", Location: "bar/baz", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "bar"},
 	}
 	tobjs := gentestobjs(charts)
-	tobjs = append(tobjs, pod, deployment)
+	tobjs = append(tobjs, pod)
 	fkc := fake.NewSimpleClientset(tobjs...)
 	ib := &images.FakeImageBuilder{BatchCompletedFunc: func(envname, repo string) (bool, error) { return true, nil }}
 	rc := &models.RepoConfig{
@@ -1128,62 +1112,6 @@ func TestMetahelmBuildAndUpgradeCharts(t *testing.T) {
 					t.Fatalf("bad revision for %v release: %v", n, r.RevisionSHA)
 				}
 			}
-		}
-	}
-}
-
-func TestMetahelmDeleteReleases(t *testing.T) {
-	nenv := &EnvInfo{
-		Env: &models.QAEnvironment{Name: "foo-bar"},
-		Releases: map[string]string{
-			"foo": "foo-release",
-			"bar": "bar-release",
-		},
-	}
-	dl := persistence.NewFakeDataLayer()
-	dl.CreateQAEnvironment(context.Background(), nenv.Env)
-	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{
-		EnvName:   nenv.Env.Name,
-		Namespace: "foo",
-	})
-	rlses := []models.HelmRelease{
-		models.HelmRelease{
-			EnvName:     nenv.Env.Name,
-			Name:        "foo",
-			Release:     nenv.Releases["foo"],
-			RevisionSHA: "1234",
-		},
-		models.HelmRelease{
-			EnvName:     nenv.Env.Name,
-			Name:        "bar",
-			Release:     nenv.Releases["bar"],
-			RevisionSHA: "5678",
-		},
-	}
-	k8senv := &models.KubernetesEnvironment{
-		EnvName:   nenv.Env.Name,
-		Namespace: "foo",
-	}
-	dl.CreateK8sEnv(context.Background(), k8senv)
-	dl.CreateHelmReleasesForEnv(context.Background(), rlses)
-	rels := []*rls.Release{}
-	for _, r := range rlses {
-		rels = append(rels, &rls.Release{Name: r.Release})
-	}
-	ci := ChartInstaller{
-		dl: dl,
-		hcf: func(tillerNS, tillerAddr string, rcfg *rest.Config, kc kubernetes.Interface) (helm.Interface, error) {
-			return &helm.FakeClient{Rels: rels}, nil
-		},
-	}
-	if err := ci.DeleteReleases(context.Background(), k8senv); err != nil {
-		t.Fatalf("should have succeeded: %v", err)
-	}
-	if releases, err := dl.GetHelmReleasesForEnv(context.Background(), nenv.Env.Name); err != nil {
-		t.Fatalf("helm get should have succeeded: %v", err)
-	} else {
-		if len(releases) != 0 {
-			t.Fatalf("expected empty results: %v", releases)
 		}
 	}
 }

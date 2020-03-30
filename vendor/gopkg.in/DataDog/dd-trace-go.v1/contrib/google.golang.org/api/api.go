@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // Package api provides functions to trace the google.golang.org/api package.
 package api // import "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/api"
 
 //go:generate go run make_endpoints.go
 
 import (
+	"math"
 	"net/http"
 
 	"golang.org/x/oauth2/google"
@@ -33,7 +39,7 @@ func NewClient(options ...Option) (*http.Client, error) {
 // Google APIs and traces all requests.
 func WrapRoundTripper(transport http.RoundTripper, options ...Option) http.RoundTripper {
 	cfg := newConfig(options...)
-	return httptrace.WrapRoundTripper(transport,
+	rtOpts := []httptrace.RoundTripperOption{
 		httptrace.WithBefore(func(req *http.Request, span ddtrace.Span) {
 			e, ok := apiEndpoints.Get(req.URL.Hostname(), req.Method, req.URL.Path)
 			if ok {
@@ -46,5 +52,10 @@ func WrapRoundTripper(transport http.RoundTripper, options ...Option) http.Round
 			if cfg.serviceName != "" {
 				span.SetTag(ext.ServiceName, cfg.serviceName)
 			}
-		}))
+		}),
+	}
+	if !math.IsNaN(cfg.analyticsRate) {
+		rtOpts = append(rtOpts, httptrace.RTWithAnalyticsRate(cfg.analyticsRate))
+	}
+	return httptrace.WrapRoundTripper(transport, rtOpts...)
 }

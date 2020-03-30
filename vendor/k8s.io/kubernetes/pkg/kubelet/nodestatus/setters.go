@@ -29,6 +29,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/errors"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	cloudprovider "k8s.io/cloud-provider"
@@ -79,45 +80,62 @@ func NodeAddress(nodeIP net.IP, // typically Kubelet.nodeIP
 				}
 				node.ObjectMeta.Annotations[kubeletapis.AnnotationProvidedIPAddr] = nodeIP.String()
 			}
-			// We rely on the external cloud provider to supply the addresses.
-			return nil
+
+			// If --cloud-provider=external and node address is already set,
+			// then we return early because provider set addresses should take precedence.
+			// Otherwise, we try to look up the node IP and let the cloud provider override it later
+			// This should alleviate a lot of the bootstrapping issues with out-of-tree providers
+			if len(node.Status.Addresses) > 0 {
+				return nil
+			}
 		}
 		if cloud != nil {
-			nodeAddresses, err := nodeAddressesFunc()
+			cloudNodeAddresses, err := nodeAddressesFunc()
 			if err != nil {
 				return err
 			}
+
+			var nodeAddresses []v1.NodeAddress
+
+			// For every address supplied by the cloud provider that matches nodeIP, nodeIP is the enforced node address for
+			// that address Type (like InternalIP and ExternalIP), meaning other addresses of the same Type are discarded.
+			// See #61921 for more information: some cloud providers may supply secondary IPs, so nodeIP serves as a way to
+			// ensure that the correct IPs show up on a Node object.
 			if nodeIP != nil {
 				enforcedNodeAddresses := []v1.NodeAddress{}
 
-				var nodeIPType v1.NodeAddressType
-				for _, nodeAddress := range nodeAddresses {
+				nodeIPTypes := make(map[v1.NodeAddressType]bool)
+				for _, nodeAddress := range cloudNodeAddresses {
 					if nodeAddress.Address == nodeIP.String() {
 						enforcedNodeAddresses = append(enforcedNodeAddresses, v1.NodeAddress{Type: nodeAddress.Type, Address: nodeAddress.Address})
-						nodeIPType = nodeAddress.Type
-						break
+						nodeIPTypes[nodeAddress.Type] = true
 					}
 				}
-				if len(enforcedNodeAddresses) > 0 {
-					for _, nodeAddress := range nodeAddresses {
-						if nodeAddress.Type != nodeIPType && nodeAddress.Type != v1.NodeHostName {
-							enforcedNodeAddresses = append(enforcedNodeAddresses, v1.NodeAddress{Type: nodeAddress.Type, Address: nodeAddress.Address})
-						}
-					}
 
-					enforcedNodeAddresses = append(enforcedNodeAddresses, v1.NodeAddress{Type: v1.NodeHostName, Address: hostname})
-					node.Status.Addresses = enforcedNodeAddresses
-					return nil
+				// nodeIP must be among the addresses supplied by the cloud provider
+				if len(enforcedNodeAddresses) == 0 {
+					return fmt.Errorf("failed to get node address from cloud provider that matches ip: %v", nodeIP)
 				}
-				return fmt.Errorf("failed to get node address from cloud provider that matches ip: %v", nodeIP)
+
+				// nodeIP was found, now use all other addresses supplied by the cloud provider NOT of the same Type as nodeIP.
+				for _, nodeAddress := range cloudNodeAddresses {
+					if !nodeIPTypes[nodeAddress.Type] {
+						enforcedNodeAddresses = append(enforcedNodeAddresses, v1.NodeAddress{Type: nodeAddress.Type, Address: nodeAddress.Address})
+					}
+				}
+
+				nodeAddresses = enforcedNodeAddresses
+			} else {
+				// If nodeIP is unset, just use the addresses provided by the cloud provider as-is
+				nodeAddresses = cloudNodeAddresses
 			}
 
 			switch {
-			case len(nodeAddresses) == 0:
+			case len(cloudNodeAddresses) == 0:
 				// the cloud provider didn't specify any addresses
 				nodeAddresses = append(nodeAddresses, v1.NodeAddress{Type: v1.NodeHostName, Address: hostname})
 
-			case !hasAddressType(nodeAddresses, v1.NodeHostName) && hasAddressValue(nodeAddresses, hostname):
+			case !hasAddressType(cloudNodeAddresses, v1.NodeHostName) && hasAddressValue(cloudNodeAddresses, hostname):
 				// the cloud provider didn't specify an address of type Hostname,
 				// but the auto-detected hostname matched an address reported by the cloud provider,
 				// so we can add it and count on the value being verifiable via cloud provider metadata
@@ -139,7 +157,7 @@ func NodeAddress(nodeIP net.IP, // typically Kubelet.nodeIP
 					// no existing Hostname address found, add it
 					klog.Warningf("adding overridden hostname of %v to cloudprovider-reported addresses", hostname)
 					nodeAddresses = append(nodeAddresses, v1.NodeAddress{Type: v1.NodeHostName, Address: hostname})
-				} else {
+				} else if existingHostnameAddress.Address != hostname {
 					// override the Hostname address reported by the cloud provider
 					klog.Warningf("replacing cloudprovider-reported hostname of %v with overridden hostname of %v", existingHostnameAddress.Address, hostname)
 					existingHostnameAddress.Address = hostname
@@ -270,7 +288,9 @@ func MachineInfo(nodeName string,
 				// capacity for every node status request
 				initialCapacity := capacityFunc()
 				if initialCapacity != nil {
-					node.Status.Capacity[v1.ResourceEphemeralStorage] = initialCapacity[v1.ResourceEphemeralStorage]
+					if v, exists := initialCapacity[v1.ResourceEphemeralStorage]; exists {
+						node.Status.Capacity[v1.ResourceEphemeralStorage] = v
+					}
 				}
 			}
 
@@ -312,7 +332,7 @@ func MachineInfo(nodeName string,
 		}
 		allocatableReservation := nodeAllocatableReservationFunc()
 		for k, v := range node.Status.Capacity {
-			value := *(v.Copy())
+			value := v.DeepCopy()
 			if res, exists := allocatableReservation[k]; exists {
 				value.Sub(res)
 			}
@@ -335,7 +355,7 @@ func MachineInfo(nodeName string,
 		for k, v := range node.Status.Capacity {
 			if v1helper.IsHugePageResourceName(k) {
 				allocatableMemory := node.Status.Allocatable[v1.ResourceMemory]
-				value := *(v.Copy())
+				value := v.DeepCopy()
 				allocatableMemory.Sub(value)
 				if allocatableMemory.Sign() < 0 {
 					// Negative Allocatable resources don't make sense.
@@ -436,8 +456,9 @@ func GoRuntime() Setter {
 // ReadyCondition returns a Setter that updates the v1.NodeReady condition on the node.
 func ReadyCondition(
 	nowFunc func() time.Time, // typically Kubelet.clock.Now
-	runtimeErrorsFunc func() []string, // typically Kubelet.runtimeState.runtimeErrors
-	networkErrorsFunc func() []string, // typically Kubelet.runtimeState.networkErrors
+	runtimeErrorsFunc func() error, // typically Kubelet.runtimeState.runtimeErrors
+	networkErrorsFunc func() error, // typically Kubelet.runtimeState.networkErrors
+	storageErrorsFunc func() error, // typically Kubelet.runtimeState.storageErrors
 	appArmorValidateHostFunc func() error, // typically Kubelet.appArmorValidator.ValidateHost, might be nil depending on whether there was an appArmorValidator
 	cmStatusFunc func() cm.Status, // typically Kubelet.containerManager.Status
 	recordEventFunc func(eventType, event string), // typically Kubelet.recordNodeStatusEvent
@@ -454,7 +475,7 @@ func ReadyCondition(
 			Message:           "kubelet is posting ready status",
 			LastHeartbeatTime: currentTime,
 		}
-		rs := append(runtimeErrorsFunc(), networkErrorsFunc()...)
+		errs := []error{runtimeErrorsFunc(), networkErrorsFunc(), storageErrorsFunc()}
 		requiredCapacities := []v1.ResourceName{v1.ResourceCPU, v1.ResourceMemory, v1.ResourcePods}
 		if utilfeature.DefaultFeatureGate.Enabled(features.LocalStorageCapacityIsolation) {
 			requiredCapacities = append(requiredCapacities, v1.ResourceEphemeralStorage)
@@ -466,14 +487,14 @@ func ReadyCondition(
 			}
 		}
 		if len(missingCapacities) > 0 {
-			rs = append(rs, fmt.Sprintf("Missing node capacity for resources: %s", strings.Join(missingCapacities, ", ")))
+			errs = append(errs, fmt.Errorf("missing node capacity for resources: %s", strings.Join(missingCapacities, ", ")))
 		}
-		if len(rs) > 0 {
+		if aggregatedErr := errors.NewAggregate(errs); aggregatedErr != nil {
 			newNodeReadyCondition = v1.NodeCondition{
 				Type:              v1.NodeReady,
 				Status:            v1.ConditionFalse,
 				Reason:            "KubeletNotReady",
-				Message:           strings.Join(rs, ","),
+				Message:           aggregatedErr.Error(),
 				LastHeartbeatTime: currentTime,
 			}
 		}

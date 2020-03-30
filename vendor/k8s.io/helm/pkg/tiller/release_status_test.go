@@ -19,14 +19,13 @@ package tiller
 import (
 	"testing"
 
-	"golang.org/x/net/context"
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/proto/hapi/release"
 	"k8s.io/helm/pkg/proto/hapi/services"
 )
 
 func TestGetReleaseStatus(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 	rel := releaseStub()
 	if err := rs.env.Releases.Create(rel); err != nil {
@@ -47,7 +46,7 @@ func TestGetReleaseStatus(t *testing.T) {
 }
 
 func TestGetReleaseStatusDeleted(t *testing.T) {
-	c := helm.NewContext(context.Background())
+	c := helm.NewContext()
 	rs := rsFixture()
 	rel := releaseStub()
 	rel.Info.Status.Code = release.Status_DELETED

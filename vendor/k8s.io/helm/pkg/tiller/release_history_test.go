@@ -20,7 +20,6 @@ import (
 	"reflect"
 	"testing"
 
-	"golang.org/x/net/context"
 	"k8s.io/helm/pkg/helm"
 	rpb "k8s.io/helm/pkg/proto/hapi/release"
 	tpb "k8s.io/helm/pkg/proto/hapi/services"
@@ -78,7 +77,7 @@ func TestGetHistory_WithRevisions(t *testing.T) {
 
 	// run tests
 	for _, tt := range tests {
-		res, err := srv.GetHistory(helm.NewContext(context.Background()), tt.req)
+		res, err := srv.GetHistory(helm.NewContext(), tt.req)
 		if err != nil {
 			t.Fatalf("%s:\nFailed to get History of %q: %s", tt.desc, tt.req.Name, err)
 		}
@@ -105,7 +104,7 @@ func TestGetHistory_WithNoRevisions(t *testing.T) {
 	srv.env.Releases.Create(rls)
 
 	for _, tt := range tests {
-		res, err := srv.GetHistory(helm.NewContext(context.Background()), tt.req)
+		res, err := srv.GetHistory(helm.NewContext(), tt.req)
 		if err != nil {
 			t.Fatalf("%s:\nFailed to get History of %q: %s", tt.desc, tt.req.Name, err)
 		}

@@ -30,6 +30,8 @@ type repos struct {
 	pm map[string]*lockingRepo
 }
 
+type StatusCallback func(context.Context, string, string, *CommitStatus) error
+
 // LocalWrapper is on object that satisfies RepoClient and which can optionally use local git repositories for
 // repo names according to RepoPathMap, falling back to Backend if not found
 type LocalWrapper struct {
@@ -40,6 +42,8 @@ type LocalWrapper struct {
 	RepoPathMap map[string]string
 	// WorkingTreeRepos are the repos to read contents directly from disk (not via commit SHA)
 	WorkingTreeRepos []string
+	// SetStatusCallback is a callback executed whenever SetStatus is called, if non-nil
+	SetStatusCallback StatusCallback
 
 	repoPathMapLock sync.RWMutex
 	r               repos
@@ -433,7 +437,13 @@ func (lw *LocalWrapper) GetDirectoryContents(ctx context.Context, repo, path, re
 	return lw.Backend.GetDirectoryContents(ctx, repo, path, ref)
 }
 
+func (lw *LocalWrapper) SetStatus(ctx context.Context, repo string, sha string, status *CommitStatus) error {
+	if lw.SetStatusCallback != nil {
+		return lw.SetStatusCallback(ctx, repo, sha, status)
+	}
+	return nil
+}
+
 // stubs to satisfy the interface
-func (lw *LocalWrapper) GetTags(context.Context, string) ([]BranchInfo, error)          { return nil, nil }
-func (lw *LocalWrapper) SetStatus(context.Context, string, string, *CommitStatus) error { return nil }
-func (lw *LocalWrapper) GetPRStatus(context.Context, string, uint) (string, error)      { return "", nil }
+func (lw *LocalWrapper) GetTags(context.Context, string) ([]BranchInfo, error)     { return nil, nil }
+func (lw *LocalWrapper) GetPRStatus(context.Context, string, uint) (string, error) { return "", nil }

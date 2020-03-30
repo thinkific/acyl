@@ -118,9 +118,13 @@ func (tdl *TestDataLayer) insert(qa *models.QAEnvironment) error {
 func (tdl *TestDataLayer) insertEventLog(el models.EventLog) error {
 	el.Created = time.Now().UTC()
 	el.Updated = pq.NullTime{Time: time.Now().UTC(), Valid: true}
-	q := `INSERT INTO event_logs (` + el.Columns() + `) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);`
-	if _, err := tdl.pgdb.Exec(q, &el.ID, &el.Created, &el.Updated, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, pq.Array(el.Log)); err != nil {
+	q := `INSERT INTO event_logs (` + el.InsertColumns() + `) VALUES (` + el.InsertParams() + `);`
+	if _, err := tdl.pgdb.Exec(q, el.InsertValues()...); err != nil {
 		return errors.Wrap(err, "error inserting event log")
+	}
+	q = `UPDATE event_logs SET status = $1 WHERE id = $2;`
+	if _, err := tdl.pgdb.Exec(q, el.Status, el.ID); err != nil {
+		return errors.Wrap(err, "error setting event log status")
 	}
 	return nil
 }

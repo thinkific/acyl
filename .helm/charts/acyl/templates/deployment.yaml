@@ -95,7 +95,23 @@ spec:
           - "{{ .Values.app.failure_reports.s3.keyprefix }}"
           - "--k8s-group-bindings"
           - "{{ .Values.app.k8s_group_bindings }}"
+          {{ if .Values.app.operation_timeout_override }}
+          - "--operation-timeout-override"
+          - "{{ .Values.app.operation_timeout_override }}"
+          {{ end }}
     {{ end }}
+          - "--ui-base-url"
+          {{ if .Values.is_dqa }}
+            {{ if .Values.ingress.traefik.enabled }}
+          - "https://{{ .Values.env_name }}-{{ .Values.ingress.traefik.host }}"
+            {{ else }}
+          - "{{ .Values.app.ui.base_url }}"  # local DQA hostname
+            {{ end }}
+          {{ else }}
+          - "{{ .Values.app.ui.base_url }}"
+          {{ end }}
+          - "--ui-branding"
+          - '{{ .Values.app.ui.branding | toJson }}'
         ports:
         - containerPort: {{ .Values.service.internalPort }}
         livenessProbe:
@@ -164,9 +180,18 @@ spec:
               secretKeyRef:
                 name: dummy-acyl-secrets
                 key: db_uri
+          - name: ACYL_K8S_IMAGE_PULL_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: image_pull_secret                
           {{ else }}
           - name: VAULT_ADDR
             value: {{ .Values.vault.addr }}
+          {{ end }}
+          {{ if .Values.app.k8s_client_disable_http2 }}
+          - name: DISABLE_HTTP2
+            value: 'true'
           {{ end }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}

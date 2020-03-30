@@ -21,9 +21,23 @@ var (
 	defaultLockDelay    = 15 * time.Second
 )
 
-// PreemptedError is returned when a Lock() operation is preempted
-type PreemptedError interface {
-	Preempted() bool
+// PreemptedLockError is returned when a Lock() operation is preempted
+type PreemptedLockError struct {
+	ID string
+}
+
+func (e *PreemptedLockError) Error() string {
+	return fmt.Sprintf("lock %q was preempted", e.ID)
+}
+
+// ContextCancelledError is returned when a Lock operation is canceled
+// via context.
+type ContextCancelledError struct {
+	ID string
+}
+
+func (e *ContextCancelledError) Error() string {
+	return fmt.Sprintf("context was cancelled while acquiring lock id %q", e.ID)
 }
 
 // PreemptiveLocker represents a distributed lock where callers can be preempted while waiting for the lock to be released or while holding the lock. High level, the algorithm is as follows:
@@ -183,7 +197,8 @@ func (p *PreemptiveLocker) lockWithID(ctx context.Context, id string) (<-chan in
 				}
 			default:
 			}
-			return nil, perror("preempted")
+			err := PreemptedLockError{ID: id}
+			return nil, &err
 		case lc := <-lout: // acquired lock
 			p.l = lock
 
@@ -197,7 +212,8 @@ func (p *PreemptiveLocker) lockWithID(ctx context.Context, id string) (<-chan in
 			return nil, le
 		case <-ctx.Done(): // context was cancelled
 			p.w.Stop()
-			return nil, perror("context was cancelled while acquiring lock")
+			err := ContextCancelledError{ID: id}
+			return nil, &err
 		}
 	}
 }
@@ -220,7 +236,7 @@ func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
 
 // WasPreempted returns true if the provided error was returned due to the caller being preempted while waiting for the lock to be released
 func (p *PreemptiveLocker) WasPreempted(err error) bool {
-	_, ok := err.(PreemptedError)
+	_, ok := err.(*PreemptedLockError)
 	return ok
 }
 
@@ -274,15 +290,6 @@ func (p *PreemptiveLocker) acquireLock(ctx context.Context, lock PreemptableLock
 	}()
 
 	return lout, leout
-}
-
-type perror string
-
-func (pe perror) Error() string {
-	return string(pe)
-}
-func (pe perror) Preempted() bool {
-	return true
 }
 
 type keyWatcher struct {

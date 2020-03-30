@@ -2,9 +2,13 @@ package persistence
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
@@ -35,6 +39,13 @@ func (pg *PGLayer) GetEventLogsByRepoAndPR(repo string, pr uint) ([]models.Event
 
 // CreateEventLog creates a new EventLog
 func (pg *PGLayer) CreateEventLog(elog *models.EventLog) error {
+	if elog.LogKey == uuid.Nil {
+		lk, err := uuid.NewRandom()
+		if err != nil {
+			return errors.Wrap(err, "error generating log key")
+		}
+		elog.LogKey = lk
+	}
 	q := `INSERT INTO event_logs (` + elog.InsertColumns() + `) VALUES (` + elog.InsertParams() + `);`
 	_, err := pg.db.Exec(q, elog.InsertValues()...)
 	return errors.Wrap(err, "error inserting event log")
@@ -94,4 +105,124 @@ func collectEventLogRows(rows *sql.Rows, err error) ([]models.EventLog, error) {
 		logs = append(logs, el)
 	}
 	return logs, nil
+}
+
+func JSONTime(t time.Time) string {
+	return t.Format("2006-01-02T15:04:05Z07:00")
+}
+
+func (pg *PGLayer) SetEventStatus(id uuid.UUID, status models.EventStatusSummary) error {
+	q := `UPDATE event_logs SET status = $1 WHERE id = $2;`
+	_, err := pg.db.Exec(q, status, id)
+	return errors.Wrap(err, "error setting event status")
+}
+
+func (pg *PGLayer) SetEventStatusConfig(id uuid.UUID, processingTime time.Duration, refmap map[string]string) error {
+	if len(refmap) == 0 {
+		return errors.New("refmap cannot be empty")
+	}
+	rj, err := json.Marshal(&refmap)
+	if err != nil {
+		return errors.Wrap(err, "error marshaling refmap")
+	}
+	ptj, err := json.Marshal(&models.ConfigProcessingDuration{Duration: processingTime})
+	if err != nil {
+		return errors.Wrap(err, "error marshaling processingTime")
+	}
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, '{config}', status->'config' || json_build_object('processing_time', $1::text, 'ref_map', $2::jsonb)::jsonb)
+		  WHERE id = $3;`
+	_, err = pg.db.Exec(q, string(ptj), string(rj), id)
+	return errors.Wrap(err, "error setting event status config")
+}
+
+func (pg *PGLayer) SetEventStatusConfigK8sNS(id uuid.UUID, ns string) error {
+	q := `UPDATE event_logs SET
+			status = jsonb_set(status, '{config}', status->'config' || json_build_object('k8s_ns', $1::text)::jsonb)
+		  WHERE id = $2;`
+	_, err := pg.db.Exec(q, ns, id)
+	return errors.Wrap(err, "error setting event status config k8s namespace")
+}
+
+func (pg *PGLayer) SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error {
+	j, err := json.Marshal(rstatus)
+	if err != nil {
+		return errors.Wrap(err, "error marshaling rendered event status")
+	}
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, '{config,rendered_status}', $1::jsonb)
+		  WHERE id = $2;`
+	_, err = pg.db.Exec(q, string(j), id)
+	return errors.Wrap(err, "error setting event status rendered status")
+}
+
+func (pg *PGLayer) SetEventStatusTree(id uuid.UUID, tree map[string]models.EventStatusTreeNode) error {
+	if len(tree) == 0 {
+		return errors.New("tree cannot be empty")
+	}
+	tj, err := json.Marshal(&tree)
+	if err != nil {
+		return errors.Wrap(err, "error marshaling tree")
+	}
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, '{tree}', $1::jsonb)
+		  WHERE id = $2;`
+	_, err = pg.db.Exec(q, string(tj), id)
+	return errors.Wrap(err, "error setting event status tree")
+}
+
+func (pg *PGLayer) SetEventStatusCompleted(id uuid.UUID, configStatus models.EventStatus) error {
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, '{config}', status->'config' || json_build_object('status', $1::int, 'completed', $2::text)::jsonb)
+		  WHERE id = $3;`
+	_, err := pg.db.Exec(q, configStatus, JSONTime(time.Now().UTC()), id)
+	return errors.Wrap(err, "error setting event status config status to completed")
+}
+
+func (pg *PGLayer) SetEventStatusImageStarted(id uuid.UUID, name string) error {
+	q := `UPDATE event_logs SET 
+			status = jsonb_set(status, ARRAY['tree',$1,'image'], status->'tree'->$1->'image' || json_build_object('started', $2::text)::jsonb)
+		  WHERE id = $3;`
+	_, err := pg.db.Exec(q, name, JSONTime(time.Now().UTC()), id)
+	return errors.Wrap(err, "error setting event status image to started")
+}
+
+func (pg *PGLayer) SetEventStatusImageCompleted(id uuid.UUID, name string, err bool) error {
+	q := `UPDATE event_logs SET
+			status = jsonb_set(status, ARRAY['tree',$1,'image'], status->'tree'->$1->'image' || json_build_object('completed', $3::text, 'error', $2::boolean)::jsonb)
+		  WHERE id = $4;`
+	_, err2 := pg.db.Exec(q, name, err, JSONTime(time.Now().UTC()), id)
+	return errors.Wrap(err2, "error setting event status image status to completed")
+}
+
+func (pg *PGLayer) SetEventStatusChartStarted(id uuid.UUID, name string, status models.NodeChartStatus) error {
+	q := `UPDATE event_logs SET
+			status = jsonb_set(status, ARRAY['tree',$1,'chart'], status->'tree'->$1->'chart' || json_build_object('status', $2::int, 'started', $3::text)::jsonb)
+		  WHERE id = $4;`
+	_, err := pg.db.Exec(q, name, status, JSONTime(time.Now().UTC()), id)
+	return errors.Wrap(err, "error setting event status chart status to started")
+}
+
+func (pg *PGLayer) SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error {
+	q := `UPDATE event_logs SET
+			status = jsonb_set(status, ARRAY['tree',$1,'chart'], status->'tree'->$1->'chart' || json_build_object('status', $2::int, 'completed', $3::text)::jsonb)
+		  WHERE id = $4;`
+	_, err := pg.db.Exec(q, name, status, JSONTime(time.Now().UTC()), id)
+	if err != nil {
+		perr := err.(*pq.Error)
+		fmt.Printf("perr: %v\n", perr.Detail)
+	}
+	return errors.Wrap(err, "error setting event status chart status to completed")
+}
+
+func (pg *PGLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error) {
+	out := &models.EventStatusSummary{}
+	q := `SELECT status FROM event_logs WHERE id = $1;`
+	if err := pg.db.QueryRow(q, id).Scan(&out); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, errors.Wrap(err, "error getting event status by id")
+	}
+	return out, nil
 }

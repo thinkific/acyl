@@ -49,7 +49,7 @@ func (l *Logger) Printf(msg string, params ...interface{}) {
 		idstr = " event: " + l.ID.String()
 	}
 	msg = fmt.Sprintf(time.Now().UTC().Format("2006/01/02 15:04:05")+idstr+": "+msg+"\n", params...)
-	if l.DL != nil {
+	if l.DL != nil && l.ID != uuid.Nil {
 		if err := l.DL.AppendToEventLog(l.ID, msg); err != nil {
 			if l.Sink != nil {
 				l.Sink.Write([]byte(errors.Wrap(err, "error appending line to event log").Error()))

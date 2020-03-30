@@ -1,16 +1,27 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package api
 
-import "context"
+import (
+	"context"
+	"math"
+)
 
 type config struct {
-	serviceName string
-	ctx         context.Context
-	scopes      []string
+	serviceName   string
+	ctx           context.Context
+	analyticsRate float64
+	scopes        []string
 }
 
 func newConfig(options ...Option) *config {
 	cfg := &config{
 		ctx: context.Background(),
+		// analyticsRate: globalconfig.AnalyticsRate(),
+		analyticsRate: math.NaN(),
 	}
 	for _, opt := range options {
 		opt(cfg)
@@ -41,5 +52,28 @@ func WithScopes(scopes ...string) Option {
 func WithServiceName(serviceName string) Option {
 	return func(cfg *config) {
 		cfg.serviceName = serviceName
+	}
+}
+
+// WithAnalytics enables Trace Analytics for all started spans.
+func WithAnalytics(on bool) Option {
+	return func(cfg *config) {
+		if on {
+			cfg.analyticsRate = 1.0
+		} else {
+			cfg.analyticsRate = math.NaN()
+		}
+	}
+}
+
+// WithAnalyticsRate sets the sampling rate for Trace Analytics events
+// correlated to started spans.
+func WithAnalyticsRate(rate float64) Option {
+	return func(cfg *config) {
+		if rate >= 0.0 && rate <= 1.0 {
+			cfg.analyticsRate = rate
+		} else {
+			cfg.analyticsRate = math.NaN()
+		}
 	}
 }

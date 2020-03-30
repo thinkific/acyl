@@ -1,24 +1,24 @@
-{{ if .Values.ingress.argo }}
+{{- if .Values.ingress.argo }}
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: acyl-argo
+  name: fastly-dqa
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
   namespace: {{ .Values.namespace }}
   annotations:
-      kubernetes.io/ingress.class: argo-tunnel
+      kubernetes.io/ingress.class: 
 spec:
   rules:
-    {{ if .Values.is_dqa }}
+    {{- if .Values.is_dqa }}
     - host: {{ .Values.env_name }}-{{ .Values.ingress.argo_host }}
-    {{ else }}
+    {{- else }}
     - host: {{ .Values.ingress.argo_host }}
-    {{ end }}
+    {{- end }}
       http:
         paths:
           - path: /
             backend:
               serviceName: {{ .Values.service.name }}
               servicePort: {{ .Values.service.internalPort }}
-{{ end }}
+{{- end }}
