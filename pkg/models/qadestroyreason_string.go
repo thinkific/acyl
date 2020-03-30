@@ -4,6 +4,19 @@ package models
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[ReapAgeSpawned-0]
+	_ = x[ReapAgeFailure-1]
+	_ = x[ReapPrClosed-2]
+	_ = x[ReapEnvironmentLimitExceeded-3]
+	_ = x[CreateFoundStale-4]
+	_ = x[DestroyApiRequest-5]
+	_ = x[EnvironmentLimitExceeded-6]
+}
+
 const _QADestroyReason_name = "ReapAgeSpawnedReapAgeFailureReapPrClosedReapEnvironmentLimitExceededCreateFoundStaleDestroyApiRequestEnvironmentLimitExceeded"
 
 var _QADestroyReason_index = [...]uint8{0, 14, 28, 40, 68, 84, 101, 125}
