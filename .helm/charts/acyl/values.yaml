@@ -69,8 +69,12 @@ service:
   type: ClusterIP
   internalPort: 4000
 ingress:
-  argo: true
-  argo_host: foo.bar.com
+  enabled: true
+  name: acyl-argo
+  ingress_class: 'argo-tunnel'
+  hosts:
+    - foo.bar.com
+    - foo.baz.com
   traefik:
     entry_point: web
     enabled: false
