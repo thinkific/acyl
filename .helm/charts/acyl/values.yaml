@@ -28,7 +28,6 @@ app:
   dogstatsd_addr: 1.2.3.4:8125
   datadog_tracing_agent_addr: 1.2.3.4:8126
   metrics_tags: ''
-  amino_addr: foo.bar.com:3000
   furan_addr: "furan"
   nitro: true
   k8s_group_bindings: ""
