@@ -35,7 +35,6 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/reap"
 	"github.com/dollarshaveclub/acyl/pkg/slacknotifier"
-	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/nlopes/slack"
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -169,7 +168,6 @@ func server(cmd *cobra.Command, args []string) {
 	slackapi := slack.New(slackConfig.Token)
 	mapper := slacknotifier.NewRepoBackedSlackUsernameMapper(rc, slackConfig.MapperRepo, slackConfig.MapperMapPath, slackConfig.MapperRepoRef, time.Duration(slackConfig.MapperUpdateIntervalSeconds)*time.Second)
 
-	var envspawner spawner.EnvironmentSpawner
 	logger.Printf("nitro enabled")
 	nmc, err := nitrometrics.NewDatadogCollector("acyl.nitro.", dogstatsdAddr, strings.Split(dogstatsdTags, ","))
 	if err != nil {
@@ -248,16 +246,11 @@ func server(cmd *cobra.Command, args []string) {
 	}
 	nitromgr.OperationTimeout = serverConfig.OperationTimeoutOverride // Zero means use default defined in pkg/nitro/env
 	loadFailureTemplate(nitromgr)
-	envspawner = &nitroenv.NitroSpawner{
-		DL:           dl,
-		MG:           mg,
-		Nitro:        nitromgr,
-	}
 	ge := ghevent.NewGitHubEventWebhook(rc, githubConfig.HookSecret, githubConfig.TypePath, dl)
 
 	if serverConfig.ReaperIntervalSecs > 0 {
 		log.Printf("starting reaper: %v sec interval", serverConfig.ReaperIntervalSecs)
-		reaper := reap.NewReaper(lp, dl, envspawner, rc, mc, serverConfig.GlobalEnvironmentLimit, logger)
+		reaper := reap.NewReaper(lp, dl, nitromgr, rc, mc, serverConfig.GlobalEnvironmentLimit, logger)
 		ticker := time.NewTicker(time.Duration(serverConfig.ReaperIntervalSecs) * time.Second)
 		go func() {
 			var delta int64
@@ -298,7 +291,7 @@ func server(cmd *cobra.Command, args []string) {
 	deps := &api.Dependencies{
 		DataLayer:          dl,
 		GitHubEventWebhook: ge,
-		EnvironmentSpawner: envspawner,
+		EnvironmentSpawner: nitromgr,
 		ServerConfig:       serverConfig,
 		Logger:             logger,
 		DatadogServiceName: apiServiceName,
