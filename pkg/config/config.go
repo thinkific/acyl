@@ -125,28 +125,6 @@ func (kc *K8sConfig) ProcessSecretInjections(sf SecretFetcher, injstr string) er
 	return nil
 }
 
-type AminoConfig struct {
-	HelmChartToRepoRaw       string
-	HelmChartToRepo          map[string]string
-	AminoDeploymentToRepoRaw string
-	AminoDeploymentToRepo    map[string]string
-	AminoJobToRepoRaw        string
-	AminoJobToRepo           map[string]string
-}
-
-func (a *AminoConfig) Parse() error {
-	if err := json.Unmarshal([]byte(a.HelmChartToRepoRaw), &a.HelmChartToRepo); err != nil {
-		return fmt.Errorf("error unmarshaling HelmChartToRepo: %v", err)
-	}
-	if err := json.Unmarshal([]byte(a.AminoDeploymentToRepoRaw), &a.AminoDeploymentToRepo); err != nil {
-		return fmt.Errorf("error unmarshaling AminoDeploymentToRepo: %v", err)
-	}
-	if err := json.Unmarshal([]byte(a.AminoJobToRepoRaw), &a.AminoJobToRepo); err != nil {
-		return fmt.Errorf("error unmarshaling AminoJobToRepo: %v", err)
-	}
-	return nil
-}
-
 type ConsulConfig struct {
 	Addr       string
 	LockPrefix string

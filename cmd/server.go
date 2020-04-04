@@ -168,7 +168,6 @@ func server(cmd *cobra.Command, args []string) {
 	slackapi := slack.New(slackConfig.Token)
 	mapper := slacknotifier.NewRepoBackedSlackUsernameMapper(rc, slackConfig.MapperRepo, slackConfig.MapperMapPath, slackConfig.MapperRepoRef, time.Duration(slackConfig.MapperUpdateIntervalSeconds)*time.Second)
 
-	logger.Printf("nitro enabled")
 	nmc, err := nitrometrics.NewDatadogCollector("acyl.nitro.", dogstatsdAddr, strings.Split(dogstatsdTags, ","))
 	if err != nil {
 		log.Fatalf("error setting up nitro metrics collector: %v", err)
