@@ -2,14 +2,19 @@ package ghapp
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
-	"sync"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
-	"github.com/dollarshaveclub/acyl/pkg/ghclient"
+	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 
-	"github.com/dollarshaveclub/acyl/pkg/nitro/env"
+	"github.com/google/go-github/github"
+
+	"github.com/google/uuid"
+
+	"github.com/dollarshaveclub/acyl/pkg/models"
+
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/palantir/go-githubapp/githubapp"
 )
@@ -44,79 +49,140 @@ kGTL0A6/0yAu9qQZlFbaD5bWhQo7eyx63u4hZGppBhkTSPikOYUPCH8=
 -----END RSA PRIVATE KEY-----`
 
 func Test_prEventHandler_Handle(t *testing.T) {
-	rc := httptest.NewRecorder()
+	str := func(s string) *string { return &s }
+	intp := func(i int) *int { return &i }
+	boolp := func(b bool) *bool { return &b }
+	basep := github.PullRequestEvent{
+		Action: str("opened"),
+		Number: intp(1),
+		PullRequest: &github.PullRequest{
+			Number: intp(1),
+			User: &github.User{
+				Login: str("john.doe"),
+			},
+			Head: &github.PullRequestBranch{
+				Repo: &github.Repository{
+					FullName: str("foo/bar"),
+					Fork:     boolp(false),
+				},
+				Label: str("asdf"),
+				Ref:   str("zxcv"),
+				SHA:   str("1234"),
+			},
+			Base: &github.PullRequestBranch{
+				Repo: &github.Repository{
+					FullName: str("foo/bar"),
+				},
+				Label: str("qwer"),
+				Ref:   str("tyui"),
+				SHA:   str("5678"),
+			},
+		},
+	}
+	reopenedp := basep
+	reopenedp.Action = str("reopened")
+	updatep := basep
+	updatep.Action = str("synchronize")
+	closedp := basep
+	closedp.Action = str("closed")
+	basecb := func(ctx context.Context, action string, rrd models.RepoRevisionData) error {
+		if rrd.Repo != "foo/bar" {
+			return fmt.Errorf("bad repo: %v", rrd.Repo)
+		}
+		if rrd.PullRequest != 1 {
+			return fmt.Errorf("bad pr: %v", rrd.PullRequest)
+		}
+		if eventlogger.GetLogger(ctx).ID == uuid.Nil {
+			return fmt.Errorf("missing eventlogger")
+		}
+		if GetGitHubAppClient(ctx, nil) == nil {
+			return fmt.Errorf("missing app client")
+		}
+		if GetGitHubInstallationClient(ctx, nil) == nil {
+			return fmt.Errorf("missing installation client")
+		}
+		return nil
+	}
 	type args struct {
-		eventType  string
 		deliveryID string
-		payload    []byte
-		w          http.ResponseWriter
+		payload    github.PullRequestEvent
+		cb         PRCallback
 	}
 	tests := []struct {
 		name       string
 		args       args
-		wantStatus int
 		wantErr    bool
+		wantErrStr string
 	}{
 		{
 			name: "opened",
 			args: args{
-				eventType:  "opened",
-				deliveryID: "asdf",
-				payload:    []byte(`{"action":"opened","repo":{"owner":"foo","name":"bar"},"pull_request":{"number":1,"head":{"label":"asdf","ref":"zxcv","sha":"1234"},"base":{"label":"qwer","ref":"tyui","sha":"5678"}}}`),
-				w:          rc,
+				deliveryID: uuid.Must(uuid.NewRandom()).String(),
+				payload:    basep,
+				cb: func(ctx context.Context, action string, rrd models.RepoRevisionData) error {
+					if action != "opened" {
+						return fmt.Errorf("bad action: %v", action)
+					}
+					return basecb(ctx, action, rrd)
+				},
 			},
-			wantStatus: http.StatusAccepted,
 		},
 		{
 			name: "reopened",
 			args: args{
-				eventType:  "reopened",
-				deliveryID: "asdf",
-				payload:    []byte(`{"action":"reopened","repo":{"owner":"foo","name":"bar"},"pull_request":{"number":1,"head":{"label":"asdf","ref":"zxcv","sha":"1234"},"base":{"label":"qwer","ref":"tyui","sha":"5678"}}}`),
-				w:          rc,
+				deliveryID: uuid.Must(uuid.NewRandom()).String(),
+				payload:    reopenedp,
+				cb: func(ctx context.Context, action string, rrd models.RepoRevisionData) error {
+					if action != "reopened" {
+						return fmt.Errorf("bad action: %v", action)
+					}
+					return basecb(ctx, action, rrd)
+				},
 			},
-			wantStatus: http.StatusAccepted,
 		},
 		{
-			name: "update",
+			name: "synchronize",
 			args: args{
-				eventType:  "synchronize",
-				deliveryID: "asdf",
-				payload:    []byte(`{"action":"synchronize","repo":{"owner":"foo","name":"bar"},"pull_request":{"number":1,"head":{"label":"asdf","ref":"zxcv","sha":"1234"},"base":{"label":"qwer","ref":"tyui","sha":"5678"}}}`),
-				w:          rc,
+				deliveryID: uuid.Must(uuid.NewRandom()).String(),
+				payload:    updatep,
+				cb: func(ctx context.Context, action string, rrd models.RepoRevisionData) error {
+					if action != "synchronize" {
+						return fmt.Errorf("bad action: %v", action)
+					}
+					return basecb(ctx, action, rrd)
+				},
 			},
-			wantStatus: http.StatusAccepted,
 		},
 		{
 			name: "closed",
 			args: args{
-				eventType:  "closed",
-				deliveryID: "asdf",
-				payload:    []byte(`{"action":"closed","repo":{"owner":"foo","name":"bar"},"pull_request":{"number":1,"head":{"label":"asdf","ref":"zxcv","sha":"1234"},"base":{"label":"qwer","ref":"tyui","sha":"5678"}}}`),
-				w:          rc,
+				deliveryID: uuid.Must(uuid.NewRandom()).String(),
+				payload:    closedp,
+				cb: func(ctx context.Context, action string, rrd models.RepoRevisionData) error {
+					if action != "closed" {
+						return fmt.Errorf("bad action: %v", action)
+					}
+					return basecb(ctx, action, rrd)
+				},
 			},
-			wantStatus: http.StatusAccepted,
-		},
-		{
-			name: "unsupported action",
-			args: args{
-				eventType:  "someotherthing",
-				deliveryID: "asdf",
-				payload:    []byte(`{"action":"someotherthing","repo":{"owner":"foo","name":"bar"},"pull_request":{"number":1,"head":{"label":"asdf","ref":"zxcv","sha":"1234"},"base":{"label":"qwer","ref":"tyui","sha":"5678"}}}`),
-				w:          rc,
-			},
-			wantStatus: http.StatusOK,
 		},
 		{
 			name: "invalid payload",
 			args: args{
-				eventType:  "opened",
-				deliveryID: "asdf",
-				payload:    []byte(`invalid`),
-				w:          rc,
+				deliveryID: uuid.Must(uuid.NewRandom()).String(),
+				payload:    github.PullRequestEvent{},
 			},
 			wantErr:    true,
-			wantStatus: http.StatusBadRequest,
+			wantErrStr: "error unmarshaling event",
+		},
+		{
+			name: "invalid delivery id",
+			args: args{
+				deliveryID: "asdf",
+				payload:    basep,
+			},
+			wantErr:    true,
+			wantErrStr: "malformed delivery id",
 		},
 	}
 	for _, tt := range tests {
@@ -127,24 +193,28 @@ func Test_prEventHandler_Handle(t *testing.T) {
 			cc, _ := githubapp.NewDefaultCachingClientCreator(c)
 			prh := &prEventHandler{
 				ClientCreator: cc,
-				wg:            &sync.WaitGroup{},
-				es:            &env.FakeManager{},
 				dl:            persistence.NewFakeDataLayer(),
-				rc: &ghclient.FakeRepoClient{
-					GetFileContentsFunc: func(ctx context.Context, repo, path, ref string) ([]byte, error) {
-						return []byte("target_branches:\n  - tyui\n"), nil
-					},
-				},
+				RRDCallback:   tt.args.cb,
 			}
-			gotStatus, _, err := prh.Handle(context.Background(), tt.args.eventType, tt.args.deliveryID, tt.args.payload, tt.args.w)
+			var p []byte
+			if tt.args.payload.Action != nil {
+				j, err := json.Marshal(&tt.args.payload)
+				if err != nil {
+					t.Fatalf("error marshaling payload: %v", err)
+				}
+				p = j
+			} else {
+				p = []byte("invalid")
+			}
+			ctx := githubapp.InitializeResponder(context.Background())
+			err := prh.Handle(ctx, "pull_request", tt.args.deliveryID, p)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("prEventHandler.Handle() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if gotStatus != tt.wantStatus {
-				t.Errorf("prEventHandler.Handle() gotStatus = %v, want %v", gotStatus, tt.wantStatus)
+			if tt.wantErr && err != nil && !strings.Contains(err.Error(), tt.wantErrStr) {
+				t.Errorf("unexpected error: %v (wanted containing %v)", err, tt.wantErrStr)
 			}
-			rc = httptest.NewRecorder() // reset the recorder
 		})
 	}
 }

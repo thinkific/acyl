@@ -13,9 +13,9 @@ import (
 
 // Logger is an object that writes log lines to the database in an EventLog as well as to Sink
 type Logger struct {
-	DL   persistence.EventLoggerDataLayer
-	ID   uuid.UUID
-	Sink io.Writer
+	DL             persistence.EventLoggerDataLayer
+	ID, DeliveryID uuid.UUID
+	Sink           io.Writer
 	// ExcludeID determines whether to omit the ID from log strings
 	ExcludeID bool
 }
@@ -26,10 +26,11 @@ func (l *Logger) Init(webhook []byte, repo string, pr uint) error {
 		return errors.New("datalayer is nil")
 	}
 	el := &models.EventLog{
-		ID:             l.ID,
-		WebhookPayload: webhook,
-		Repo:           repo,
-		PullRequest:    pr,
+		ID:               l.ID,
+		WebhookPayload:   webhook,
+		GitHubDeliveryID: l.DeliveryID,
+		Repo:             repo,
+		PullRequest:      pr,
 	}
 	return errors.Wrap(l.DL.CreateEventLog(el), "error creating event log")
 }

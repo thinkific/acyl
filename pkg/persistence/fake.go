@@ -746,6 +746,19 @@ func (fdl *FakeDataLayer) GetEventLogByID(id uuid.UUID) (*models.EventLog, error
 	return el, nil
 }
 
+func (fdl *FakeDataLayer) GetEventLogByDeliveryID(deliveryID uuid.UUID) (*models.EventLog, error) {
+	fdl.doDelay()
+	fdl.data.RLock()
+	var el models.EventLog
+	for _, elog := range fdl.data.elogs {
+		if elog.GitHubDeliveryID == deliveryID {
+			el = *elog
+		}
+	}
+	fdl.data.RUnlock()
+	return &el, nil
+}
+
 func (fdl *FakeDataLayer) GetEventLogsByEnvName(name string) ([]models.EventLog, error) {
 	fdl.doDelay()
 	fdl.data.RLock()

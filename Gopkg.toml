@@ -165,11 +165,6 @@
 [[constraint]]
   name = "gopkg.in/DataDog/dd-trace-go.v1"
   version = "1.10.0"
-
-[[constraint]]
-  name = "github.com/palantir/go-githubapp"
-  source = "github.com/dollarshaveclub/go-githubapp"
-  branch = "response-writer"
   
 [[constraint]]
   name = "github.com/google/go-cmp"

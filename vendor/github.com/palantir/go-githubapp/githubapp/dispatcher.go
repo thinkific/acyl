@@ -16,9 +16,11 @@ package githubapp
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/google/go-github/github"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
 
@@ -37,33 +39,73 @@ type EventHandler interface {
 	//
 	// If Handle returns an error, processing stops and the error is passed
 	// directly to the configured error handler.
-	//
-	// Handle can optionally return a webhook response body and HTTP status to return to the client. Set to nil and zero, respectively, to use defaults (nothing and 200 OK).
-	Handle(ctx context.Context, eventType, deliveryID string, payload []byte, w http.ResponseWriter) (status int, respbody []byte, err error)
+	Handle(ctx context.Context, eventType, deliveryID string, payload []byte) error
 }
 
-type ErrorHandler func(http.ResponseWriter, *http.Request, error)
+// ErrorCallback is called when an event handler returns an error. The error
+// from the handler is passed directly as the final argument.
+type ErrorCallback func(w http.ResponseWriter, r *http.Request, err error)
+
+// ResponseCallback is called to send a response to GitHub after an event is
+// handled. It is passed the event type and a flag indicating if an event
+// handler was called for the event.
+type ResponseCallback func(w http.ResponseWriter, r *http.Request, event string, handled bool)
+
+// DispatcherOption configures properties of an event dispatcher.
+type DispatcherOption func(*eventDispatcher)
+
+// WithErrorCallback sets the error callback for an event dispatcher.
+func WithErrorCallback(onError ErrorCallback) DispatcherOption {
+	return func(d *eventDispatcher) {
+		if onError != nil {
+			d.onError = onError
+		}
+	}
+}
+
+// WithResponseCallback sets the response callback for an event dispatcher.
+func WithResponseCallback(onResponse ResponseCallback) DispatcherOption {
+	return func(d *eventDispatcher) {
+		if onResponse != nil {
+			d.onResponse = onResponse
+		}
+	}
+}
+
+// ValidationError is passed to error callbacks when the webhook payload fails
+// validation.
+type ValidationError struct {
+	EventType  string
+	DeliveryID string
+	Cause      error
+}
+
+func (ve ValidationError) Error() string {
+	return fmt.Sprintf("invalid event: %v", ve.Cause)
+}
 
 type eventDispatcher struct {
 	handlerMap map[string]EventHandler
 	secret     string
-	onError    ErrorHandler
+
+	onError    ErrorCallback
+	onResponse ResponseCallback
 }
 
-// NewDefaultEventDispatcher is a convenience method to create an
-// EventDispatcher from configuration using the default error handler.
+// NewDefaultEventDispatcher is a convenience method to create an event
+// dispatcher from configuration using the default error and response
+// callbacks.
 func NewDefaultEventDispatcher(c Config, handlers ...EventHandler) http.Handler {
-	return NewEventDispatcher(handlers, c.App.WebhookSecret, nil)
+	return NewEventDispatcher(handlers, c.App.WebhookSecret)
 }
 
 // NewEventDispatcher creates an http.Handler that dispatches GitHub webhook
 // requests to the appropriate event handlers. It validates payload integrity
 // using the given secret value.
 //
-// If an error occurs during handling, the error handler is called with the
-// error and should write an appropriate response. If the error handler is nil,
-// a default handler is used.
-func NewEventDispatcher(handlers []EventHandler, secret string, onError ErrorHandler) http.Handler {
+// Responses are controlled by optional error and response callbacks. If these
+// options are not provided, default callbacks are used.
+func NewEventDispatcher(handlers []EventHandler, secret string, opts ...DispatcherOption) http.Handler {
 	handlerMap := make(map[string]EventHandler)
 
 	// Iterate in reverse so the first entries in the slice have priority
@@ -73,78 +115,134 @@ func NewEventDispatcher(handlers []EventHandler, secret string, onError ErrorHan
 		}
 	}
 
-	if onError == nil {
-		onError = DefaultErrorHandler
-	}
-
-	return &eventDispatcher{
+	d := &eventDispatcher{
 		handlerMap: handlerMap,
 		secret:     secret,
-		onError:    onError,
+		onError:    DefaultErrorCallback,
+		onResponse: DefaultResponseCallback,
 	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	return d
 }
 
-// ServeHTTP to implement http.Handler
+// ServeHTTP processes a webhook request from GitHub.
 func (d *eventDispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// initialize context for SetResponder/GetResponder
+	ctx = InitializeResponder(ctx)
+	r = r.WithContext(ctx)
+
 	eventType := r.Header.Get("X-GitHub-Event")
+	deliveryID := r.Header.Get("X-GitHub-Delivery")
+
 	if eventType == "" {
-		// ACK payload that was received but won't be processed
-		w.WriteHeader(http.StatusAccepted)
+		d.onError(w, r, ValidationError{
+			EventType:  eventType,
+			DeliveryID: deliveryID,
+			Cause:      errors.New("missing event type"),
+		})
 		return
 	}
-	deliveryID := r.Header.Get("X-GitHub-Delivery")
 
 	logger := zerolog.Ctx(ctx).With().
 		Str(LogKeyEventType, eventType).
 		Str(LogKeyDeliveryID, deliveryID).
 		Logger()
 
-	// update context and request to contain new log fields
+	// initialize context with event logger
 	ctx = logger.WithContext(ctx)
 	r = r.WithContext(ctx)
 
 	payloadBytes, err := github.ValidatePayload(r, []byte(d.secret))
 	if err != nil {
-		// if payload fails validation, do not run error handler and return 400 Bad Request
-		logger.Error().Err(err).Msg("invalid webhook or bad signature")
-		http.Error(w, "invalid webhook or bad signature", http.StatusBadRequest)
+		d.onError(w, r, ValidationError{
+			EventType:  eventType,
+			DeliveryID: deliveryID,
+			Cause:      err,
+		})
 		return
 	}
 
 	logger.Info().Msgf("Received webhook event")
-	handler, ok := d.handlerMap[eventType]
 
-	switch {
-	case ok:
-		status, respbody, err := handler.Handle(ctx, eventType, deliveryID, payloadBytes, w)
-		if err != nil {
-			// pass error directly so handler can inspect types if needed
+	handler, ok := d.handlerMap[eventType]
+	if ok {
+		if err := handler.Handle(ctx, eventType, deliveryID, payloadBytes); err != nil {
 			d.onError(w, r, err)
 			return
 		}
-		if status == 0 {
-			status = http.StatusOK
-		}
-		w.WriteHeader(status)
-		if len(respbody) != 0 {
-			if n, err := w.Write(respbody); n != len(respbody) || err != nil {
-				logger.Info().Err(err).Msg("error writing response or short write")
-			}
-		}
-	case eventType == "ping":
-		w.WriteHeader(http.StatusOK)
-	default:
+	}
+	d.onResponse(w, r, eventType, ok)
+}
+
+// DefaultErrorCallback logs errors and responds with a 500 status code.
+func DefaultErrorCallback(w http.ResponseWriter, r *http.Request, err error) {
+	logger := zerolog.Ctx(r.Context())
+
+	if ve, ok := err.(ValidationError); ok {
+		logger.Warn().Err(ve.Cause).Msgf("Received invalid webhook headers or payload")
+		http.Error(w, "Invalid webhook headers or payload", http.StatusBadRequest)
+		return
+	}
+
+	logger.Error().Err(err).Msg("Unexpected error handling webhook request")
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+}
+
+// DefaultResponseCallback responds with a 200 OK for handled events and a 202
+// Accepted status for all other events. By default, responses are empty.
+// Event handlers may send custom responses by calling the SetResponder
+// function before returning.
+func DefaultResponseCallback(w http.ResponseWriter, r *http.Request, event string, handled bool) {
+	if !handled && event != "ping" {
 		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+
+	if res := GetResponder(r.Context()); res != nil {
+		res(w, r)
+	} else {
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
-// DefaultErrorHandler logs errors and responds with a 500 status code.
-func DefaultErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	logger := zerolog.Ctx(r.Context())
-	logger.Error().Err(err).Msg("Unexpected error handling webhook request")
+type responderKey struct{}
 
-	msg := http.StatusText(http.StatusInternalServerError)
-	http.Error(w, msg, http.StatusInternalServerError)
+// InitializeResponder prepares the context to work with SetResponder and
+// GetResponder. It is used to test handlers that call SetResponder or to
+// implement custom event dispatchers that support responders.
+func InitializeResponder(ctx context.Context) context.Context {
+	var responder func(http.ResponseWriter, *http.Request)
+	return context.WithValue(ctx, responderKey{}, &responder)
+}
+
+// SetResponder sets a function that sends a response to GitHub after event
+// processing completes. The context must be initialized by InitializeResponder.
+// The event dispatcher does this automatically before calling a handler.
+//
+// Customizing individual handler responses should be rare. Applications that
+// want to modify the standard responses should consider registering a response
+// callback before using this function.
+func SetResponder(ctx context.Context, responder func(http.ResponseWriter, *http.Request)) {
+	r, ok := ctx.Value(responderKey{}).(*func(http.ResponseWriter, *http.Request))
+	if !ok || r == nil {
+		panic("SetResponder() must be called with an initialized context, such as one from the event dispatcher")
+	}
+	*r = responder
+}
+
+// GetResponder returns the response function that was set by an event handler.
+// If no response function exists, it returns nil. There is usually no reason
+// to call this outside of a response callback implementation.
+func GetResponder(ctx context.Context) func(http.ResponseWriter, *http.Request) {
+	r, ok := ctx.Value(responderKey{}).(*func(http.ResponseWriter, *http.Request))
+	if !ok || r == nil {
+		return nil
+	}
+	return *r
 }

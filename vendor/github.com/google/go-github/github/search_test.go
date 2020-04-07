@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-
 	"testing"
 )
 
@@ -40,10 +39,41 @@ func TestSearchService_Repositories(t *testing.T) {
 	want := &RepositoriesSearchResult{
 		Total:             Int(4),
 		IncompleteResults: Bool(false),
-		Repositories:      []Repository{{ID: Int64(1)}, {ID: Int64(2)}},
+		Repositories:      []*Repository{{ID: Int64(1)}, {ID: Int64(2)}},
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Errorf("Search.Repositories returned %+v, want %+v", result, want)
+	}
+}
+
+func TestSearchService_Topics(t *testing.T) {
+	client, mux, _, teardown := setup()
+	defer teardown()
+
+	mux.HandleFunc("/search/topics", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testFormValues(t, r, values{
+			"q":        "blah",
+			"page":     "2",
+			"per_page": "2",
+		})
+
+		fmt.Fprint(w, `{"total_count": 4, "incomplete_results": false, "items": [{"name":"blah"},{"name":"blahblah"}]}`)
+	})
+
+	opts := &SearchOptions{ListOptions: ListOptions{Page: 2, PerPage: 2}}
+	result, _, err := client.Search.Topics(context.Background(), "blah", opts)
+	if err != nil {
+		t.Errorf("Search.Topics returned error: %v", err)
+	}
+
+	want := &TopicsSearchResult{
+		Total:             Int(4),
+		IncompleteResults: Bool(false),
+		Topics:            []*TopicResult{{Name: String("blah")}, {Name: String("blahblah")}},
+	}
+	if !reflect.DeepEqual(result, want) {
+		t.Errorf("Search.Topics returned %+v, want %+v", result, want)
 	}
 }
 
@@ -104,7 +134,7 @@ func TestSearchService_Issues(t *testing.T) {
 	want := &IssuesSearchResult{
 		Total:             Int(4),
 		IncompleteResults: Bool(true),
-		Issues:            []Issue{{Number: Int(1)}, {Number: Int(2)}},
+		Issues:            []*Issue{{Number: Int(1)}, {Number: Int(2)}},
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Errorf("Search.Issues returned %+v, want %+v", result, want)
@@ -115,7 +145,7 @@ func TestSearchService_Issues_withQualifiersNoOpts(t *testing.T) {
 	client, mux, _, teardown := setup()
 	defer teardown()
 
-	const q = "gopher is:issue label:bug language:go pushed:>=2018-01-01 stars:>=200"
+	const q = "gopher is:issue label:bug language:c++ pushed:>=2018-01-01 stars:>=200"
 
 	var requestURI string
 	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
@@ -134,14 +164,14 @@ func TestSearchService_Issues_withQualifiersNoOpts(t *testing.T) {
 		t.Errorf("Search.Issues returned error: %v", err)
 	}
 
-	if want := "/api-v3/search/issues?q=gopher+is:issue+label:bug+language:go+pushed:%3E=2018-01-01+stars:%3E=200"; requestURI != want {
+	if want := "/api-v3/search/issues?q=gopher+is%3Aissue+label%3Abug+language%3Ac%2B%2B+pushed%3A%3E%3D2018-01-01+stars%3A%3E%3D200"; requestURI != want {
 		t.Fatalf("URI encoding failed: got %v, want %v", requestURI, want)
 	}
 
 	want := &IssuesSearchResult{
 		Total:             Int(4),
 		IncompleteResults: Bool(true),
-		Issues:            []Issue{{Number: Int(1)}, {Number: Int(2)}},
+		Issues:            []*Issue{{Number: Int(1)}, {Number: Int(2)}},
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Errorf("Search.Issues returned %+v, want %+v", result, want)
@@ -152,7 +182,7 @@ func TestSearchService_Issues_withQualifiersAndOpts(t *testing.T) {
 	client, mux, _, teardown := setup()
 	defer teardown()
 
-	const q = "gopher is:issue label:bug language:go pushed:>=2018-01-01 stars:>=200"
+	const q = "gopher is:issue label:bug language:c++ pushed:>=2018-01-01 stars:>=200"
 
 	var requestURI string
 	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
@@ -172,14 +202,14 @@ func TestSearchService_Issues_withQualifiersAndOpts(t *testing.T) {
 		t.Errorf("Search.Issues returned error: %v", err)
 	}
 
-	if want := "/api-v3/search/issues?q=gopher+is:issue+label:bug+language:go+pushed:%3E=2018-01-01+stars:%3E=200&sort=forks"; requestURI != want {
+	if want := "/api-v3/search/issues?q=gopher+is%3Aissue+label%3Abug+language%3Ac%2B%2B+pushed%3A%3E%3D2018-01-01+stars%3A%3E%3D200&sort=forks"; requestURI != want {
 		t.Fatalf("URI encoding failed: got %v, want %v", requestURI, want)
 	}
 
 	want := &IssuesSearchResult{
 		Total:             Int(4),
 		IncompleteResults: Bool(true),
-		Issues:            []Issue{{Number: Int(1)}, {Number: Int(2)}},
+		Issues:            []*Issue{{Number: Int(1)}, {Number: Int(2)}},
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Errorf("Search.Issues returned %+v, want %+v", result, want)
@@ -212,7 +242,7 @@ func TestSearchService_Users(t *testing.T) {
 	want := &UsersSearchResult{
 		Total:             Int(4),
 		IncompleteResults: Bool(false),
-		Users:             []User{{ID: Int64(1)}, {ID: Int64(2)}},
+		Users:             []*User{{ID: Int64(1)}, {ID: Int64(2)}},
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Errorf("Search.Users returned %+v, want %+v", result, want)
@@ -245,7 +275,7 @@ func TestSearchService_Code(t *testing.T) {
 	want := &CodeSearchResult{
 		Total:             Int(4),
 		IncompleteResults: Bool(false),
-		CodeResults:       []CodeResult{{Name: String("1")}, {Name: String("2")}},
+		CodeResults:       []*CodeResult{{Name: String("1")}, {Name: String("2")}},
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Errorf("Search.Code returned %+v, want %+v", result, want)
@@ -294,11 +324,11 @@ func TestSearchService_CodeTextMatch(t *testing.T) {
 		t.Errorf("Search.Code returned error: %v", err)
 	}
 
-	wantedCodeResult := CodeResult{
+	wantedCodeResult := &CodeResult{
 		Name: String("gopher1"),
-		TextMatches: []TextMatch{{
+		TextMatches: []*TextMatch{{
 			Fragment: String("I'm afraid my friend what you have found\nIs a gopher who lives to feed"),
-			Matches:  []Match{{Text: String("gopher"), Indices: []int{14, 21}}},
+			Matches:  []*Match{{Text: String("gopher"), Indices: []int{14, 21}}},
 		},
 		},
 	}
@@ -306,7 +336,7 @@ func TestSearchService_CodeTextMatch(t *testing.T) {
 	want := &CodeSearchResult{
 		Total:             Int(1),
 		IncompleteResults: Bool(false),
-		CodeResults:       []CodeResult{wantedCodeResult},
+		CodeResults:       []*CodeResult{wantedCodeResult},
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Errorf("Search.Code returned %+v, want %+v", result, want)

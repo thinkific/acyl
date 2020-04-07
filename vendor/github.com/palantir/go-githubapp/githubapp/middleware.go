@@ -15,7 +15,9 @@
 package githubapp
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gregjones/httpcache"
@@ -30,7 +32,10 @@ const (
 	MetricsKeyRequests4xx = "github.requests.4xx"
 	MetricsKeyRequests5xx = "github.requests.5xx"
 
-	MetricsKeyCache = "github.requests.cached"
+	MetricsKeyRequestsCached = "github.requests.cached"
+
+	MetricsKeyRateLimit          = "github.rate.limit"
+	MetricsKeyRateLimitRemaining = "github.rate.remaining"
 )
 
 // ClientMetrics creates client middleware that records metrics about all
@@ -42,7 +47,7 @@ func ClientMetrics(registry metrics.Registry) ClientMiddleware {
 		MetricsKeyRequests3xx,
 		MetricsKeyRequests4xx,
 		MetricsKeyRequests5xx,
-		MetricsKeyCache,
+		MetricsKeyRequestsCached,
 	} {
 		// Use GetOrRegister for thread-safety when creating multiple
 		// RoundTrippers that share the same registry
@@ -51,6 +56,11 @@ func ClientMetrics(registry metrics.Registry) ClientMiddleware {
 
 	return func(next http.RoundTripper) http.RoundTripper {
 		return roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			installationID, ok := r.Context().Value(installationKey).(int64)
+			if !ok {
+				installationID = 0
+			}
+
 			res, err := next.RoundTrip(r)
 
 			if res != nil {
@@ -60,12 +70,29 @@ func ClientMetrics(registry metrics.Registry) ClientMiddleware {
 				}
 
 				if res.Header.Get(httpcache.XFromCache) != "" {
-					registry.Get(MetricsKeyCache).(metrics.Counter).Inc(1)
+					registry.Get(MetricsKeyRequestsCached).(metrics.Counter).Inc(1)
 				}
+
+				limitMetric := fmt.Sprintf("%s[installation:%d]", MetricsKeyRateLimit, installationID)
+				remainingMetric := fmt.Sprintf("%s[installation:%d]", MetricsKeyRateLimitRemaining, installationID)
+
+				// Headers from https://developer.github.com/v3/#rate-limiting
+				updateRegistryForHeader(res.Header, "X-RateLimit-Limit", metrics.GetOrRegisterGauge(limitMetric, registry))
+				updateRegistryForHeader(res.Header, "X-RateLimit-Remaining", metrics.GetOrRegisterGauge(remainingMetric, registry))
 			}
 
 			return res, err
 		})
+	}
+}
+
+func updateRegistryForHeader(headers http.Header, header string, metric metrics.Gauge) {
+	headerString := headers.Get(header)
+	if headerString != "" {
+		headerVal, err := strconv.ParseInt(headerString, 10, 64)
+		if err == nil {
+			metric.Update(headerVal)
+		}
 	}
 }
 
@@ -92,7 +119,7 @@ func ClientLogging(lvl zerolog.Level) ClientMiddleware {
 		return roundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			start := time.Now()
 			res, err := next.RoundTrip(r)
-			elapsed := time.Since(start)
+			elapsed := time.Now().Sub(start)
 
 			log := zerolog.Ctx(r.Context())
 			if res != nil {
@@ -115,16 +142,6 @@ func ClientLogging(lvl zerolog.Level) ClientMiddleware {
 
 			return res, err
 		})
-	}
-}
-
-// ClientCaching creates client middleware that caches http responses
-// using the provided cache implementation
-func ClientCaching(cache func() httpcache.Cache) ClientMiddleware {
-	return func(next http.RoundTripper) http.RoundTripper {
-		cached := httpcache.NewTransport(cache())
-		cached.Transport = next
-		return cached
 	}
 }
 

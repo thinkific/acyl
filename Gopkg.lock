@@ -225,6 +225,14 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  digest = "1:32c7c47ff56d7fa6c1b07b7359a3959a64b452bbf583547db09b8325898c1334"
+  name = "github.com/bradleyfalzon/ghinstallation"
+  packages = ["."]
+  pruneopts = ""
+  revision = "7bdf9f8bf3828df62ed87398508beee1a22a34b1"
+  version = "v0.1.3"
+
+[[projects]]
   digest = "1:0b2d5839372f6dc106fcaa70b6bd5832789a633c4e470540f76c2ec6c560e1c1"
   name = "github.com/census-instrumentation/opencensus-proto"
   packages = [
@@ -689,11 +697,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:fe99ddb68e996f2f9f7995e9765bc283ceef12dbe30de17922900c1cfa9dfc09"
+  digest = "1:4705540374b9b7ce2850a5bc88471dfa9dbb59350cb38aeeb7a171cdd81bfc76"
   name = "github.com/google/go-github"
   packages = ["github"]
   pruneopts = ""
-  revision = "b7b480f79db7ae436e87bef80ff47596139af8f2"
+  revision = "34cb1d623f03e277545da01608448d9fea80dc3b"
 
 [[projects]]
   branch = "master"
@@ -1152,13 +1160,12 @@
   version = "v0.1.1"
 
 [[projects]]
-  branch = "response-writer"
-  digest = "1:9fa518fc2daeb31b80181606a8ce53cdfe1adc31e30c9470a301db578d2d6fc7"
+  branch = "develop"
+  digest = "1:141d62e91e34f77dde4896f3deabf319d82cfc5299ebb9d80a74bc86da5696f3"
   name = "github.com/palantir/go-githubapp"
   packages = ["githubapp"]
   pruneopts = ""
-  revision = "e0549ff678cc15bc835f33401e37d03a16e9fc9e"
-  source = "github.com/dollarshaveclub/go-githubapp"
+  revision = "a2a34ed69031b16b7f708ca22b1bf8268826927b"
 
 [[projects]]
   digest = "1:049b5bee78dfdc9628ee0e557219c41f683e5b06c5a5f20eaba0105ccc586689"
@@ -2480,6 +2487,7 @@
     "github.com/pkg/errors",
     "github.com/rivo/tview",
     "github.com/rs/zerolog",
+    "github.com/shurcooL/githubv4",
     "github.com/spf13/afero",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",

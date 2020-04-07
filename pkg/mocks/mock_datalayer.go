@@ -221,6 +221,21 @@ func (mr *MockDataLayerMockRecorder) DeleteQAEnvironment(arg0, arg1 interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteQAEnvironment", reflect.TypeOf((*MockDataLayer)(nil).DeleteQAEnvironment), arg0, arg1)
 }
 
+// GetEventLogByDeliveryID mocks base method
+func (m *MockDataLayer) GetEventLogByDeliveryID(arg0 uuid.UUID) (*models.EventLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEventLogByDeliveryID", arg0)
+	ret0, _ := ret[0].(*models.EventLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEventLogByDeliveryID indicates an expected call of GetEventLogByDeliveryID
+func (mr *MockDataLayerMockRecorder) GetEventLogByDeliveryID(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventLogByDeliveryID", reflect.TypeOf((*MockDataLayer)(nil).GetEventLogByDeliveryID), arg0)
+}
+
 // GetEventLogByID mocks base method
 func (m *MockDataLayer) GetEventLogByID(arg0 uuid.UUID) (*models.EventLog, error) {
 	m.ctrl.T.Helper()

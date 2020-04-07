@@ -63,6 +63,7 @@ type K8sEnvDataLayer interface {
 // EventLoggerDataLayer desribes an object that stores event log data
 type EventLoggerDataLayer interface {
 	GetEventLogByID(id uuid.UUID) (*models.EventLog, error)
+	GetEventLogByDeliveryID(deliveryID uuid.UUID) (*models.EventLog, error)
 	GetEventLogsByEnvName(name string) ([]models.EventLog, error)
 	GetEventLogsByRepoAndPR(repo string, pr uint) ([]models.EventLog, error)
 	CreateEventLog(elog *models.EventLog) error

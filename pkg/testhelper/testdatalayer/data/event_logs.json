@@ -5,6 +5,7 @@
         "repo": "acme/something",
         "pull_request": 23,
         "webhook_payload": "YXNkZgo=",
+        "github_delivery_id": "ec7014ee-b691-47fd-a011-8ae1a37ce406",
         "log": [
             "some line",
             "some other line"
@@ -17,6 +18,7 @@
         "repo": "acme/something",
         "pull_request": 24,
         "webhook_payload": "YXNkZjIzNAo=",
+        "github_delivery_id": "c8a27c56-1ea6-4088-8638-1af02a12781a",
         "log": [
             "an event"
         ],
@@ -28,6 +30,7 @@
         "repo": "acme/somethingelse",
         "pull_request": 2,
         "webhook_payload": "cXdlcnR5Cg==",
+        "github_delivery_id": "978ce99c-23a1-4999-bbf8-061b8b444c5a",
         "log": [
             "this other thing"
         ],

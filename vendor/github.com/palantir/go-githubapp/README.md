@@ -143,13 +143,16 @@ distinct clients:
 These are provided when calling `githubapp.NewClientCreator`:
 
 - `githubapp.WithClientUserAgent` sets a `User-Agent` string for all clients
+- `githubapp.WithClientCaching` enables response caching for all v3 (REST) clients.
+   The cache can be configured to always validate responses or to respect
+   the cache headers returned by GitHub. Re-validation is useful if data
+   often changes faster than the requested cache duration.
 - `githubapp.WithClientMiddleware` allows customization of the
   `http.RoundTripper` used by all clients and is useful if you want to log
   requests or emit metrics about GitHub requests and responses.
 
 The library provides the following middleware:
 
-- `githubapp.ClientCaching` sets an HTTP cache
 - `githubapp.ClientMetrics` emits the standard metrics described below
 - `githubapp.ClientLogging` logs metadata about all requests and responses
 
@@ -157,8 +160,8 @@ The library provides the following middleware:
 baseHandler, err := githubapp.NewDefaultCachingClientCreator(
     config.Github,
     githubapp.WithClientUserAgent("example-app/1.0.0"),
+    githubapp.WithClientCaching(false, func() httpcache.Cache { return httpcache.NewMemoryCache() }),
     githubapp.WithClientMiddleware(
-        githubapp.ClientCaching(func() httpcache.Cache { return httpcache.NewMemoryCache() }),
         githubapp.ClientMetrics(registry),
         githubapp.ClientLogging(zerolog.DebugLevel),
     ),
@@ -179,7 +182,9 @@ middleware.
 | `github.requests.3xx` | `counter` | like `github.requests`, but only counting 3XX status codes |
 | `github.requests.4xx` | `counter` | like `github.requests`, but only counting 4XX status codes |
 | `github.requests.5xx` | `counter` | like `github.requests`, but only counting 5XX status codes |
-| `github.requests.cached` | `counter` | the count of cached HTTP requess |
+| `github.requests.cached` | `counter` | the count of successfully cached requests |
+| `github.rate.limit[installation:<id>]` | `gauge` | the maximum number of requests permitted to make per hour, tagged with the installation id |
+| `github.rate.remaining[installation:<id>]` | `gauge` | the number of requests remaining in the current rate limit window, tagged with the installation id |
 
 Note that metrics need to be published in order to be useful. Several
 [publishing options][] are available or you can implement your own.
@@ -245,6 +250,25 @@ Production applications should also use the `oauth2.WithStore` option to set a
 secure `StateStore` implementation. `oauth2.SessionStateStore` is a good choice
 that uses [alexedwards/scs](https://github.com/alexedwards/scs) to store the
 state in a session.
+
+## Customizing Webhook Responses
+
+For most applications, the default responses should be sufficient: they use
+correct status codes and include enough information to match up GitHub delivery
+records with request logs. If your application has additional requirements for
+responses, two methods are provided for customization:
+
+- Error responses can be modified with a custom error callback. Use the
+  `WithErrorCallback` option when creating an event dispatcher.
+
+- Non-error responses can be modified with a custom response callback. Use the
+  `WithResponseCallback` option when creating an event dispatcher.
+
+- Individual hook responses can be modified by calling the `SetResponder`
+  function before the handler returns. Note that if you register a custom
+  response handler as described above, you must make it aware of handler-level
+  responders if you want to keep using `SetResponder`. See the default response
+  callback for an example of how to implement this.
 
 ## Stability and Versioning Guarantees
 

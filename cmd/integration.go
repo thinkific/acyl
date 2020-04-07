@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
-	"github.com/dollarshaveclub/acyl/pkg/ghapp"
-	ghctx "github.com/dollarshaveclub/acyl/pkg/ghapp/context"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/locker"
@@ -60,19 +57,19 @@ func init() {
 
 func integration(cmd *cobra.Command, args []string) {
 	setupServerLogger()
-	// dl, err := loadData()
-	// if err != nil {
-	// 	clierr("error loading data: %v", err)
-	// }
+	dl, err := loadData()
+	if err != nil {
+		clierr("error loading data: %v", err)
+	}
 	wm, err := loadWebhooks()
 	if err != nil {
 		clierr("error loading webhook: %v", err)
 	}
-	// nmgr, rc, err := setupNitro(dl)
-	// if err != nil {
-	// 	clierr("error setting up Nitro: %v", err)
-	// }
-	// eh := setupEventHandler(rc, dl)
+	nmgr, rc, err := setupNitro(dl)
+	if err != nil {
+		clierr("error setting up Nitro: %v", err)
+	}
+	eh := setupEventHandler(rc, dl)
 
 	ctx, cf := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cf()
@@ -80,56 +77,65 @@ func integration(cmd *cobra.Command, args []string) {
 	g, ctx := errgroup.WithContext(ctx)
 
 	// static github token
-	// g.Go(func() error {
-	// 	if err := createIntegrationTest(ctx, wm["create"], eh, nmgr); err != nil {
-	// 		return errors.Wrap(err, "error performing static token create integration test")
-	// 	}
-	// 	if err := updateIntegrationTest(ctx, wm["update"], eh, nmgr); err != nil {
-	// 		return errors.Wrap(err, "error performing static token update integration test")
-	// 	}
-	// 	if err := deleteIntegrationTest(ctx, wm["delete"], eh, nmgr); err != nil {
-	// 		return errors.Wrap(err, "error performing static token delete integration test")
-	// 	}
-	// 	return nil
-	// })
+	g.Go(func() error {
+		if err := createIntegrationTest(ctx, wm["create"], eh, nmgr); err != nil {
+			return errors.Wrap(err, "error performing static token create integration test")
+		}
+		if err := updateIntegrationTest(ctx, wm["update"], eh, nmgr); err != nil {
+			return errors.Wrap(err, "error performing static token update integration test")
+		}
+		if err := deleteIntegrationTest(ctx, wm["delete"], eh, nmgr); err != nil {
+			return errors.Wrap(err, "error performing static token delete integration test")
+		}
+		return nil
+	})
 
 	// github app
 	g.Go(func() error {
 		// use new datastore and dependencies so this can run in parallel with static token tests
-		dl2, err := loadData()
-		if err != nil {
-			return errors.Wrap(err, "error loading data")
-		}
-		nmgr2, rc2, err := setupNitro(dl2)
-		if err != nil {
-			return errors.Wrap(err, "error setting up app Nitro")
-		}
-		if integrationcfg.PrivateKeyPEM == "" {
-			return errors.New("empty private key")
-		}
-		appid, err := strconv.Atoi(integrationcfg.appIDstr)
-		if err != nil || appid < 1 {
-			return errors.Wrap(err, "invalid app id")
-		}
-		gha, err := ghapp.NewGitHubApp([]byte(integrationcfg.PrivateKeyPEM), uint(appid), "foobar", "acyl.yml", rc2, nmgr2, dl2)
-		if err != nil {
-			return errors.Wrap(err, "error creating GitHub app")
-		}
-		ctx, err := ghctx.NewGitHubClientContext(ctx, gha.ClientCreator())
-		if err != nil {
-			return errors.Wrap(err, "error creating GitHub app context")
-		}
-		payload, err := json.Marshal(wm["create"])
-		if err != nil {
-			return errors.Wrap(err, "error marshaling create webhook")
-		}
-		ctx, rrd, _, err := gha.WebhookProcessor().ProcessEvent(ctx, payload)
-		if err != nil {
-			return errors.Wrap(err, "error processing create event")
-		}
-		if _, err := nmgr2.Create(ctx, rrd); err != nil {
-			return errors.Wrap(err, "error running github app create test")
-		}
+		//dl2, err := loadData()
+		//if err != nil {
+		//	return errors.Wrap(err, "error loading data")
+		//}
+		//nmgr2, rc2, err := setupNitro(dl2)
+		//if err != nil {
+		//	return errors.Wrap(err, "error setting up app Nitro")
+		//}
+		//if integrationcfg.PrivateKeyPEM == "" {
+		//	return errors.New("empty private key")
+		//}
+		//appid, err := strconv.Atoi(integrationcfg.appIDstr)
+		//if err != nil || appid < 1 {
+		//	return errors.Wrap(err, "invalid app id")
+		//}
+		//
+		//httpapi := api.NewDispatcher(&http.Server{})
+		//deps := &api.Dependencies{
+		//	DataLayer: dl2,
+		//	//GitHubEventWebhook: ge,
+		//	EnvironmentSpawner: nmgr2,
+		//	ServerConfig:       serverConfig,
+		//	Logger:             logger,
+		//}
+		//if err := httpapi.RegisterVersions(deps, nil); err != nil {
+		//	return errors.Wrap(err, "error registering api versions")
+		//}
+		//gha, err := ghapp.NewGitHubApp([]byte(integrationcfg.PrivateKeyPEM), uint(appid), "foobar", []string{"opened", "closed", "synchronize"}, nil, dl2)
+		//if err != nil {
+		//	return errors.Wrap(err, "error creating GitHub app")
+		//}
+		//ctx := ghapp.NewGitHubClientContext(ctx, int64(appid), gha)
+		//payload, err := json.Marshal(wm["create"])
+		//if err != nil {
+		//	return errors.Wrap(err, "error marshaling create webhook")
+		//}
+		//ctx, rrd, _, err := gha.Handler().ProcessEvent(ctx, payload)
+		//if err != nil {
+		//	return errors.Wrap(err, "error processing create event")
+		//}
+		//if _, err := nmgr2.Create(ctx, rrd); err != nil {
+		//	return errors.Wrap(err, "error running github app create test")
+		//}
 		return nil
 	})
 

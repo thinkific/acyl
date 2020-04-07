@@ -3,14 +3,10 @@ package ghapp
 import (
 	"context"
 	"net/http"
-	"sync"
 
-	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
-	"github.com/dollarshaveclub/acyl/pkg/spawner"
-
 	"github.com/palantir/go-githubapp/githubapp"
 	"github.com/pkg/errors"
 )
@@ -18,19 +14,30 @@ import (
 // LogFunc logs a string somewhere
 type LogFunc func(string, ...interface{})
 
+// PRCallback is a function that gets called when a validated, parsed PR webhook event is received
+// action is the PR webhook action string ("opened", "closed", "labeled", etc), see https://developer.github.com/v3/activity/events/types/#pullrequestevent
+// rrd is the parsed repo/revision information from the webhook payload
+// ctx is pre-populated with an eventlogger and authenticated GitHub clients (app and installation)
+// If the callback returns a non-nil error, the webhook request client will be returned a 500 error with the error details in the body
+// If the error is nil, the webhook client will be returned a 202 Accepted response with the eventlog ID
+type PRCallback func(ctx context.Context, action string, rrd models.RepoRevisionData) error
+
 // GitHubApp implements a GitHub app
 type GitHubApp struct {
-	typepath string
-	cfg      githubapp.Config
-	cc       githubapp.ClientCreator
-	prh      *prEventHandler
-	rc       ghclient.RepoClient
-	es       spawner.EnvironmentSpawner
-	dl       persistence.DataLayer
+	cfg githubapp.Config
+	prh *prEventHandler
+	ch  *checksEventHandler
 }
 
+var (
+	GitHubV3APIURL = "https://api.github.com/"
+	GitHubV4APIURL = "https://api.github.com/graphql"
+)
+
 // NewGitHubApp returns a GitHubApp with the given private key, app ID and webhook secret, or error
-func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, typePath string, rc ghclient.RepoClient, es spawner.EnvironmentSpawner, dl persistence.DataLayer) (*GitHubApp, error) {
+// supportedPRActions is at least one PR webhook action that is supported (prcallback will be executed).
+// Any unsupported actions will be ignored and the webhook request will be responded with 200 OK, "action not relevant".
+func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, supportedPRActions []string, prcb PRCallback, dl persistence.DataLayer) (*GitHubApp, error) {
 	if len(privateKeyPEM) == 0 {
 		return nil, errors.New("invalid private key")
 	}
@@ -40,15 +47,22 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, typePa
 	if len(webhookSecret) == 0 {
 		return nil, errors.New("invalid webhook secret")
 	}
-	if typePath == "" {
-		return nil, errors.New("invalid type path")
+	if dl == nil {
+		return nil, errors.New("DataLayer is required")
 	}
-	if es == nil || dl == nil || rc == nil {
-		return nil, errors.New("RepoClient, DataLayer and EnvironmentSpawner are required")
+	if prcb == nil {
+		return nil, errors.New("PR callback is required")
+	}
+	if len(supportedPRActions) == 0 {
+		return nil, errors.New("at least one supported PR action is required")
+	}
+	sa := make(map[string]struct{}, len(supportedPRActions))
+	for _, a := range supportedPRActions {
+		sa[a] = struct{}{}
 	}
 	c := githubapp.Config{}
-	c.V3APIURL = "https://api.github.com/"
-	c.V4APIURL = "https://api.github.com/graphql"
+	c.V3APIURL = GitHubV3APIURL
+	c.V4APIURL = GitHubV4APIURL
 	c.App.IntegrationID = int(appID)
 	c.App.PrivateKey = string(privateKeyPEM)
 	c.App.WebhookSecret = webhookSecret
@@ -57,37 +71,21 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, typePa
 		return nil, errors.Wrap(err, "error initializing github app default client")
 	}
 	return &GitHubApp{
-		prh:      &prEventHandler{ClientCreator: cc, typePath: typePath, rc: rc, es: es, dl: dl},
-		typepath: typePath,
-		cfg:      c,
-		cc:       cc,
-		rc:       rc,
-		es:       es,
-		dl:       dl,
+		prh: &prEventHandler{
+			ClientCreator:      cc,
+			installationID:     int64(appID),
+			dl:                 dl,
+			supportedPRActions: sa,
+			RRDCallback:        prcb,
+		},
+		ch: &checksEventHandler{
+			ClientCreator: cc,
+		},
+		cfg: c,
 	}, nil
 }
 
 // Handler returns the http.Handler that should handle the webhook HTTP endpoint
-// Pass in a pointer to the global wait group that will be used by goroutines started by this handler
-func (gha *GitHubApp) Handler(wg *sync.WaitGroup) http.Handler {
-	if wg == nil {
-		wg = &sync.WaitGroup{}
-	}
-	gha.prh.wg = wg
-	return githubapp.NewDefaultEventDispatcher(gha.cfg, gha.prh, &checksEventHandler{gha.cc})
-}
-
-// EventProcessor describes an object that processes raw webhooks and returns a context preloaded with eventlogger and GitHub app ClientCreator, the parsed event data and action or error
-type EventProcessor interface {
-	ProcessEvent(ctx context.Context, payload []byte) (_ context.Context, rrd models.RepoRevisionData, action string, err error)
-}
-
-// WebhookHandler returns the underlying webhook handler
-func (gha *GitHubApp) WebhookProcessor() EventProcessor {
-	return gha.prh
-}
-
-// ClientCreator returns the embedded ClientCreator
-func (gha *GitHubApp) ClientCreator() githubapp.ClientCreator {
-	return gha.cc
+func (gha *GitHubApp) Handler() http.Handler {
+	return githubapp.NewDefaultEventDispatcher(gha.cfg, gha.prh, gha.ch)
 }

@@ -110,7 +110,7 @@ func TestValidatePayload_FormGet(t *testing.T) {
 
 	// check that if payload is invalid we get error
 	req.Header.Set(signatureHeader, "invalid signature")
-	if _, err = ValidatePayload(req, nil); err == nil {
+	if _, err = ValidatePayload(req, []byte{0}); err == nil {
 		t.Error("ValidatePayload = nil, want err")
 	}
 }
@@ -140,7 +140,7 @@ func TestValidatePayload_FormPost(t *testing.T) {
 
 	// check that if payload is invalid we get error
 	req.Header.Set(signatureHeader, "invalid signature")
-	if _, err = ValidatePayload(req, nil); err == nil {
+	if _, err = ValidatePayload(req, []byte{0}); err == nil {
 		t.Error("ValidatePayload = nil, want err")
 	}
 }
@@ -153,6 +153,27 @@ func TestValidatePayload_InvalidContentType(t *testing.T) {
 	req.Header.Set("Content-Type", "invalid content type")
 	if _, err = ValidatePayload(req, nil); err == nil {
 		t.Error("ValidatePayload = nil, want err")
+	}
+}
+
+func TestValidatePayload_NoSecretKey(t *testing.T) {
+	payload := `{"yo":true}`
+
+	form := url.Values{}
+	form.Set("payload", payload)
+	buf := bytes.NewBufferString(form.Encode())
+	req, err := http.NewRequest("POST", "http://localhost/event", buf)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	got, err := ValidatePayload(req, nil)
+	if err != nil {
+		t.Errorf("ValidatePayload(%#v): err = %v, want nil", payload, err)
+	}
+	if string(got) != payload {
+		t.Errorf("ValidatePayload = %q, want %q", got, payload)
 	}
 }
 
@@ -180,6 +201,10 @@ func TestParseWebHook(t *testing.T) {
 		{
 			payload:     &DeleteEvent{},
 			messageType: "delete",
+		},
+		{
+			payload:     &DeployKeyEvent{},
+			messageType: "deploy_key",
 		},
 		{
 			payload:     &DeploymentEvent{},
@@ -229,6 +254,10 @@ func TestParseWebHook(t *testing.T) {
 		{
 			payload:     &MembershipEvent{},
 			messageType: "membership",
+		},
+		{
+			payload:     &MetaEvent{},
+			messageType: "meta",
 		},
 		{
 			payload:     &MilestoneEvent{},
@@ -295,6 +324,10 @@ func TestParseWebHook(t *testing.T) {
 			messageType: "repository_vulnerability_alert",
 		},
 		{
+			payload:     &StarEvent{},
+			messageType: "star",
+		},
+		{
 			payload:     &StatusEvent{},
 			messageType: "status",
 		},
@@ -307,8 +340,16 @@ func TestParseWebHook(t *testing.T) {
 			messageType: "team_add",
 		},
 		{
+			payload:     &UserEvent{},
+			messageType: "user",
+		},
+		{
 			payload:     &WatchEvent{},
 			messageType: "watch",
+		},
+		{
+			payload:     &RepositoryDispatchEvent{},
+			messageType: "repository_dispatch",
 		},
 	}
 

@@ -1018,6 +1018,32 @@ func TestDataLayerGetEventLogByID(t *testing.T) {
 	}
 }
 
+func TestDataLayerGetEventLogByDeliveryID(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	id := uuid.Must(uuid.Parse("db20d1e7-1e0d-45c6-bfe1-4ea24b7f4159"))
+	did := uuid.Must(uuid.Parse("ec7014ee-b691-47fd-a011-8ae1a37ce406"))
+	el, err := dl.GetEventLogByDeliveryID(did)
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if el == nil {
+		t.Fatalf("empty result")
+	}
+	if el.GitHubDeliveryID != did {
+		t.Fatalf("bad delivery id: %v", el.GitHubDeliveryID)
+	}
+	if el.ID != id {
+		t.Fatalf("bad id: %v", el.ID)
+	}
+	if el.EnvName != "foo-bar" {
+		t.Fatalf("unexpected env name: %v", el.EnvName)
+	}
+}
+
 func TestDataLayerGetEventLogsByEnvName(t *testing.T) {
 	dl, tdl := NewTestDataLayer(t)
 	if err := tdl.Setup(testDataPath); err != nil {
