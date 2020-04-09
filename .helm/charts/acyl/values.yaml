@@ -17,8 +17,6 @@ image:
 app:
   env_limit: '80'
   disable_tls: true  # required for argo ingress
-  helm_chart_to_repo: ''
-  deployment_to_repo: ''
   secrets_backend: "vault"
   secrets_mapping: "{{ .ID }}"
   secrets_from_env: false
@@ -28,9 +26,7 @@ app:
   dogstatsd_addr: 1.2.3.4:8125
   datadog_tracing_agent_addr: 1.2.3.4:8126
   metrics_tags: ''
-  amino_addr: foo.bar.com:3000
   furan_addr: "furan"
-  nitro: true
   k8s_group_bindings: ""
   k8s_secret_injections: "image-pull-secret=k8s/image_pull_secret"
   k8s_client_disable_http2: true # work around bug in using HTTP2 for k8s client calls

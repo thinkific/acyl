@@ -46,10 +46,6 @@ spec:
         {{ end }}
           - "--global-environment-limit"
           - "{{ .Values.app.env_limit }}"
-          - "--helm-chart-to-repo"
-          - '{{ .Values.app.helm_chart_to_repo }}'
-          - "--deployment-to-repo"
-          - '{{ .Values.app.deployment_to_repo }}'
           - "--consul-addr"
           - '{{ .Values.app.consul_server_host }}:8500'
           - "--dogstatsd-addr"
@@ -78,13 +74,9 @@ spec:
           - "--vault-k8s-auth-path"
           - "{{ .Values.vault.auth_path }}"
         {{ end }}
-          - "--amino-addr"
-          - "{{ .Values.app.amino_addr }}"
     {{ if eq .Values.app.debug_endpoints true }}
           - "--debug-endpoints"
     {{ end }}
-    {{ if .Values.app.nitro }}
-          - "--enable-nitro"
           - "--k8s-secret-injections"
           - "{{ .Values.app.k8s_secret_injections }}"
           - "--failure-report-s3-region"
@@ -99,7 +91,6 @@ spec:
           - "--operation-timeout-override"
           - "{{ .Values.app.operation_timeout_override }}"
           {{ end }}
-    {{ end }}
           - "--ui-base-url"
           {{ if .Values.is_dqa }}
             {{ if .Values.ingress.traefik.enabled }}
