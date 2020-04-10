@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
+	"github.com/google/go-github/github"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -23,20 +25,21 @@ var webhookCmd = &cobra.Command{
 }
 
 type webhookOptions struct {
-	action     string
-	repo       string
-	pr         uint
-	user       string
-	headRef    string
-	headSHA    string
-	baseRef    string
-	baseSHA    string
-	host       string
-	secret     string
-	endpoint   string
-	ignorecert bool
-	disableHTTPS bool
-	verbose    bool
+	action         string
+	installationID int64
+	repo           string
+	pr             uint
+	user           string
+	headRef        string
+	headSHA        string
+	baseRef        string
+	baseSHA        string
+	host           string
+	secret         string
+	endpoint       string
+	ignorecert     bool
+	disableHTTPS   bool
+	verbose        bool
 }
 
 var whOptions = &webhookOptions{}
@@ -44,6 +47,7 @@ var whOptions = &webhookOptions{}
 func init() {
 	webhookCmd.PersistentFlags().StringVar(&whOptions.action, "action", "opened", "Webhook action type (one of: opened, reopened, synchronize, closed)")
 	webhookCmd.PersistentFlags().StringVar(&whOptions.repo, "repo", "", "Repository name including owner")
+	webhookCmd.PersistentFlags().Int64Var(&whOptions.installationID, "installation-id", 1, "GitHub App installation ID (req'd and must be valid if using GitHub App webhook endpoint)")
 	webhookCmd.PersistentFlags().UintVar(&whOptions.pr, "pr", 1, "PR number")
 	webhookCmd.PersistentFlags().StringVar(&whOptions.user, "user", "", "Username")
 	webhookCmd.PersistentFlags().StringVar(&whOptions.headRef, "head-ref", "", "HEAD ref (branch/tag)")
@@ -58,6 +62,9 @@ func init() {
 	webhookCmd.PersistentFlags().BoolVarP(&whOptions.verbose, "verbose", "v", false, "print request headers and body to stdout")
 	RootCmd.AddCommand(webhookCmd)
 }
+
+func intp(i int) *int    { return &i }
+func boolp(b bool) *bool { return &b }
 
 func webhook(cmd *cobra.Command, args []string) {
 	if whOptions.repo == "" ||
@@ -76,24 +83,34 @@ func webhook(cmd *cobra.Command, args []string) {
 	if len(rl) != 2 {
 		log.Fatalf("malformed repo: %v", whOptions.repo)
 	}
-	event := ghevent.GitHubEvent{
-		Action: whOptions.action,
-		Repository: ghevent.GitHubEventRepository{
-			Name:     rl[1],
-			FullName: whOptions.repo,
+
+	event := github.PullRequestEvent{
+		Action: &whOptions.action,
+		Installation: &github.Installation{
+			ID: &whOptions.installationID,
 		},
-		PullRequest: ghevent.GitHubEventPullRequest{
-			Number: whOptions.pr,
-			User: ghevent.GitHubEventUser{
-				Login: whOptions.user,
+		Repo: &github.Repository{
+			Name:     &rl[1],
+			FullName: &whOptions.repo,
+		},
+		PullRequest: &github.PullRequest{
+			Number: intp(int(whOptions.pr)),
+			User: &github.User{
+				Login: &whOptions.user,
 			},
-			Head: ghevent.GitHubPRReference{
-				Ref: whOptions.headRef,
-				SHA: whOptions.headSHA,
+			Head: &github.PullRequestBranch{
+				Ref: &whOptions.headRef,
+				SHA: &whOptions.headSHA,
+				Repo: &github.Repository{
+					Fork: boolp(false),
+				},
 			},
-			Base: ghevent.GitHubPRReference{
-				Ref: whOptions.baseRef,
-				SHA: whOptions.baseSHA,
+			Base: &github.PullRequestBranch{
+				Ref: &whOptions.baseRef,
+				SHA: &whOptions.baseSHA,
+				Repo: &github.Repository{
+					FullName: &whOptions.repo,
+				},
 			},
 		},
 	}
@@ -124,6 +141,7 @@ func webhook(cmd *cobra.Command, args []string) {
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("X-Hub-Signature", sig)
 	req.Header.Add("X-GitHub-Event", "pull_request")
+	req.Header.Add("X-GitHub-Delivery", uuid.Must(uuid.NewRandom()).String())
 
 	if whOptions.verbose {
 		fmt.Printf("POST %v\n", url)

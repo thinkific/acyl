@@ -85,6 +85,9 @@ func Test_prEventHandler_Handle(t *testing.T) {
 	updatep.Action = str("synchronize")
 	closedp := basep
 	closedp.Action = str("closed")
+	forkp := basep
+	forkp.PullRequest.Head.Repo.FullName = str("someotherowner/bar")
+	forkp.PullRequest.Head.Repo.Fork = boolp(true)
 	basecb := func(ctx context.Context, action string, rrd models.RepoRevisionData) error {
 		if rrd.Repo != "foo/bar" {
 			return fmt.Errorf("bad repo: %v", rrd.Repo)
@@ -183,6 +186,13 @@ func Test_prEventHandler_Handle(t *testing.T) {
 			},
 			wantErr:    true,
 			wantErrStr: "malformed delivery id",
+		},
+		{
+			name: "forked repo",
+			args: args{
+				deliveryID: uuid.Must(uuid.NewRandom()).String(),
+				payload:    forkp,
+			},
 		},
 	}
 	for _, tt := range tests {

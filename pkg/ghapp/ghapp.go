@@ -2,6 +2,7 @@ package ghapp
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
@@ -73,7 +74,6 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, suppor
 	return &GitHubApp{
 		prh: &prEventHandler{
 			ClientCreator:      cc,
-			installationID:     int64(appID),
 			dl:                 dl,
 			supportedPRActions: sa,
 			RRDCallback:        prcb,
@@ -87,5 +87,12 @@ func NewGitHubApp(privateKeyPEM []byte, appID uint, webhookSecret string, suppor
 
 // Handler returns the http.Handler that should handle the webhook HTTP endpoint
 func (gha *GitHubApp) Handler() http.Handler {
-	return githubapp.NewDefaultEventDispatcher(gha.cfg, gha.prh, gha.ch)
+	return githubapp.NewEventDispatcher(
+		[]githubapp.EventHandler{gha.prh, gha.ch},
+		gha.cfg.App.WebhookSecret,
+		githubapp.WithErrorCallback(func(w http.ResponseWriter, r *http.Request, err error) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Header().Add("Content-Type", "application/json")
+			w.Write([]byte(fmt.Sprintf(`{"error_details":"%v"}`, err)))
+		}))
 }

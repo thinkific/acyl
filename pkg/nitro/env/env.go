@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/ghapp"
+
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
@@ -204,6 +206,7 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 		TargetURL:   turl,
 	}
 	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx))
+	ctx2 = ghapp.CloneGitHubClientContext(ctx2, ctx)
 	err = m.RC.SetStatus(ctx2, rd.Repo, rd.SourceSHA, cs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error setting commit status")

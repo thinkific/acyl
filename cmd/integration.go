@@ -1,12 +1,22 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strconv"
 	"time"
+
+	"github.com/google/go-github/github"
+
+	"github.com/google/uuid"
+
+	"github.com/dollarshaveclub/acyl/pkg/ghapp"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
@@ -65,7 +75,7 @@ func integration(cmd *cobra.Command, args []string) {
 	if err != nil {
 		clierr("error loading webhook: %v", err)
 	}
-	nmgr, rc, err := setupNitro(dl)
+	nmgr, rc, err := setupNitro(dl, true)
 	if err != nil {
 		clierr("error setting up Nitro: %v", err)
 	}
@@ -78,13 +88,13 @@ func integration(cmd *cobra.Command, args []string) {
 
 	// static github token
 	g.Go(func() error {
-		if err := createIntegrationTest(ctx, wm["create"], eh, nmgr); err != nil {
+		if err := createIntegrationTest(ctx, pullRequestEventToGitHubEvent(wm["create"]), eh, nmgr); err != nil {
 			return errors.Wrap(err, "error performing static token create integration test")
 		}
-		if err := updateIntegrationTest(ctx, wm["update"], eh, nmgr); err != nil {
+		if err := updateIntegrationTest(ctx, pullRequestEventToGitHubEvent(wm["update"]), eh, nmgr); err != nil {
 			return errors.Wrap(err, "error performing static token update integration test")
 		}
-		if err := deleteIntegrationTest(ctx, wm["delete"], eh, nmgr); err != nil {
+		if err := deleteIntegrationTest(ctx, pullRequestEventToGitHubEvent(wm["delete"]), eh, nmgr); err != nil {
 			return errors.Wrap(err, "error performing static token delete integration test")
 		}
 		return nil
@@ -92,50 +102,78 @@ func integration(cmd *cobra.Command, args []string) {
 
 	// github app
 	g.Go(func() error {
-		// use new datastore and dependencies so this can run in parallel with static token tests
-		//dl2, err := loadData()
-		//if err != nil {
-		//	return errors.Wrap(err, "error loading data")
-		//}
-		//nmgr2, rc2, err := setupNitro(dl2)
-		//if err != nil {
-		//	return errors.Wrap(err, "error setting up app Nitro")
-		//}
-		//if integrationcfg.PrivateKeyPEM == "" {
-		//	return errors.New("empty private key")
-		//}
-		//appid, err := strconv.Atoi(integrationcfg.appIDstr)
-		//if err != nil || appid < 1 {
-		//	return errors.Wrap(err, "invalid app id")
-		//}
-		//
-		//httpapi := api.NewDispatcher(&http.Server{})
-		//deps := &api.Dependencies{
-		//	DataLayer: dl2,
-		//	//GitHubEventWebhook: ge,
-		//	EnvironmentSpawner: nmgr2,
-		//	ServerConfig:       serverConfig,
-		//	Logger:             logger,
-		//}
-		//if err := httpapi.RegisterVersions(deps, nil); err != nil {
-		//	return errors.Wrap(err, "error registering api versions")
-		//}
-		//gha, err := ghapp.NewGitHubApp([]byte(integrationcfg.PrivateKeyPEM), uint(appid), "foobar", []string{"opened", "closed", "synchronize"}, nil, dl2)
-		//if err != nil {
-		//	return errors.Wrap(err, "error creating GitHub app")
-		//}
-		//ctx := ghapp.NewGitHubClientContext(ctx, int64(appid), gha)
-		//payload, err := json.Marshal(wm["create"])
-		//if err != nil {
-		//	return errors.Wrap(err, "error marshaling create webhook")
-		//}
-		//ctx, rrd, _, err := gha.Handler().ProcessEvent(ctx, payload)
-		//if err != nil {
-		//	return errors.Wrap(err, "error processing create event")
-		//}
-		//if _, err := nmgr2.Create(ctx, rrd); err != nil {
-		//	return errors.Wrap(err, "error running github app create test")
-		//}
+		//use new datastore and dependencies so this can run in parallel with static token tests
+		dl2, err := loadData()
+		if err != nil {
+			return errors.Wrap(err, "error loading data")
+		}
+		nmgr2, _, err := setupNitro(dl2, false)
+		if err != nil {
+			return errors.Wrap(err, "error setting up app Nitro")
+		}
+		if integrationcfg.PrivateKeyPEM == "" {
+			return errors.New("empty private key")
+		}
+		appid, err := strconv.Atoi(integrationcfg.appIDstr)
+		if err != nil || appid < 1 {
+			return errors.Wrap(err, "invalid app id")
+		}
+
+		// this is only used to create valid payload signatures
+		ge := ghevent.NewGitHubEventWebhook(nil, "foobar", "", dl2)
+
+		prh := func(ctx context.Context, action string, rrd models.RepoRevisionData) error {
+			switch action {
+			case "opened":
+				_, err := nmgr2.Create(ctx, rrd)
+				return errors.Wrap(err, "error running github app create test")
+			case "synchronize":
+				_, err := nmgr2.Update(ctx, rrd)
+				return errors.Wrap(err, "error running github app update test")
+			case "closed":
+				err := nmgr2.Destroy(ctx, rrd, models.DestroyApiRequest)
+				return errors.Wrap(err, "error running github app destroy test")
+			default:
+				return fmt.Errorf("unexpected action: %v", action)
+			}
+		}
+
+		gha, err := ghapp.NewGitHubApp([]byte(integrationcfg.PrivateKeyPEM), uint(appid), "foobar", []string{"opened", "closed", "synchronize"}, prh, dl2)
+		if err != nil {
+			return errors.Wrap(err, "error creating GitHub app")
+		}
+
+		runevent := func(event github.PullRequestEvent) error {
+			payload, err := json.Marshal(event)
+			if err != nil {
+				return errors.Wrapf(err, "error marshaling %v webhook", event.Action)
+			}
+			r := httptest.NewRequest("POST", "/ghapp/webhook", bytes.NewBuffer(payload))
+			r.Header.Add("X-GitHub-Delivery", uuid.Must(uuid.NewRandom()).String())
+			r.Header.Add("X-GitHub-Event", "pull_request")
+			r.Header.Add("Content-Type", "application/json")
+			r.Header.Add("X-Hub-Signature", ge.GenerateSignatureString(payload))
+			w := httptest.NewRecorder()
+			gha.Handler().ServeHTTP(w, r)
+			if w.Result().StatusCode != http.StatusAccepted {
+				out, _ := ioutil.ReadAll(w.Result().Body)
+				return fmt.Errorf("error in %v response: %v: %v", event.Action, w.Result().StatusCode, string(out))
+			}
+			return nil
+		}
+
+		if err := runevent(wm["create"]); err != nil {
+			return err
+		}
+
+		if err := runevent(wm["update"]); err != nil {
+			return err
+		}
+
+		if err := runevent(wm["delete"]); err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -143,7 +181,24 @@ func integration(cmd *cobra.Command, args []string) {
 		clierr("error running tests: %v", err)
 	}
 
+	// allow the async namespace delete to finish
+	time.Sleep(5 * time.Second)
+
 	logger.Printf("integration tests successful")
+}
+
+// pullRequestEventToGitHubEvent marshals to JSON, then unmarshals into GitHubEvent
+func pullRequestEventToGitHubEvent(pre github.PullRequestEvent) *ghevent.GitHubEvent {
+	out := &ghevent.GitHubEvent{}
+	j, err := json.Marshal(&pre)
+	if err != nil {
+		fmt.Printf("error marshalling PullRequestEvent: %v", err)
+		return out
+	}
+	if err := json.Unmarshal(j, out); err != nil {
+		fmt.Printf("error unmarshalling into GitHubEvent: %v", err)
+	}
+	return out
 }
 
 func createIntegrationTest(ctx context.Context, e *ghevent.GitHubEvent, eh *ghevent.GitHubEventWebhook, nmgr spawner.EnvironmentSpawner) error {
@@ -216,8 +271,12 @@ func setupEventHandler(rc ghclient.RepoClient, dl persistence.DataLayer) *gheven
 	return ghevent.NewGitHubEventWebhook(rc, "foobar", "acyl.yml", dl)
 }
 
-func setupNitro(dl persistence.DataLayer) (spawner.EnvironmentSpawner, ghclient.RepoClient, error) {
-	rc := ghclient.NewGitHubClient(integrationcfg.githubToken)
+func setupNitro(dl persistence.DataLayer, useGHToken bool) (spawner.EnvironmentSpawner, ghclient.RepoClient, error) {
+	ghtkn := "invalid"
+	if useGHToken {
+		ghtkn = integrationcfg.githubToken
+	}
+	rc := ghclient.NewGitHubClient(ghtkn)
 	ng := &namegen.FakeNameGenerator{Unique: true}
 	mc := &metrics.FakeCollector{}
 	lp := &locker.FakePreemptiveLockProvider{
@@ -271,12 +330,12 @@ func loadData() (persistence.DataLayer, error) {
 }
 
 type testWebhooks struct {
-	Create ghevent.GitHubEvent `json:"create"`
-	Update ghevent.GitHubEvent `json:"update"`
-	Delete ghevent.GitHubEvent `json:"delete"`
+	Create github.PullRequestEvent `json:"create"`
+	Update github.PullRequestEvent `json:"update"`
+	Delete github.PullRequestEvent `json:"delete"`
 }
 
-func loadWebhooks() (map[string]*ghevent.GitHubEvent, error) {
+func loadWebhooks() (map[string]github.PullRequestEvent, error) {
 	d, err := ioutil.ReadFile(integrationcfg.webhookFile)
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening webhook file")
@@ -285,9 +344,9 @@ func loadWebhooks() (map[string]*ghevent.GitHubEvent, error) {
 	if err := json.Unmarshal(d, &twh); err != nil {
 		return nil, errors.Wrap(err, "error unmarshaling webhook file")
 	}
-	out := make(map[string]*ghevent.GitHubEvent, 3)
-	out["create"] = &twh.Create
-	out["update"] = &twh.Update
-	out["delete"] = &twh.Delete
+	out := make(map[string]github.PullRequestEvent, 3)
+	out["create"] = twh.Create
+	out["update"] = twh.Update
+	out["delete"] = twh.Delete
 	return out, nil
 }

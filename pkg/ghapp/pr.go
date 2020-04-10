@@ -21,7 +21,6 @@ import (
 type prEventHandler struct {
 	githubapp.ClientCreator
 	dl                 persistence.DataLayer
-	installationID     int64
 	supportedPRActions map[string]struct{}
 	RRDCallback        PRCallback
 }
@@ -35,17 +34,31 @@ func (prh *prEventHandler) Handles() []string {
 // The PR event handler validates the webhook, sets up the context with appropriate eventlogger and GH client factory
 // and then executes the callback
 func (prh *prEventHandler) Handle(ctx context.Context, eventType, deliveryID string, payload []byte) error {
+
+	// response is used when a non-default response is needed
+	response := func(status int, msg string, ctype string) {
+		githubapp.SetResponder(ctx, func(w http.ResponseWriter, r *http.Request) {
+			if ctype != "" {
+				w.Header().Add("Content-Type", ctype)
+			}
+			w.WriteHeader(status)
+			w.Write([]byte(msg))
+		})
+	}
+
 	if eventType != "pull_request" {
 		return errors.New("not a pull request event")
 	}
 
 	var event github.PullRequestEvent
 	if err := json.Unmarshal(payload, &event); err != nil {
+		response(http.StatusBadRequest, fmt.Sprintf("error unmarshaling event: %v", err), "")
 		return errors.Wrap(err, "error unmarshaling event")
 	}
 
 	did, err := uuid.Parse(deliveryID)
 	if err != nil {
+		response(http.StatusBadRequest, fmt.Sprintf("malformed delivery id: %v", err), "")
 		return errors.Wrap(err, "malformed delivery id")
 	}
 
@@ -62,12 +75,14 @@ func (prh *prEventHandler) Handle(ctx context.Context, eventType, deliveryID str
 	}
 	action := event.GetAction()
 
+	if rrd.IsFork {
+		response(http.StatusOK, "ignoring event from forked HEAD repo", "")
+		return nil
+	}
+
 	_, ok := prh.supportedPRActions[action]
 	if !ok {
-		githubapp.SetResponder(ctx, func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("action not relevant: " + action))
-		})
+		response(http.StatusOK, "action not relevant: "+action, "")
 		return nil
 	}
 
@@ -80,19 +95,14 @@ func (prh *prEventHandler) Handle(ctx context.Context, eventType, deliveryID str
 	ctx = eventlogger.NewEventLoggerContext(ctx, elogger)
 
 	// Add the GitHub app client factory to the context
-	ctx = NewGitHubClientContext(ctx, prh.installationID, prh)
+	ctx = NewGitHubClientContext(ctx, event.GetInstallation().GetID(), prh)
 
 	err = prh.RRDCallback(ctx, action, rrd)
-	githubapp.SetResponder(ctx, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "application/json")
-		if err == nil {
-			w.WriteHeader(http.StatusAccepted)
-			w.Write([]byte(fmt.Sprintf(`{"event_log_id": "%v"}`, eventlogger.GetLogger(ctx).ID.String())))
-			return
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf(`{"error_details":"%v"}`, err)))
-	})
+	if err != nil {
+		response(http.StatusInternalServerError, fmt.Sprintf(`{"error_details":"%v"}`, err), "application/json")
+	} else {
+		response(http.StatusAccepted, fmt.Sprintf(`{"event_log_id": "%v"}`, eventlogger.GetLogger(ctx).ID.String()), "application/json")
+	}
 	return err
 }
 
