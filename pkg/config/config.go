@@ -173,6 +173,7 @@ type GithubConfig struct {
 	TypePath      string // relative path within repo to look for acyl.yml (QAType definition)
 	AppID         uint
 	PrivateKeyPEM []byte
+	AppHookSecret string
 }
 
 type BackendConfig struct {

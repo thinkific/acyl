@@ -40,6 +40,7 @@ import (
 
 type integrationConfig struct {
 	dataFile, webhookFile, githubToken string
+	appHookSecret                      string
 	PrivateKeyPEM                      string
 	appIDstr                           string
 }
@@ -62,6 +63,7 @@ func init() {
 	integrationCmd.Flags().StringVar(&integrationcfg.githubToken, "github-token", os.Getenv("GITHUB_TOKEN"), "GitHub access token")
 	integrationCmd.Flags().StringVar(&integrationcfg.appIDstr, "github-app-id", os.Getenv("GITHUB_APP_ID"), "GitHub App ID")
 	integrationCmd.Flags().StringVar(&integrationcfg.PrivateKeyPEM, "github-app-private-key", os.Getenv("GITHUB_APP_PRIVATE_KEY"), "GitHub App private key")
+	integrationCmd.Flags().StringVar(&integrationcfg.appHookSecret, "github-app-hook-secret", os.Getenv("GITHUB_APP_HOOK_SECRET"), "GitHub App webhook secret")
 	RootCmd.AddCommand(integrationCmd)
 }
 
@@ -120,7 +122,7 @@ func integration(cmd *cobra.Command, args []string) {
 		}
 
 		// this is only used to create valid payload signatures
-		ge := ghevent.NewGitHubEventWebhook(nil, "foobar", "", dl2)
+		ge := ghevent.NewGitHubEventWebhook(nil, integrationcfg.appHookSecret, "", dl2)
 
 		prh := func(ctx context.Context, action string, rrd models.RepoRevisionData) error {
 			switch action {
@@ -138,7 +140,7 @@ func integration(cmd *cobra.Command, args []string) {
 			}
 		}
 
-		gha, err := ghapp.NewGitHubApp([]byte(integrationcfg.PrivateKeyPEM), uint(appid), "foobar", []string{"opened", "closed", "synchronize"}, prh, dl2)
+		gha, err := ghapp.NewGitHubApp([]byte(integrationcfg.PrivateKeyPEM), uint(appid), integrationcfg.appHookSecret, []string{"opened", "closed", "synchronize"}, prh, dl2)
 		if err != nil {
 			return errors.Wrap(err, "error creating GitHub app")
 		}

@@ -53,6 +53,7 @@ var ghcfg = config.GithubConfig{
 	PrivateKeyPEM: []byte(key),
 	AppID:         1,
 	HookSecret:    "asdf",
+	AppHookSecret: "asdf",
 }
 
 func TestAPIv0SearchSimple(t *testing.T) {

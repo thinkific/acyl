@@ -20,6 +20,7 @@ const (
 	githubTokenid        = "github/token"
 	githubAppID          = "github/app/id"
 	githubAppPK          = "github/app/private_key"
+	githubAppHookSecret  = "github/app/hook_secret"
 	apiKeysid            = "api_keys"
 	slackTokenid         = "slack/token"
 	tlsCertid            = "tls/cert"
@@ -120,6 +121,11 @@ func (psf *PVCSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
 		return errors.Wrap(err, "error getting GitHub App private key")
 	}
 	gh.PrivateKeyPEM = s
+	s, err = psf.sc.Get(githubAppHookSecret)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App hook secret")
+	}
+	gh.AppHookSecret = string(s)
 	return nil
 }
 
