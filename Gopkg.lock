@@ -1102,21 +1102,6 @@
   version = "1.0.1"
 
 [[projects]]
-  digest = "1:6921a84aa66af28f35794c0369fc5eb98081d6e23afd4c592e99ed8e7c90b11d"
-  name = "github.com/newrelic/go-agent"
-  packages = [
-    ".",
-    "internal",
-    "internal/jsonx",
-    "internal/logger",
-    "internal/sysinfo",
-    "internal/utilization",
-  ]
-  pruneopts = ""
-  revision = "29ec3cd1bb2f21d21d36da37dae52695cb2c3a17"
-  version = "v1.9.0"
-
-[[projects]]
   digest = "1:53f0ca8536bff15e4974b90def20012f61ef4fdb40b8b2712fa09c2820e53974"
   name = "github.com/nlopes/slack"
   packages = ["."]
@@ -2467,7 +2452,6 @@
     "github.com/ghodss/yaml",
     "github.com/go-pg/pg/orm",
     "github.com/golang/mock/gomock",
-    "github.com/golang/protobuf/proto",
     "github.com/google/go-cmp/cmp",
     "github.com/google/go-github/github",
     "github.com/google/uuid",
@@ -2481,7 +2465,6 @@
     "github.com/mattn/go-runewidth",
     "github.com/mholt/archiver",
     "github.com/mitchellh/go-homedir",
-    "github.com/newrelic/go-agent",
     "github.com/nlopes/slack",
     "github.com/palantir/go-githubapp/githubapp",
     "github.com/pkg/errors",
@@ -2495,8 +2478,6 @@
     "golang.org/x/net/context",
     "golang.org/x/oauth2",
     "golang.org/x/sync/errgroup",
-    "google.golang.org/grpc",
-    "google.golang.org/grpc/codes",
     "gopkg.in/DataDog/dd-trace-go.v1/contrib/database/sql",
     "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux",
     "gopkg.in/DataDog/dd-trace-go.v1/contrib/jmoiron/sqlx",

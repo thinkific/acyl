@@ -301,9 +301,13 @@ func server(cmd *cobra.Command, args []string) {
 		api.WithUIAssetsPath(serverConfig.UIPath),
 		api.WithUIRoutePrefix(serverConfig.UIBaseRoute),
 		api.WithUIBranding(branding),
+		api.WithGitHubConfig(githubConfig),
 	}
 	if serverConfig.DebugEndpoints {
-		regops = append(regops, api.WithDebugEndpoints(), api.WithIPWhitelist(serverConfig.DebugEndpointsIPWhitelists))
+		regops = append(regops,
+			api.WithDebugEndpoints(),
+			api.WithIPWhitelist(serverConfig.DebugEndpointsIPWhitelists),
+		)
 	}
 
 	if err := httpapi.RegisterVersions(deps, regops...); err != nil {
