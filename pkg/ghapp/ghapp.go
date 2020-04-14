@@ -12,13 +12,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-// LogFunc logs a string somewhere
-type LogFunc func(string, ...interface{})
-
 // PRCallback is a function that gets called when a validated, parsed PR webhook event is received
-// action is the PR webhook action string ("opened", "closed", "labeled", etc), see https://developer.github.com/v3/activity/events/types/#pullrequestevent
-// rrd is the parsed repo/revision information from the webhook payload
-// ctx is pre-populated with an eventlogger and authenticated GitHub clients (app and installation)
+// - action is the PR webhook action string ("opened", "closed", "labeled", etc), see https://developer.github.com/v3/activity/events/types/#pullrequestevent
+// - rrd is the parsed repo/revision information from the webhook payload
+// - ctx is pre-populated with an eventlogger and authenticated GitHub clients (app and installation)
 // If the callback returns a non-nil error, the webhook request client will be returned a 500 error with the error details in the body
 // If the error is nil, the webhook client will be returned a 202 Accepted response with the eventlog ID
 type PRCallback func(ctx context.Context, action string, rrd models.RepoRevisionData) error

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghapp"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
 	"github.com/rs/zerolog"
@@ -76,10 +77,6 @@ func v0QAEnvironmentFromQAEnvironment(qae *models.QAEnvironment) *v0QAEnvironmen
 	}
 }
 
-type WebhookHandlerFactory interface {
-	Handler() http.Handler
-}
-
 type v0api struct {
 	apiBase
 	dl  persistence.DataLayer
@@ -122,11 +119,12 @@ func (api *v0api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/envs/{name}/success", middlewareChain(api.envSuccessHandler, authMiddleware.authRequest)).Methods("POST")
 	r.HandleFunc("/envs/{name}/failure", middlewareChain(api.envFailureHandler, authMiddleware.authRequest)).Methods("POST")
 	r.HandleFunc("/envs/{name}/event", middlewareChain(api.envEventHandler, authMiddleware.authRequest)).Methods("POST")
+	ghahandler := api.gha.Handler()
 	r.HandleFunc("/ghapp/webhook", middlewareChain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// allow request logging by bundling a zerolog logger into the request context
 		logger := zerolog.New(os.Stdout)
 		r = r.Clone(logger.WithContext(r.Context()))
-		api.gha.Handler().ServeHTTP(w, r)
+		ghahandler.ServeHTTP(w, r)
 	}), waitMiddleware.waitOnRequest)).Methods("POST")
 
 	// v0 routes
@@ -172,8 +170,6 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 	// This only needs to be done for the root level span as the value is propagated down.
 	// https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing
 	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
-	//validationSpan := tracer.StartSpan("github_webhook_handler.validation", tracer.ChildOf(rootSpan.Context()))
-	// Span.Finish(tracer.WithError(err))
 
 	// embed the cancel func for later cancellation
 	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx))
@@ -189,7 +185,7 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 		api.wg.Add(1)
 		go func() {
 			var err error
-			defer span.Finish(tracer.WithError(err))
+			defer func() { span.Finish(tracer.WithError(err)) }()
 			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
@@ -205,7 +201,7 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 		api.wg.Add(1)
 		go func() {
 			var err error
-			defer span.Finish(tracer.WithError(err))
+			defer func() { span.Finish(tracer.WithError(err)) }()
 			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
@@ -221,7 +217,7 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 		api.wg.Add(1)
 		go func() {
 			var err error
-			defer span.Finish(tracer.WithError(err))
+			defer func() { span.Finish(tracer.WithError(err)) }()
 			defer api.wg.Done()
 			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 			defer cf() // guarantee that any goroutines created with the ctx are cancelled
@@ -242,7 +238,7 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 	return nil
 }
 
-// legacyGithubWebhookHandler serves the legacy manually set up GitHook webhook endpoint
+// legacyGithubWebhookHandler serves the legacy (manually set up) GitHook webhook endpoint
 func (api *v0api) legacyGithubWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	span := tracer.StartSpan("legacy_github_webhook_handler")
@@ -265,7 +261,12 @@ func (api *v0api) legacyGithubWebhookHandler(w http.ResponseWriter, r *http.Requ
 		api.forbiddenError(w, err.Error())
 		return
 	}
-	out, err := api.ge.New(b, sig)
+	did, err := uuid.Parse(r.Header.Get("X-GitHub-Delivery"))
+	if err != nil {
+		// Ignore invalid or missing Delivery ID
+		did = uuid.Nil
+	}
+	out, err := api.ge.New(b, did, sig)
 	if err != nil {
 		_, bsok := err.(ghevent.BadSignature)
 		if bsok {

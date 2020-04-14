@@ -208,7 +208,7 @@ func createIntegrationTest(ctx context.Context, e *ghevent.GitHubEvent, eh *ghev
 	if err != nil {
 		return errors.Wrap(err, "error marshaling event")
 	}
-	wh, err := eh.New(d, eh.GenerateSignatureString(d))
+	wh, err := eh.New(d, uuid.Must(uuid.NewRandom()), eh.GenerateSignatureString(d))
 	action := wh.Action
 	rdd := wh.RRD
 	if err != nil || rdd == nil {
@@ -230,7 +230,7 @@ func updateIntegrationTest(ctx context.Context, e *ghevent.GitHubEvent, eh *ghev
 	if err != nil {
 		return errors.Wrap(err, "error marshaling event")
 	}
-	wh, err := eh.New(d, eh.GenerateSignatureString(d))
+	wh, err := eh.New(d, uuid.Must(uuid.NewRandom()), eh.GenerateSignatureString(d))
 	action := wh.Action
 	rdd := wh.RRD
 	if err != nil || rdd == nil {
@@ -252,7 +252,7 @@ func deleteIntegrationTest(ctx context.Context, e *ghevent.GitHubEvent, eh *ghev
 	if err != nil {
 		return errors.Wrap(err, "error marshaling event")
 	}
-	wh, err := eh.New(d, eh.GenerateSignatureString(d))
+	wh, err := eh.New(d, uuid.Must(uuid.NewRandom()), eh.GenerateSignatureString(d))
 	action := wh.Action
 	rdd := wh.RRD
 	if err != nil || rdd == nil {

@@ -91,10 +91,8 @@ func (prh *prEventHandler) Handle(ctx context.Context, eventType, deliveryID str
 		return errors.Wrap(err, "error getting event logger")
 	}
 
-	// Create a new independent context for the async action
+	// set up context
 	ctx = eventlogger.NewEventLoggerContext(ctx, elogger)
-
-	// Add the GitHub app client factory to the context
 	ctx = NewGitHubClientContext(ctx, event.GetInstallation().GetID(), prh)
 
 	err = prh.RRDCallback(ctx, action, rrd)
