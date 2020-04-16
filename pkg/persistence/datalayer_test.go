@@ -1016,6 +1016,15 @@ func TestDataLayerGetEventLogByID(t *testing.T) {
 	if el.LogKey == uuid.Nil {
 		t.Fatalf("unset log key: %v", el.LogKey)
 	}
+	// null delivery id
+	id, _ = uuid.Parse("9beb4f55-bc47-4411-b17d-78e2c0bccb26")
+	el, err = dl.GetEventLogByID(id)
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if el.GitHubDeliveryID != uuid.Nil {
+		t.Fatalf("expected empty delivery id: %v", el.GitHubDeliveryID)
+	}
 }
 
 func TestDataLayerGetEventLogByDeliveryID(t *testing.T) {
