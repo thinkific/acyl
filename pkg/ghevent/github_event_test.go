@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 
 	"github.com/dollarshaveclub/acyl/pkg/mocks"
@@ -264,7 +266,7 @@ func TestNewSucceedsOpenedCreateNew(t *testing.T) {
 	defer ctrl.Finish()
 	rc.EXPECT().GetFileContents(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testYAMLBytes, nil)
 
-	out, err := hook.New([]byte(openedGithubEventJSON), "sha1=b76269055fa8fcf1f9c347416986ae7743a9f0b6")
+	out, err := hook.New([]byte(openedGithubEventJSON), uuid.Must(uuid.NewRandom()), "sha1=b76269055fa8fcf1f9c347416986ae7743a9f0b6")
 	if err != nil {
 		t.Fatalf("Encountered unexpected error %v", err)
 	}
@@ -279,7 +281,7 @@ func TestNewSucceedsOpenedCreateNewTargetBranches(t *testing.T) {
 	defer ctrl.Finish()
 	rc.EXPECT().GetFileContents(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testYAMLMultipleTargetBranchesBytes, nil)
 
-	out, err := hook.New([]byte(openedGithubEventJSON), "sha1=b76269055fa8fcf1f9c347416986ae7743a9f0b6")
+	out, err := hook.New([]byte(openedGithubEventJSON), uuid.Must(uuid.NewRandom()), "sha1=b76269055fa8fcf1f9c347416986ae7743a9f0b6")
 	if err != nil {
 		t.Fatalf("Encountered unexpected error %v", err)
 	}
@@ -294,7 +296,7 @@ func TestNewSucceedsReopenedCreateNew(t *testing.T) {
 	defer ctrl.Finish()
 	rc.EXPECT().GetFileContents(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testYAMLBytes, nil)
 
-	out, err := hook.New([]byte(reopenedGithubEventJSON), "sha1=c955f478baa65209a06ef86d525445e49d517fe0")
+	out, err := hook.New([]byte(reopenedGithubEventJSON), uuid.Must(uuid.NewRandom()), "sha1=c955f478baa65209a06ef86d525445e49d517fe0")
 	if err != nil {
 		t.Fatalf("Encountered unexpected error %v", err)
 	}
@@ -309,7 +311,7 @@ func TestNewSucceedsSynchronizeUpdate(t *testing.T) {
 	defer ctrl.Finish()
 	rc.EXPECT().GetFileContents(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testYAMLBytes, nil)
 
-	out, err := hook.New([]byte(synchronizeGithubEventJSON), "sha1=ff496315e4c2d899cd3b9463477717703847ba4f")
+	out, err := hook.New([]byte(synchronizeGithubEventJSON), uuid.Must(uuid.NewRandom()), "sha1=ff496315e4c2d899cd3b9463477717703847ba4f")
 	if err != nil {
 		t.Fatalf("Encountered unexpected error %v", err)
 	}
@@ -324,7 +326,7 @@ func TestNewSucceedsClosedDestroy(t *testing.T) {
 	defer ctrl.Finish()
 	rc.EXPECT().GetFileContents(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testYAMLBytes, nil)
 
-	out, err := hook.New([]byte(closedGithubEventJSON), "sha1=144e32eb6d3e4e7b1d02a16009e2058f3d85c381")
+	out, err := hook.New([]byte(closedGithubEventJSON), uuid.Must(uuid.NewRandom()), "sha1=144e32eb6d3e4e7b1d02a16009e2058f3d85c381")
 	if err != nil {
 		t.Fatalf("Encountered unexpected error %v", err)
 	}
@@ -339,7 +341,7 @@ func TestNewNotRelevant(t *testing.T) {
 	defer ctrl.Finish()
 	rc.EXPECT().GetFileContents(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testYAMLMasterTargetBytes, nil)
 
-	out, err := hook.New([]byte(closedGithubEventJSON), "sha1=144e32eb6d3e4e7b1d02a16009e2058f3d85c381")
+	out, err := hook.New([]byte(closedGithubEventJSON), uuid.Must(uuid.NewRandom()), "sha1=144e32eb6d3e4e7b1d02a16009e2058f3d85c381")
 	if err != nil {
 		t.Fatalf("Encountered unexpected error %v", err)
 	}

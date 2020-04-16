@@ -112,7 +112,7 @@ func TestRepositoriesService_CreateRelease(t *testing.T) {
 		URL:         String("http://url/"),
 		HTMLURL:     String("http://htmlurl/"),
 		AssetsURL:   String("http://assetsurl/"),
-		Assets:      []ReleaseAsset{{ID: Int64(5)}},
+		Assets:      []*ReleaseAsset{{ID: Int64(5)}},
 		UploadURL:   String("http://uploadurl/"),
 		ZipballURL:  String("http://zipballurl/"),
 		TarballURL:  String("http://tarballurl/"),
@@ -156,7 +156,7 @@ func TestRepositoriesService_EditRelease(t *testing.T) {
 		URL:         String("http://url/"),
 		HTMLURL:     String("http://htmlurl/"),
 		AssetsURL:   String("http://assetsurl/"),
-		Assets:      []ReleaseAsset{{ID: Int64(5)}},
+		Assets:      []*ReleaseAsset{{ID: Int64(5)}},
 		UploadURL:   String("http://uploadurl/"),
 		ZipballURL:  String("http://zipballurl/"),
 		TarballURL:  String("http://tarballurl/"),
@@ -252,7 +252,7 @@ func TestRepositoriesService_DownloadReleaseAsset_Stream(t *testing.T) {
 		fmt.Fprint(w, "Hello World")
 	})
 
-	reader, _, err := client.Repositories.DownloadReleaseAsset(context.Background(), "o", "r", 1)
+	reader, _, err := client.Repositories.DownloadReleaseAsset(context.Background(), "o", "r", 1, nil)
 	if err != nil {
 		t.Errorf("Repositories.DownloadReleaseAsset returned error: %v", err)
 	}
@@ -276,13 +276,43 @@ func TestRepositoriesService_DownloadReleaseAsset_Redirect(t *testing.T) {
 		http.Redirect(w, r, "/yo", http.StatusFound)
 	})
 
-	_, got, err := client.Repositories.DownloadReleaseAsset(context.Background(), "o", "r", 1)
+	_, got, err := client.Repositories.DownloadReleaseAsset(context.Background(), "o", "r", 1, nil)
 	if err != nil {
 		t.Errorf("Repositories.DownloadReleaseAsset returned error: %v", err)
 	}
 	want := "/yo"
 	if !strings.HasSuffix(got, want) {
 		t.Errorf("Repositories.DownloadReleaseAsset returned %+v, want %+v", got, want)
+	}
+}
+
+func TestRepositoriesService_DownloadReleaseAsset_FollowRedirect(t *testing.T) {
+	client, mux, _, teardown := setup()
+	defer teardown()
+
+	mux.HandleFunc("/repos/o/r/releases/assets/1", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testHeader(t, r, "Accept", defaultMediaType)
+		// /yo, below will be served as baseURLPath/yo
+		http.Redirect(w, r, baseURLPath+"/yo", http.StatusFound)
+	})
+	mux.HandleFunc("/yo", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testHeader(t, r, "Accept", "*/*")
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", "attachment; filename=hello-world.txt")
+		fmt.Fprint(w, "Hello World")
+	})
+
+	reader, _, err := client.Repositories.DownloadReleaseAsset(context.Background(), "o", "r", 1, http.DefaultClient)
+	content, err := ioutil.ReadAll(reader)
+	if err != nil {
+		t.Errorf("Repositories.DownloadReleaseAsset returned error: %v", err)
+	}
+	reader.Close()
+	want := []byte("Hello World")
+	if !bytes.Equal(want, content) {
+		t.Errorf("Repositories.DownloadReleaseAsset returned %+v, want %+v", content, want)
 	}
 }
 
@@ -297,7 +327,7 @@ func TestRepositoriesService_DownloadReleaseAsset_APIError(t *testing.T) {
 		fmt.Fprint(w, `{"message":"Not Found","documentation_url":"https://developer.github.com/v3"}`)
 	})
 
-	resp, loc, err := client.Repositories.DownloadReleaseAsset(context.Background(), "o", "r", 1)
+	resp, loc, err := client.Repositories.DownloadReleaseAsset(context.Background(), "o", "r", 1, nil)
 	if err == nil {
 		t.Error("Repositories.DownloadReleaseAsset did not return an error")
 	}
@@ -354,34 +384,58 @@ func TestRepositoriesService_DeleteReleaseAsset(t *testing.T) {
 }
 
 func TestRepositoriesService_UploadReleaseAsset(t *testing.T) {
+	var (
+		defaultUploadOptions     = &UploadOptions{Name: "n"}
+		defaultExpectedFormValue = values{"name": "n"}
+		mediaTypeTextPlain       = "text/plain; charset=utf-8"
+	)
 	uploadTests := []struct {
-		uploadOpts        *UploadOptions
-		fileName          string
-		expectedMediaType string
+		uploadOpts         *UploadOptions
+		fileName           string
+		expectedFormValues values
+		expectedMediaType  string
 	}{
 		// No file extension and no explicit media type.
 		{
-			&UploadOptions{Name: "n"},
+			defaultUploadOptions,
 			"upload",
+			defaultExpectedFormValue,
 			defaultMediaType,
 		},
 		// File extension and no explicit media type.
 		{
-			&UploadOptions{Name: "n"},
+			defaultUploadOptions,
 			"upload.txt",
-			"text/plain; charset=utf-8",
+			defaultExpectedFormValue,
+			mediaTypeTextPlain,
 		},
 		// No file extension and explicit media type.
 		{
 			&UploadOptions{Name: "n", MediaType: "image/png"},
 			"upload",
+			defaultExpectedFormValue,
 			"image/png",
 		},
 		// File extension and explicit media type.
 		{
 			&UploadOptions{Name: "n", MediaType: "image/png"},
 			"upload.png",
+			defaultExpectedFormValue,
 			"image/png",
+		},
+		// Label provided.
+		{
+			&UploadOptions{Name: "n", Label: "l"},
+			"upload.txt",
+			values{"name": "n", "label": "l"},
+			mediaTypeTextPlain,
+		},
+		// No label provided.
+		{
+			defaultUploadOptions,
+			"upload.txt",
+			defaultExpectedFormValue,
+			mediaTypeTextPlain,
 		},
 	}
 
@@ -394,7 +448,7 @@ func TestRepositoriesService_UploadReleaseAsset(t *testing.T) {
 			testMethod(t, r, "POST")
 			testHeader(t, r, "Content-Type", test.expectedMediaType)
 			testHeader(t, r, "Content-Length", "12")
-			testFormValues(t, r, values{"name": "n"})
+			testFormValues(t, r, test.expectedFormValues)
 			testBody(t, r, "Upload me !\n")
 
 			fmt.Fprintf(w, `{"id":1}`)

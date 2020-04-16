@@ -25,6 +25,18 @@ func (pg *PGLayer) GetEventLogByID(id uuid.UUID) (*models.EventLog, error) {
 	return out, nil
 }
 
+func (pg *PGLayer) GetEventLogByDeliveryID(deliveryID uuid.UUID) (*models.EventLog, error) {
+	out := &models.EventLog{}
+	q := `SELECT ` + out.Columns() + ` FROM event_logs WHERE github_delivery_id = $1;`
+	if err := pg.db.QueryRow(q, deliveryID).Scan(out.ScanValues()...); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, errors.Wrap(err, "error getting event log by delivery id")
+	}
+	return out, nil
+}
+
 // GetEventLogsByEnvName gets all EventLogs associated with an environment
 func (pg *PGLayer) GetEventLogsByEnvName(name string) ([]models.EventLog, error) {
 	q := `SELECT ` + models.EventLog{}.Columns() + ` FROM event_logs WHERE env_name = $1;`

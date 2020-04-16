@@ -7,8 +7,15 @@ import (
 	"io/ioutil"
 	stdlog "log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
+
+	"github.com/dollarshaveclub/acyl/pkg/ghapp"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
+	"github.com/rs/zerolog"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
@@ -72,14 +79,15 @@ func v0QAEnvironmentFromQAEnvironment(qae *models.QAEnvironment) *v0QAEnvironmen
 
 type v0api struct {
 	apiBase
-	dl persistence.DataLayer
-	ge *ghevent.GitHubEventWebhook
-	es spawner.EnvironmentSpawner
-	sc config.ServerConfig
+	dl  persistence.DataLayer
+	ge  *ghevent.GitHubEventWebhook
+	es  spawner.EnvironmentSpawner
+	sc  config.ServerConfig
+	gha *ghapp.GitHubApp
 }
 
-func newV0API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, sc config.ServerConfig, logger *stdlog.Logger) (*v0api, error) {
-	return &v0api{
+func newV0API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, ghc config.GithubConfig, sc config.ServerConfig, logger *stdlog.Logger) (*v0api, error) {
+	api := &v0api{
 		apiBase: apiBase{
 			logger: logger,
 		},
@@ -87,7 +95,13 @@ func newV0API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawn
 		ge: ge,
 		es: es,
 		sc: sc,
-	}, nil
+	}
+	gha, err := ghapp.NewGitHubApp(ghc.PrivateKeyPEM, ghc.AppID, ghc.AppHookSecret, []string{"opened", "closed", "synchronize"}, api.processWebhook, dl)
+	if err != nil {
+		return nil, errors.Wrap(err, "error creating GitHub app")
+	}
+	api.gha = gha
+	return api, nil
 }
 
 func (api *v0api) register(r *muxtrace.Router) error {
@@ -95,8 +109,8 @@ func (api *v0api) register(r *muxtrace.Router) error {
 		return fmt.Errorf("router is nil")
 	}
 	// backwards-compatible routes
-	r.HandleFunc("/spawn", middlewareChain(api.githubWebhookHandler, waitMiddleware.waitOnRequest)).Methods("POST")
-	r.HandleFunc("/webhook", middlewareChain(api.githubWebhookHandler, waitMiddleware.waitOnRequest)).Methods("POST")
+	r.HandleFunc("/spawn", middlewareChain(api.legacyGithubWebhookHandler, waitMiddleware.waitOnRequest)).Methods("POST")
+	r.HandleFunc("/webhook", middlewareChain(api.legacyGithubWebhookHandler, waitMiddleware.waitOnRequest)).Methods("POST")
 	r.HandleFunc("/envs", middlewareChain(api.envListHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/envs/", middlewareChain(api.envListHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/envs/_search", middlewareChain(api.envSearchHandler, authMiddleware.authRequest)).Methods("GET")
@@ -105,10 +119,17 @@ func (api *v0api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/envs/{name}/success", middlewareChain(api.envSuccessHandler, authMiddleware.authRequest)).Methods("POST")
 	r.HandleFunc("/envs/{name}/failure", middlewareChain(api.envFailureHandler, authMiddleware.authRequest)).Methods("POST")
 	r.HandleFunc("/envs/{name}/event", middlewareChain(api.envEventHandler, authMiddleware.authRequest)).Methods("POST")
+	ghahandler := api.gha.Handler()
+	r.HandleFunc("/ghapp/webhook", middlewareChain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// allow request logging by bundling a zerolog logger into the request context
+		logger := zerolog.New(os.Stdout)
+		r = r.Clone(logger.WithContext(r.Context()))
+		ghahandler.ServeHTTP(w, r)
+	}), waitMiddleware.waitOnRequest)).Methods("POST")
 
 	// v0 routes
-	r.HandleFunc("/v0/spawn", middlewareChain(api.githubWebhookHandler, waitMiddleware.waitOnRequest)).Methods("POST")
-	r.HandleFunc("/v0/webhook", middlewareChain(api.githubWebhookHandler, waitMiddleware.waitOnRequest)).Methods("POST")
+	r.HandleFunc("/v0/spawn", middlewareChain(api.legacyGithubWebhookHandler, waitMiddleware.waitOnRequest)).Methods("POST")
+	r.HandleFunc("/v0/webhook", middlewareChain(api.legacyGithubWebhookHandler, waitMiddleware.waitOnRequest)).Methods("POST")
 	r.HandleFunc("/v0/envs", middlewareChain(api.envListHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v0/envs/", middlewareChain(api.envListHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v0/envs/_search", middlewareChain(api.envSearchHandler, authMiddleware.authRequest)).Methods("GET")
@@ -117,6 +138,7 @@ func (api *v0api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v0/envs/{name}/success", middlewareChain(api.envSuccessHandler, authMiddleware.authRequest)).Methods("POST")
 	r.HandleFunc("/v0/envs/{name}/failure", middlewareChain(api.envFailureHandler, authMiddleware.authRequest)).Methods("POST")
 	r.HandleFunc("/v0/envs/{name}/event", middlewareChain(api.envEventHandler, authMiddleware.authRequest)).Methods("POST")
+
 	return nil
 }
 
@@ -125,7 +147,7 @@ func (api *v0api) register(r *muxtrace.Router) error {
 // If this timeout occurs, no notifications will be sent to the user.
 var MaxAsyncActionTimeout = 32 * time.Minute
 
-func setTagsForGithubWebhookHandler(span tracer.Span, rd *models.RepoRevisionData) {
+func setTagsForGithubWebhookHandler(span tracer.Span, rd models.RepoRevisionData) {
 	span.SetTag("base_branch", rd.BaseBranch)
 	span.SetTag("base_sha", rd.BaseSHA)
 	span.SetTag("pull_request", rd.PullRequest)
@@ -136,134 +158,167 @@ func setTagsForGithubWebhookHandler(span tracer.Span, rd *models.RepoRevisionDat
 	span.SetTag("user", rd.User)
 }
 
-func (api *v0api) githubWebhookHandler(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	var err error
-
+func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.RepoRevisionData) error {
 	// As of 03/13/2019, Datadog seems to only allow monitors to be setup based
 	// off the root level span of a trace.
 	// While we could connect this with span found in r.Context(), this would
 	// prevent us from making usable monitors in Datadog, since we respond with
 	// 200 ok even though the async action may fail.
-	rootSpan := tracer.StartSpan("github_webhook_handler")
+	span := tracer.StartSpan("webhook_processor")
 
 	// We need to set this sampling priority tag in order to allow distributed tracing to work.
 	// This only needs to be done for the root level span as the value is propagated down.
 	// https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing
-	rootSpan.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
+	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
+
+	// embed the cancel func for later cancellation
+	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx))
+
+	setTagsForGithubWebhookHandler(span, rrd)
+	ctx = tracer.ContextWithSpan(ctx, span)
+
+	log := eventlogger.GetLogger(ctx).Printf
+
+	switch action {
+	case "opened":
+		log("starting async processing for %v", action)
+		api.wg.Add(1)
+		go func() {
+			var err error
+			defer func() { span.Finish(tracer.WithError(err)) }()
+			defer api.wg.Done()
+			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
+			defer cf() // guarantee that any goroutines created with the ctx are cancelled
+			name, err := api.es.Create(ctx, rrd)
+			if err != nil {
+				log("finished processing create with error: %v", err)
+				return
+			}
+			log("success processing create event (env: %q); done", name)
+		}()
+	case "synchronize":
+		log("starting async processing for %v", action)
+		api.wg.Add(1)
+		go func() {
+			var err error
+			defer func() { span.Finish(tracer.WithError(err)) }()
+			defer api.wg.Done()
+			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
+			defer cf() // guarantee that any goroutines created with the ctx are cancelled
+			name, err := api.es.Update(ctx, rrd)
+			if err != nil {
+				log("finished processing update with error: %v", err)
+				return
+			}
+			log("success processing update event (env: %q); done", name)
+		}()
+	case "closed":
+		log("starting async processing for %v", action)
+		api.wg.Add(1)
+		go func() {
+			var err error
+			defer func() { span.Finish(tracer.WithError(err)) }()
+			defer api.wg.Done()
+			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
+			defer cf() // guarantee that any goroutines created with the ctx are cancelled
+			err = api.es.Destroy(ctx, rrd, models.DestroyApiRequest)
+			if err != nil {
+				log("finished processing destroy with error: %v", err)
+				return
+			}
+			log("success processing destroy event; done")
+		}()
+	default:
+		log("unknown action type: %v", action)
+		err := fmt.Errorf("unknown action type: %v (event_log_id: %v)", action, eventlogger.GetLogger(ctx).ID.String())
+		span.Finish(tracer.WithError(err))
+		return err
+	}
+
+	return nil
+}
+
+// legacyGithubWebhookHandler serves the legacy (manually set up) GitHook webhook endpoint
+func (api *v0api) legacyGithubWebhookHandler(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	span := tracer.StartSpan("legacy_github_webhook_handler")
+	var err error
 	defer func() {
+		span.Finish(tracer.WithError(err))
 		if err != nil {
 			api.logger.Printf("webhook handler error: %v", err)
 		}
 	}()
 
-	validationSpan := tracer.StartSpan("github_webhook_handler.validation", tracer.ChildOf(rootSpan.Context()))
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		api.badRequestError(w, err, withSpan(validationSpan))
+		api.badRequestError(w, err)
 		return
 	}
 	sig := r.Header.Get("X-Hub-Signature")
 	if sig == "" {
-		api.forbiddenError(w, "X-Hub-Signature missing", withSpan(validationSpan))
+		err = errors.New("X-Hub-Signature-Missing")
+		api.forbiddenError(w, err.Error())
 		return
 	}
-	out, err := api.ge.New(b, sig)
+	did, err := uuid.Parse(r.Header.Get("X-GitHub-Delivery"))
+	if err != nil {
+		// Ignore invalid or missing Delivery ID
+		did = uuid.Nil
+	}
+	out, err := api.ge.New(b, did, sig)
 	if err != nil {
 		_, bsok := err.(ghevent.BadSignature)
 		if bsok {
-			api.forbiddenError(w, "invalid hub signature", withSpan(validationSpan))
+			api.forbiddenError(w, "invalid hub signature")
 		} else {
-			api.badRequestError(w, err, withSpan(validationSpan))
+			api.badRequestError(w, err)
 		}
 		return
 	}
 
 	log := out.Logger.Printf
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), out.Logger)
 
-	// embed the cancel func into the context for later cancellation
-	ctx := ncontext.NewCancelFuncContext(context.WithCancel(context.Background()))
-	ctx = eventlogger.NewEventLoggerContext(ctx, out.Logger)
+	accepted := func() {
+		w.WriteHeader(http.StatusAccepted)
+		w.Header().Add("Content-Type", "application/json")
+		w.Write([]byte(fmt.Sprintf(`{"event_log_id": "%v"}`, out.Logger.ID.String())))
+	}
 
 	if out.Action == ghevent.NotRelevant {
 		log("event not relevant: %v", out.Action)
-		goto Accepted
+		accepted()
+		return
 	}
 	if out.RRD == nil {
 		log("repo data is nil")
-		api.internalError(w, fmt.Errorf("RepoData is nil (event_log_id: %v)", out.Logger.ID.String()), withSpan(validationSpan))
+		api.internalError(w, fmt.Errorf("RepoData is nil (event_log_id: %v)", out.Logger.ID.String()))
 		return
 	}
 	if out.RRD.SourceBranch == "" && out.Action != ghevent.NotRelevant {
-		api.internalError(w, fmt.Errorf("RepoData.SourceBranch has no value (event_log_id: %v)", out.Logger.ID.String()), withSpan(validationSpan))
+		api.internalError(w, fmt.Errorf("RepoData.SourceBranch has no value (event_log_id: %v)", out.Logger.ID.String()))
 		return
 	}
-	setTagsForGithubWebhookHandler(rootSpan, out.RRD)
-	ctx = tracer.ContextWithSpan(ctx, rootSpan)
-	log("starting async processing for %v", out.Action)
 
+	var action string
 	switch out.Action {
 	case ghevent.CreateNew:
-		api.wg.Add(1)
-		go func() {
-			var err error
-			defer api.wg.Done()
-			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
-			defer cf() // guarantee that any goroutines created with the ctx are cancelled
-			name, err := api.es.Create(ctx, *out.RRD)
-			if err != nil {
-				log("finished processing create with error: %v", err)
-				rootSpan.Finish(tracer.WithError(err))
-				return
-			}
-			rootSpan.Finish()
-			log("success processing create event (env: %q); done", name)
-		}()
+		action = "opened"
 	case ghevent.Update:
-		api.wg.Add(1)
-		go func() {
-			var err error
-			defer api.wg.Done()
-			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
-			defer cf() // guarantee that any goroutines created with the ctx are cancelled
-			name, err := api.es.Update(ctx, *out.RRD)
-			if err != nil {
-				log("finished processing update with error: %v", err)
-				rootSpan.Finish(tracer.WithError(err))
-				return
-			}
-			rootSpan.Finish()
-			log("success processing update event (env: %q); done", name)
-		}()
+		action = "synchronize"
 	case ghevent.Destroy:
-		api.wg.Add(1)
-		go func() {
-			var err error
-			defer api.wg.Done()
-			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
-			defer cf() // guarantee that any goroutines created with the ctx are cancelled
-			err = api.es.Destroy(ctx, *out.RRD, models.DestroyApiRequest)
-			if err != nil {
-				log("finished processing destroy with error: %v", err)
-				rootSpan.Finish(tracer.WithError(err))
-				return
-			}
-			rootSpan.Finish()
-			log("success processing destroy event; done")
-		}()
+		action = "closed"
 	default:
-		log("unknown action type: %v", out.Action)
-		err = fmt.Errorf("unknown action type: %v (event_log_id: %v)", out.Action, out.Logger.ID.String())
-		api.internalError(w, err, withSpan(validationSpan))
-		rootSpan.Finish(tracer.WithError(err))
-		return
+		action = "unknown"
 	}
 
-Accepted:
-	validationSpan.Finish()
-	w.WriteHeader(http.StatusAccepted)
-	w.Header().Add("Content-Type", "application/json")
-	w.Write([]byte(fmt.Sprintf(`{"event_log_id": "%v"}`, out.Logger.ID.String())))
+	err = api.processWebhook(ctx, action, *out.RRD)
+	if err != nil {
+		api.internalError(w, err)
+		return
+	}
+	accepted()
 }
 
 func (api *v0api) envListHandler(w http.ResponseWriter, r *http.Request) {

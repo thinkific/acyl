@@ -1,6 +1,9 @@
 {
     "create": {
         "action": "opened",
+        "installation": {
+            "id": 1220337
+        },
         "repository": {
             "full_name": "dollarshaveclub/acyl-integration-test"
         },
@@ -11,16 +14,25 @@
             },
             "head": {
                 "ref": "testing-branch",
-                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2"
+                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2",
+                "repo": {
+                    "fork": false
+                }
             },
             "base": {
                 "ref": "master",
-                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38"
+                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38",
+                "repo": {
+                    "full_name": "dollarshaveclub/acyl-integration-test"
+                }
             }
         }
     },
     "update": {
         "action": "synchronize",
+        "installation": {
+            "id": 1220337
+        },
         "repository": {
             "full_name": "dollarshaveclub/acyl-integration-test"
         },
@@ -31,16 +43,25 @@
             },
             "head": {
                 "ref": "testing-branch",
-                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2"
+                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2",
+                "repo": {
+                    "fork": false
+                }
             },
             "base": {
                 "ref": "master",
-                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38"
+                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38",
+                "repo": {
+                    "full_name": "dollarshaveclub/acyl-integration-test"
+                }
             }
         }
     },
     "delete": {
         "action": "closed",
+        "installation": {
+            "id": 1220337
+        },
         "repository": {
             "full_name": "dollarshaveclub/acyl-integration-test"
         },
@@ -51,11 +72,17 @@
             },
             "head": {
                 "ref": "testing-branch",
-                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2"
+                "sha": "61d31e8bf99f8597d1365e0565c704dc02c093f2",
+                "repo": {
+                    "fork": false
+                }
             },
             "base": {
                 "ref": "master",
-                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38"
+                "sha": "e766a3894b7d5232280ecb63ad8cafe5599acf38",
+                "repo": {
+                    "full_name": "dollarshaveclub/acyl-integration-test"
+                }
             }
         }
     }

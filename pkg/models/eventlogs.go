@@ -15,32 +15,33 @@ import (
 )
 
 type EventLog struct {
-	ID             uuid.UUID          `json:"id"`
-	Created        time.Time          `json:"created"`
-	Updated        pq.NullTime        `json:"updated"`
-	EnvName        string             `json:"env_name"`
-	Repo           string             `json:"repo"`
-	PullRequest    uint               `json:"pull_request"`
-	WebhookPayload []byte             `json:"webhook_payload"`
-	Log            []string           `json:"log"`
-	LogKey         uuid.UUID          `json:"log_key"` // additional secret needed for logs via web UI (no API key)
-	Status         EventStatusSummary `json:"status"`
+	ID               uuid.UUID          `json:"id"`
+	Created          time.Time          `json:"created"`
+	Updated          pq.NullTime        `json:"updated"`
+	EnvName          string             `json:"env_name"`
+	Repo             string             `json:"repo"`
+	PullRequest      uint               `json:"pull_request"`
+	WebhookPayload   []byte             `json:"webhook_payload"`
+	GitHubDeliveryID uuid.UUID          `json:"github_delivery_id"`
+	Log              []string           `json:"log"`
+	LogKey           uuid.UUID          `json:"log_key"` // additional secret needed for logs via web UI (no API key)
+	Status           EventStatusSummary `json:"status"`
 }
 
 func (el EventLog) Columns() string {
-	return strings.Join([]string{"id", "created", "updated", "env_name", "repo", "pull_request", "webhook_payload", "log", "log_key"}, ",")
+	return strings.Join([]string{"id", "created", "updated", "env_name", "repo", "pull_request", "webhook_payload", "github_delivery_id", "log", "log_key"}, ",")
 }
 
 func (el EventLog) InsertColumns() string {
-	return strings.Join([]string{"id", "env_name", "repo", "pull_request", "webhook_payload", "log", "log_key"}, ",")
+	return strings.Join([]string{"id", "env_name", "repo", "pull_request", "webhook_payload", "github_delivery_id", "log", "log_key"}, ",")
 }
 
 func (el *EventLog) ScanValues() []interface{} {
-	return []interface{}{&el.ID, &el.Created, &el.Updated, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, pq.Array(&el.Log), &el.LogKey}
+	return []interface{}{&el.ID, &el.Created, &el.Updated, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, &el.GitHubDeliveryID, pq.Array(&el.Log), &el.LogKey}
 }
 
 func (el *EventLog) InsertValues() []interface{} {
-	return []interface{}{&el.ID, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, pq.Array(&el.Log), &el.LogKey}
+	return []interface{}{&el.ID, &el.EnvName, &el.Repo, &el.PullRequest, &el.WebhookPayload, &el.GitHubDeliveryID, pq.Array(&el.Log), &el.LogKey}
 }
 
 func (el EventLog) InsertParams() string {

@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/ghapp"
+
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
@@ -204,6 +206,7 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 		TargetURL:   turl,
 	}
 	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), eventlogger.GetLogger(ctx))
+	ctx2 = ghapp.CloneGitHubClientContext(ctx2, ctx)
 	err = m.RC.SetStatus(ctx2, rd.Repo, rd.SourceSHA, cs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error setting commit status")
@@ -788,10 +791,12 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 func (m *Manager) handleMetahelmError(ctx context.Context, env *newEnv, err error, msg string) error {
 	ce, ok := err.(metahelmlib.ChartError)
 	if !ok {
+		m.log(ctx, "metahelm returned an error but it's not a ChartError (type: %T): not producing a failure report", err)
 		return errors.Wrap(nitroerrors.UserError(err), msg)
 	}
 	if len(ce.FailedDeployments) == 0 && len(ce.FailedJobs) == 0 && len(ce.FailedDaemonSets) == 0 {
 		// if there's no failed resources, just return the inner helm error
+		m.log(ctx, "metahelm returned an error with no failed resources: not producing a failure report")
 		return nitroerrors.UserError(ce.HelmError)
 	}
 	m.MC.Increment(mpfx+"failure_reports", "triggering_repo:"+env.env.Repo)

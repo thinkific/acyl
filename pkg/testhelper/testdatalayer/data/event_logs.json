@@ -5,6 +5,7 @@
         "repo": "acme/something",
         "pull_request": 23,
         "webhook_payload": "YXNkZgo=",
+        "github_delivery_id": "ec7014ee-b691-47fd-a011-8ae1a37ce406",
         "log": [
             "some line",
             "some other line"
@@ -17,6 +18,7 @@
         "repo": "acme/something",
         "pull_request": 24,
         "webhook_payload": "YXNkZjIzNAo=",
+        "github_delivery_id": "c8a27c56-1ea6-4088-8638-1af02a12781a",
         "log": [
             "an event"
         ],
@@ -28,6 +30,7 @@
         "repo": "acme/somethingelse",
         "pull_request": 2,
         "webhook_payload": "cXdlcnR5Cg==",
+        "github_delivery_id": "978ce99c-23a1-4999-bbf8-061b8b444c5a",
         "log": [
             "this other thing"
         ],
@@ -68,5 +71,17 @@
                 }
             }
         }
+    },
+    {
+        "id": "9beb4f55-bc47-4411-b17d-78e2c0bccb26",
+        "env_name": "foo-bar-something",
+        "repo": "acme/something",
+        "pull_request": 25,
+        "webhook_payload": "YXNkZjIzNAo=",
+        "github_delivery_id": null,
+        "log": [
+            "an event"
+        ],
+        "log_key": "d3016949-8724-400a-9ec9-b129bdb6e3c0"
     }
 ]

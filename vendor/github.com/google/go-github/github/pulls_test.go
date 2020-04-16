@@ -20,7 +20,7 @@ func TestPullRequestsService_List(t *testing.T) {
 	client, mux, _, teardown := setup()
 	defer teardown()
 
-	wantAcceptHeaders := []string{mediaTypeLabelDescriptionSearchPreview, mediaTypeLockReasonPreview}
+	wantAcceptHeaders := []string{mediaTypeLockReasonPreview, mediaTypeDraftPreview}
 	mux.HandleFunc("/repos/o/r/pulls", func(w http.ResponseWriter, r *http.Request) {
 		testMethod(t, r, "GET")
 		testHeader(t, r, "Accept", strings.Join(wantAcceptHeaders, ", "))
@@ -35,8 +35,8 @@ func TestPullRequestsService_List(t *testing.T) {
 		fmt.Fprint(w, `[{"number":1}]`)
 	})
 
-	opt := &PullRequestListOptions{"closed", "h", "b", "created", "desc", ListOptions{Page: 2}}
-	pulls, _, err := client.PullRequests.List(context.Background(), "o", "r", opt)
+	opts := &PullRequestListOptions{"closed", "h", "b", "created", "desc", ListOptions{Page: 2}}
+	pulls, _, err := client.PullRequests.List(context.Background(), "o", "r", opts)
 	if err != nil {
 		t.Errorf("PullRequests.List returned error: %v", err)
 	}
@@ -44,6 +44,37 @@ func TestPullRequestsService_List(t *testing.T) {
 	want := []*PullRequest{{Number: Int(1)}}
 	if !reflect.DeepEqual(pulls, want) {
 		t.Errorf("PullRequests.List returned %+v, want %+v", pulls, want)
+	}
+}
+
+func TestPullRequestsService_ListPullRequestsWithCommit(t *testing.T) {
+	client, mux, _, teardown := setup()
+	defer teardown()
+
+	wantAcceptHeaders := []string{mediaTypeListPullsOrBranchesForCommitPreview, mediaTypeDraftPreview, mediaTypeLockReasonPreview}
+	mux.HandleFunc("/repos/o/r/commits/sha/pulls", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testHeader(t, r, "Accept", strings.Join(wantAcceptHeaders, ", "))
+		testFormValues(t, r, values{
+			"state":     "closed",
+			"head":      "h",
+			"base":      "b",
+			"sort":      "created",
+			"direction": "desc",
+			"page":      "2",
+		})
+		fmt.Fprint(w, `[{"number":1}]`)
+	})
+
+	opts := &PullRequestListOptions{"closed", "h", "b", "created", "desc", ListOptions{Page: 2}}
+	pulls, _, err := client.PullRequests.ListPullRequestsWithCommit(context.Background(), "o", "r", "sha", opts)
+	if err != nil {
+		t.Errorf("PullRequests.ListPullRequestsWithCommit returned error: %v", err)
+	}
+
+	want := []*PullRequest{{Number: Int(1)}}
+	if !reflect.DeepEqual(pulls, want) {
+		t.Errorf("PullRequests.ListPullRequestsWithCommit returned %+v, want %+v", pulls, want)
 	}
 }
 
@@ -59,7 +90,7 @@ func TestPullRequestsService_Get(t *testing.T) {
 	client, mux, _, teardown := setup()
 	defer teardown()
 
-	wantAcceptHeaders := []string{mediaTypeLabelDescriptionSearchPreview, mediaTypeLockReasonPreview}
+	wantAcceptHeaders := []string{mediaTypeLockReasonPreview, mediaTypeDraftPreview}
 	mux.HandleFunc("/repos/o/r/pulls/1", func(w http.ResponseWriter, r *http.Request) {
 		testMethod(t, r, "GET")
 		testHeader(t, r, "Accept", strings.Join(wantAcceptHeaders, ", "))
@@ -275,7 +306,8 @@ func TestPullRequestsService_Create(t *testing.T) {
 		json.NewDecoder(r.Body).Decode(v)
 
 		testMethod(t, r, "POST")
-		testHeader(t, r, "Accept", mediaTypeLabelDescriptionSearchPreview)
+		wantAcceptHeaders := []string{mediaTypeDraftPreview}
+		testHeader(t, r, "Accept", strings.Join(wantAcceptHeaders, ", "))
 		if !reflect.DeepEqual(v, input) {
 			t.Errorf("Request body = %+v, want %+v", v, input)
 		}
@@ -300,6 +332,39 @@ func TestPullRequestsService_Create_invalidOwner(t *testing.T) {
 
 	_, _, err := client.PullRequests.Create(context.Background(), "%", "r", nil)
 	testURLParseError(t, err)
+}
+
+func TestPullRequestsService_UpdateBranch(t *testing.T) {
+	client, mux, _, teardown := setup()
+	defer teardown()
+
+	mux.HandleFunc("/repos/o/r/pulls/1/update-branch", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "PUT")
+		testHeader(t, r, "Accept", mediaTypeUpdatePullRequestBranchPreview)
+		fmt.Fprint(w, `
+			{
+			  "message": "Updating pull request branch.",
+			  "url": "https://github.com/repos/o/r/pulls/1"
+			}`)
+	})
+
+	opts := &PullRequestBranchUpdateOptions{
+		ExpectedHeadSHA: String("s"),
+	}
+
+	pull, _, err := client.PullRequests.UpdateBranch(context.Background(), "o", "r", 1, opts)
+	if err != nil {
+		t.Errorf("PullRequests.UpdateBranch returned error: %v", err)
+	}
+
+	want := &PullRequestBranchUpdateResponse{
+		Message: String("Updating pull request branch."),
+		URL:     String("https://github.com/repos/o/r/pulls/1"),
+	}
+
+	if !reflect.DeepEqual(pull, want) {
+		t.Errorf("PullRequests.UpdateBranch returned %+v, want %+v", pull, want)
+	}
 }
 
 func TestPullRequestsService_Edit(t *testing.T) {
@@ -333,7 +398,7 @@ func TestPullRequestsService_Edit(t *testing.T) {
 
 	for i, tt := range tests {
 		madeRequest := false
-		wantAcceptHeaders := []string{mediaTypeLabelDescriptionSearchPreview, mediaTypeLockReasonPreview}
+		wantAcceptHeaders := []string{mediaTypeLockReasonPreview}
 		mux.HandleFunc(fmt.Sprintf("/repos/o/r/pulls/%v", i), func(w http.ResponseWriter, r *http.Request) {
 			testMethod(t, r, "PATCH")
 			testHeader(t, r, "Accept", strings.Join(wantAcceptHeaders, ", "))
@@ -393,8 +458,8 @@ func TestPullRequestsService_ListCommits(t *testing.T) {
 			]`)
 	})
 
-	opt := &ListOptions{Page: 2}
-	commits, _, err := client.PullRequests.ListCommits(context.Background(), "o", "r", 1, opt)
+	opts := &ListOptions{Page: 2}
+	commits, _, err := client.PullRequests.ListCommits(context.Background(), "o", "r", 1, opts)
 	if err != nil {
 		t.Errorf("PullRequests.ListCommits returned error: %v", err)
 	}
@@ -402,7 +467,7 @@ func TestPullRequestsService_ListCommits(t *testing.T) {
 	want := []*RepositoryCommit{
 		{
 			SHA: String("3"),
-			Parents: []Commit{
+			Parents: []*Commit{
 				{
 					SHA: String("2"),
 				},
@@ -410,7 +475,7 @@ func TestPullRequestsService_ListCommits(t *testing.T) {
 		},
 		{
 			SHA: String("2"),
-			Parents: []Commit{
+			Parents: []*Commit{
 				{
 					SHA: String("1"),
 				},
@@ -452,8 +517,8 @@ func TestPullRequestsService_ListFiles(t *testing.T) {
 			]`)
 	})
 
-	opt := &ListOptions{Page: 2}
-	commitFiles, _, err := client.PullRequests.ListFiles(context.Background(), "o", "r", 1, opt)
+	opts := &ListOptions{Page: 2}
+	commitFiles, _, err := client.PullRequests.ListFiles(context.Background(), "o", "r", 1, opts)
 	if err != nil {
 		t.Errorf("PullRequests.ListFiles returned error: %v", err)
 	}

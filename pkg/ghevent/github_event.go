@@ -186,15 +186,16 @@ type WebhookResponse struct {
 	Logger *eventlogger.Logger
 }
 
-func (ge *GitHubEventWebhook) getlogger(body []byte, repo string, pr uint) (*eventlogger.Logger, error) {
+func (ge *GitHubEventWebhook) getlogger(body []byte, repo string, pr uint, deliveryID uuid.UUID) (*eventlogger.Logger, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting random UUID")
 	}
 	logger := &eventlogger.Logger{
-		ID:   id,
-		DL:   ge.dl,
-		Sink: os.Stdout,
+		ID:         id,
+		DeliveryID: deliveryID,
+		DL:         ge.dl,
+		Sink:       os.Stdout,
 	}
 	if err := logger.Init(body, repo, pr); err != nil {
 		return nil, errors.Wrap(err, "error initializing event logger")
@@ -205,7 +206,7 @@ func (ge *GitHubEventWebhook) getlogger(body []byte, repo string, pr uint) (*eve
 // New processes a new incoming request body from GitHub, validates it and returns
 // necessary info to create a QA if needed. First param will be false if event is not
 // relevant but there is no error otherwise.
-func (ge *GitHubEventWebhook) New(body []byte, sig string) (WebhookResponse, error) {
+func (ge *GitHubEventWebhook) New(body []byte, deliveryID uuid.UUID, sig string) (WebhookResponse, error) {
 	out := WebhookResponse{Action: NotRelevant}
 	if !ge.validateHubSignature(body, sig) {
 		return out, BadSignature{}
@@ -216,7 +217,7 @@ func (ge *GitHubEventWebhook) New(body []byte, sig string) (WebhookResponse, err
 		return out, fmt.Errorf("error unmarshaling event: %v", err)
 	}
 
-	logger, err := ge.getlogger(body, event.Repository.FullName, event.PullRequest.Number)
+	logger, err := ge.getlogger(body, event.Repository.FullName, event.PullRequest.Number, deliveryID)
 	if err != nil {
 		return out, errors.Wrap(err, "error setting event logger")
 	}

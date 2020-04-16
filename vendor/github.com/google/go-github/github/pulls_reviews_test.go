@@ -14,6 +14,88 @@ import (
 	"testing"
 )
 
+func TestReviewers_marshall(t *testing.T) {
+	testJSONMarshal(t, &Reviewers{}, "{}")
+
+	u := &Reviewers{
+		Users: []*User{{
+			Login:       String("l"),
+			ID:          Int64(1),
+			AvatarURL:   String("a"),
+			GravatarID:  String("g"),
+			Name:        String("n"),
+			Company:     String("c"),
+			Blog:        String("b"),
+			Location:    String("l"),
+			Email:       String("e"),
+			Hireable:    Bool(true),
+			PublicRepos: Int(1),
+			Followers:   Int(1),
+			Following:   Int(1),
+			CreatedAt:   &Timestamp{referenceTime},
+			URL:         String("u"),
+		}},
+		Teams: []*Team{{
+			ID:              Int64(1),
+			NodeID:          String("node"),
+			Name:            String("n"),
+			Description:     String("d"),
+			URL:             String("u"),
+			Slug:            String("s"),
+			Permission:      String("p"),
+			Privacy:         String("priv"),
+			MembersCount:    Int(1),
+			ReposCount:      Int(1),
+			Organization:    nil,
+			MembersURL:      String("m"),
+			RepositoriesURL: String("r"),
+			Parent:          nil,
+			LDAPDN:          String("l"),
+		}},
+	}
+
+	want := `{
+		"users" : [
+			{
+				"login": "l",
+				"id": 1,
+				"avatar_url": "a",
+				"gravatar_id": "g",
+				"name": "n",
+				"company": "c",
+				"blog": "b",
+				"location": "l",
+				"email": "e",
+				"hireable": true,
+				"public_repos": 1,
+				"followers": 1,
+				"following": 1,
+				"created_at": ` + referenceTimeStr + `,
+				"url": "u"
+			}
+		], 
+		"teams" : [
+			{
+				"id": 1,
+				"node_id": "node",
+				"name": "n",
+				"description": "d",
+				"url": "u",
+				"slug": "s",
+				"permission": "p",
+				"privacy": "priv",
+				"members_count": 1,
+				"repos_count": 1,
+				"members_url": "m",
+				"repositories_url": "r",
+				"ldap_dn": "l"
+			}
+		]
+	}`
+
+	testJSONMarshal(t, u, want)
+}
+
 func TestPullRequestsService_ListReviews(t *testing.T) {
 	client, mux, _, teardown := setup()
 	defer teardown()
@@ -193,6 +275,26 @@ func TestPullRequestsService_CreateReview_invalidOwner(t *testing.T) {
 
 	_, _, err := client.PullRequests.CreateReview(context.Background(), "%", "r", 1, &PullRequestReviewRequest{})
 	testURLParseError(t, err)
+}
+
+func TestPullRequestsService_UpdateReview(t *testing.T) {
+	client, mux, _, teardown := setup()
+	defer teardown()
+
+	mux.HandleFunc("/repos/o/r/pulls/1/reviews/1", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "PUT")
+		fmt.Fprintf(w, `{"id":1}`)
+	})
+
+	got, _, err := client.PullRequests.UpdateReview(context.Background(), "o", "r", 1, 1, "updated_body")
+	if err != nil {
+		t.Errorf("PullRequests.UpdateReview returned error: %v", err)
+	}
+
+	want := &PullRequestReview{ID: Int64(1)}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("PullRequests.UpdateReview = %+v, want %+v", got, want)
+	}
 }
 
 func TestPullRequestsService_SubmitReview(t *testing.T) {

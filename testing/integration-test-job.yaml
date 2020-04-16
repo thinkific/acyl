@@ -23,5 +23,20 @@ spec:
               secretKeyRef:
                 name: acyl-integration
                 key: github_token
+          - name: "GITHUB_APP_PRIVATE_KEY"
+            valueFrom:
+              secretKeyRef:
+                name: acyl-integration
+                key: github_app_private_key
+          - name: "GITHUB_APP_ID"
+            valueFrom:
+              secretKeyRef:
+                name: acyl-integration
+                key: github_app_id
+          - name: "GITHUB_APP_HOOK_SECRET"
+            valueFrom:
+              secretKeyRef:
+                name: acyl-integration
+                key: github_app_hook_secret
       restartPolicy: Never
   backoffLimit: 0
