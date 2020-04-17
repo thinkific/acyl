@@ -171,12 +171,16 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 	// https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing
 	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
 
-	// embed the cancel func for later cancellation
-	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx))
+	// new context for async actions since ctx will cancel when the webhook request connection is closed
+	ctx2 := context.Background()
+	// embed the eventlogger & github client from original context
+	ctx2 = ghapp.CloneGitHubClientContext(ctx2, ctx)
+	ctx2 = eventlogger.NewEventLoggerContext(ctx2, eventlogger.GetLogger(ctx))
+	// embed the cancel func for later cancellation and overwrite the initial context bc we don't need it any longer
+	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx2))
 
 	setTagsForGithubWebhookHandler(span, rrd)
 	ctx = tracer.ContextWithSpan(ctx, span)
-
 	log := eventlogger.GetLogger(ctx).Printf
 
 	switch action {
