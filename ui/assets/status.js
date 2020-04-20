@@ -45,7 +45,7 @@ function updateNSCopyBtn(k8s_ns) {
         return;
     }
     if (document.getElementById("ns-copy-btn") === null) {
-        const copybtn = `<span id="ns-copy-btn" data-toggle="tooltip" title="Copied!" data-trigger="click"><img class="nscopybtn" height="18" width="18" src="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/svg/clippy.svg" alt="Copy to clipboard"></span>`;
+        const copybtn = `<span id="ns-copy-btn" style="cursor: pointer" data-toggle="tooltip" title="Copied!" data-trigger="click"><img class="nscopybtn" height="18" width="18" src="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/svg/clippy.svg" alt="Copy to clipboard"></span>`;
         document.getElementById("k8s-ns").innerHTML = `${k8s_ns} ${copybtn}`;
         // have to use JQuery to manage the copy button tooltip
         $("#ns-copy-btn").tooltip();
@@ -84,9 +84,9 @@ function updateConfig(cfg) {
             sicon.style.color = "#ffffff";
             sicon.innerHTML = "";
     }
-    let slink = document.getElementById("rendered-status-link");
-    slink.innerHTML = `<button class="btn ${slinkbtnclass}">${cfg.rendered_status.description}</button>`;
-    slink.href = cfg.rendered_status.link_target_url;
+    document.getElementById("status-link-btn").className = `btn-sm ${slinkbtnclass}`;
+    document.getElementById("status-link-title").innerHTML = `${cfg.rendered_status.description}`;
+    document.getElementById("rendered-status-link").href = cfg.rendered_status.link_target_url;
     const prurl = `https://github.com/${cfg.triggering_repo}/pull/${cfg.pull_request}`;
     document.getElementById("trepo-pr-link").text = prurl;
     document.getElementById("trepo-pr-link").href = prurl;

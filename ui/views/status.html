@@ -66,6 +66,15 @@
                 pointer-events: none;
             }
 
+            .status-text {
+                padding-top: 2px;
+            }
+
+            .status-link {
+                vertical-align: middle;
+                padding-left: 10px;
+            }
+
             /* Spinner circle animation */
             /* based on: https://glennmccomb.com/articles/building-a-pure-css-animated-svg-spinner/ */
             .spinning-svg {
@@ -142,7 +151,8 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-lg d-flex justify-content-left">
-                                <a target="_blank" id="rendered-status-link" href="" alt="status link"></a>
+                                <span class="status-text" id="status-link-title"></span>
+                                <a class="fas status-link" target="_blank" id="rendered-status-link" href="" alt="status link"><button id="status-link-btn" class="btn-sm">Open Link &#xf35d;</button></a>
                             </div>
                         </div>
                     </div>
