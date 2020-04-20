@@ -3,8 +3,13 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"net/http"
@@ -50,6 +55,26 @@ func init() {
 	RootCmd.AddCommand(mockuiCmd)
 }
 
+// randomPEMKey generates a random RSA key in PEM format
+func randomPEMKey() []byte {
+	reader := rand.Reader
+	key, err := rsa.GenerateKey(reader, 2048)
+	if err != nil {
+		log.Fatalf("error generating random PEM key: %v", err)
+	}
+
+	var privateKey = &pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(key),
+	}
+
+	out := &bytes.Buffer{}
+	if err := pem.Encode(out, privateKey); err != nil {
+		log.Fatalf("error encoding PEM key: %v", err)
+	}
+	return out.Bytes()
+}
+
 func mockui(cmd *cobra.Command, args []string) {
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
@@ -72,7 +97,13 @@ func mockui(cmd *cobra.Command, args []string) {
 		log.Fatalf("error unmarshaling branding config: %v", err)
 	}
 
+	// dummy values
+	githubConfig.PrivateKeyPEM = randomPEMKey()
+	githubConfig.AppID = 1
+	githubConfig.AppHookSecret = "asdf"
+
 	if err := httpapi.RegisterVersions(deps,
+		api.WithGitHubConfig(githubConfig),
 		api.WithUIBaseURL(serverConfig.UIBaseURL),
 		api.WithUIAssetsPath(serverConfig.UIPath),
 		api.WithUIRoutePrefix(serverConfig.UIBaseRoute),
