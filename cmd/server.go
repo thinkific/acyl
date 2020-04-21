@@ -291,6 +291,7 @@ func server(cmd *cobra.Command, args []string) {
 		DataLayer:          dl,
 		GitHubEventWebhook: ge,
 		EnvironmentSpawner: nitromgr,
+		RepoClient:         rc,
 		ServerConfig:       serverConfig,
 		Logger:             logger,
 		DatadogServiceName: apiServiceName,

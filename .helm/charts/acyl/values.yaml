@@ -59,6 +59,9 @@ vault:
   use_k8s_auth: true
   role: acyl
   auth_path: "kubernetes"
+cronautoscaling:
+  enabled: false
+  jobs: []
 serviceaccount: serviceaccount
 service:
   name: acyl

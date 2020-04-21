@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/testhelper/testdatalayer"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
 )
@@ -63,7 +64,7 @@ func TestAPIv0SearchSimple(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv0, err := newV0API(dl, nil, nil, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv0, err := newV0API(dl, nil, nil, &ghclient.FakeRepoClient{}, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating apiv0: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestAPIv0SearchComplex(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv0, err := newV0API(dl, nil, nil, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv0, err := newV0API(dl, nil, nil, &ghclient.FakeRepoClient{}, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating apiv0: %v", err)
 	}
@@ -117,7 +118,7 @@ func TestAPIv0SearchBadPROnly(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv0, err := newV0API(dl, nil, nil, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv0, err := newV0API(dl, nil, nil, &ghclient.FakeRepoClient{}, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating apiv0: %v", err)
 	}
@@ -136,7 +137,7 @@ func TestAPIv0SearchNotFound(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv0, err := newV0API(dl, nil, nil, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv0, err := newV0API(dl, nil, nil, &ghclient.FakeRepoClient{}, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating apiv0: %v", err)
 	}
@@ -158,7 +159,7 @@ func TestAPIv0SearchEmptyQuery(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv0, err := newV0API(dl, nil, nil, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv0, err := newV0API(dl, nil, nil, &ghclient.FakeRepoClient{}, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating apiv0: %v", err)
 	}
@@ -177,7 +178,7 @@ func TestAPIv0SearchBadStatusOnly(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv0, err := newV0API(dl, nil, nil, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv0, err := newV0API(dl, nil, nil, &ghclient.FakeRepoClient{}, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating apiv0: %v", err)
 	}
@@ -196,7 +197,7 @@ func TestAPIv0SearchSuccessOnly(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv0, err := newV0API(dl, nil, nil, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv0, err := newV0API(dl, nil, nil, &ghclient.FakeRepoClient{}, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating apiv0: %v", err)
 	}
@@ -214,7 +215,7 @@ func TestAPIv0EnvDetails(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	apiv0, err := newV0API(dl, nil, nil, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv0, err := newV0API(dl, nil, nil, &ghclient.FakeRepoClient{}, ghcfg, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
