@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
@@ -48,6 +49,7 @@ type Dependencies struct {
 	DataLayer          persistence.DataLayer
 	GitHubEventWebhook *ghevent.GitHubEventWebhook
 	EnvironmentSpawner spawner.EnvironmentSpawner
+	RepoClient         ghclient.RepoClient
 	ServerConfig       config.ServerConfig
 	DatadogServiceName string
 	Logger             *log.Logger
@@ -174,7 +176,7 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	r := muxtrace.NewRouter(muxtrace.WithServiceName(deps.DatadogServiceName))
 	r.HandleFunc("/health", d.healthHandler).Methods("GET")
 
-	apiv0, err := newV0API(deps.DataLayer, deps.GitHubEventWebhook, deps.EnvironmentSpawner, ropts.ghConfig, deps.ServerConfig, deps.Logger)
+	apiv0, err := newV0API(deps.DataLayer, deps.GitHubEventWebhook, deps.EnvironmentSpawner, deps.RepoClient, ropts.ghConfig, deps.ServerConfig, deps.Logger)
 	if err != nil {
 		return fmt.Errorf("error creating api v0: %v", err)
 	}

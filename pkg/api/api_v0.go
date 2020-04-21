@@ -9,9 +9,12 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghapp"
+	"github.com/dollarshaveclub/acyl/pkg/ghclient"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
@@ -84,9 +87,10 @@ type v0api struct {
 	es  spawner.EnvironmentSpawner
 	sc  config.ServerConfig
 	gha *ghapp.GitHubApp
+	rc  ghclient.RepoClient
 }
 
-func newV0API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, ghc config.GithubConfig, sc config.ServerConfig, logger *stdlog.Logger) (*v0api, error) {
+func newV0API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, rc ghclient.RepoClient, ghc config.GithubConfig, sc config.ServerConfig, logger *stdlog.Logger) (*v0api, error) {
 	api := &v0api{
 		apiBase: apiBase{
 			logger: logger,
@@ -95,6 +99,7 @@ func newV0API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawn
 		ge: ge,
 		es: es,
 		sc: sc,
+		rc: rc,
 	}
 	gha, err := ghapp.NewGitHubApp(ghc.PrivateKeyPEM, ghc.AppID, ghc.AppHookSecret, []string{"opened", "reopened", "closed", "synchronize"}, api.processWebhook, dl)
 	if err != nil {
@@ -179,9 +184,22 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 	// embed the cancel func for later cancellation and overwrite the initial context bc we don't need it any longer
 	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx2))
 
+	log := eventlogger.GetLogger(ctx).Printf
+
+	// Events may be received for repos that have the github app installed but do not themselves contain an acyl.yml
+	// (eg, repos that are dependencies of other repos that do contain acyl.yml)
+	// therefore if acyl.yml is not found, ignore the event and return nil error so we don't set an error commit status on that repo
+	if _, err := api.rc.GetFileContents(ctx, rrd.Repo, "acyl.yml", rrd.SourceRef); err != nil {
+		if strings.Contains(err.Error(), "404 Not Found") { // this is also returned if permissions are incorrect
+			log("acyl.yml is missing for repo, ignoring event")
+			return nil
+		}
+		log("error checking existence of acyl.yml: %v", err)
+		return errors.Wrap(err, "error checking existence of acyl.yml")
+	}
+
 	setTagsForGithubWebhookHandler(span, rrd)
 	ctx = tracer.ContextWithSpan(ctx, span)
-	log := eventlogger.GetLogger(ctx).Printf
 
 	switch action {
 	case "reopened":
