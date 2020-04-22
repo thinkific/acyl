@@ -189,7 +189,8 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 	// Events may be received for repos that have the github app installed but do not themselves contain an acyl.yml
 	// (eg, repos that are dependencies of other repos that do contain acyl.yml)
 	// therefore if acyl.yml is not found, ignore the event and return nil error so we don't set an error commit status on that repo
-	if _, err := api.rc.GetFileContents(ctx, rrd.Repo, "acyl.yml", rrd.SourceRef); err != nil {
+	log("checking for triggering repo acyl.yml in %v@%v", rrd.Repo, rrd.SourceSHA)
+	if _, err := api.rc.GetFileContents(ctx, rrd.Repo, "acyl.yml", rrd.SourceSHA); err != nil {
 		if strings.Contains(err.Error(), "404 Not Found") { // this is also returned if permissions are incorrect
 			log("acyl.yml is missing for repo, ignoring event")
 			return nil
@@ -197,6 +198,7 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 		log("error checking existence of acyl.yml: %v", err)
 		return errors.Wrap(err, "error checking existence of acyl.yml")
 	}
+	log("acyl.yml found, continuing to process event")
 
 	setTagsForGithubWebhookHandler(span, rrd)
 	ctx = tracer.ContextWithSpan(ctx, span)
