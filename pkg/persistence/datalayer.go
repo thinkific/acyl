@@ -41,6 +41,7 @@ type DataLayer interface {
 	HelmDataLayer
 	K8sEnvDataLayer
 	EventLoggerDataLayer
+	UISessionsDataLayer
 }
 
 // HelmDataLayer describes an object that stores data about Helm
@@ -83,4 +84,12 @@ type EventLoggerDataLayer interface {
 	SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error
 	GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error)
 	SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error
+}
+
+type UISessionsDataLayer interface {
+	CreateUISession(key, data, state []byte, expires time.Time) error
+	UpdateUISession(key, data []byte, expires time.Time) error
+	DeleteUISession(key []byte) error
+	GetUISession(key []byte) (*models.UISession, error)
+	DeleteExpiredUISessions() error
 }

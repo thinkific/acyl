@@ -20,10 +20,11 @@ import (
 type lockingDataMap struct {
 	sync.RWMutex
 	// each field below represents a table
-	d     map[string]*models.QAEnvironment
-	helm  map[string][]models.HelmRelease
-	k8s   map[string]*models.KubernetesEnvironment
-	elogs map[uuid.UUID]*models.EventLog
+	d          map[string]*models.QAEnvironment
+	helm       map[string][]models.HelmRelease
+	k8s        map[string]*models.KubernetesEnvironment
+	elogs      map[uuid.UUID]*models.EventLog
+	uisessions map[string]*models.UISession
 }
 
 // FakeDataLayer is a fake implementation of DataLayer that persists data in-memory, for testing purposes
@@ -38,10 +39,11 @@ var _ DataLayer = &FakeDataLayer{}
 func NewFakeDataLayer() *FakeDataLayer {
 	return &FakeDataLayer{
 		data: &lockingDataMap{
-			d:     make(map[string]*models.QAEnvironment),
-			helm:  make(map[string][]models.HelmRelease),
-			k8s:   make(map[string]*models.KubernetesEnvironment),
-			elogs: make(map[uuid.UUID]*models.EventLog),
+			d:          make(map[string]*models.QAEnvironment),
+			helm:       make(map[string][]models.HelmRelease),
+			k8s:        make(map[string]*models.KubernetesEnvironment),
+			elogs:      make(map[uuid.UUID]*models.EventLog),
+			uisessions: make(map[string]*models.UISession),
 		},
 	}
 }
@@ -1027,6 +1029,83 @@ func (fdl *FakeDataLayer) SetEventStatusRenderedStatus(id uuid.UUID, rstatus mod
 	elog := fdl.data.elogs[id]
 	if elog != nil {
 		elog.Status.Config.RenderedStatus = rstatus
+	}
+	return nil
+}
+
+func (fdl *FakeDataLayer) CreateUISession(key, data, state []byte, expires time.Time) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	if len(key) == 0 || len(data) == 0 || len(state) == 0 {
+		return errors.New("key, data and state are required")
+	}
+	if expires.IsZero() || time.Now().UTC().After(expires) {
+		return fmt.Errorf("invalid expires time: %v", expires)
+	}
+	fdl.data.uisessions[string(key)] = &models.UISession{
+		Key:     key,
+		Data:    data,
+		State:   state,
+		Expires: expires,
+	}
+	return nil
+}
+
+func (fdl *FakeDataLayer) UpdateUISession(key, data []byte, expires time.Time) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	if len(key) == 0 || len(data) == 0 {
+		return errors.New("key and data are required")
+	}
+	if expires.IsZero() || time.Now().UTC().After(expires) {
+		return fmt.Errorf("invalid expires time: %v", expires)
+	}
+	uis, ok := fdl.data.uisessions[string(key)]
+	if !ok {
+		return nil
+	}
+	uis.Data = data
+	uis.Expires = expires
+	return nil
+}
+
+func (fdl *FakeDataLayer) DeleteUISession(key []byte) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	delete(fdl.data.uisessions, string(key))
+	return nil
+}
+
+func (fdl *FakeDataLayer) GetUISession(key []byte) (*models.UISession, error) {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	if len(key) == 0 {
+		return nil, errors.New("key is required")
+	}
+	uis, ok := fdl.data.uisessions[string(key)]
+	if !ok {
+		return nil, nil
+	}
+	out := *uis
+	return &out, nil
+}
+
+func (fdl *FakeDataLayer) DeleteExpiredUISessions() error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	rmkeys := []string{}
+	for keystr, val := range fdl.data.uisessions {
+		if val.Expires.Before(time.Now().UTC()) {
+			rmkeys = append(rmkeys, keystr)
+		}
+	}
+	for _, kstr := range rmkeys {
+		delete(fdl.data.uisessions, kstr)
 	}
 	return nil
 }
