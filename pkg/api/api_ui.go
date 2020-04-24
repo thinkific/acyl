@@ -175,3 +175,40 @@ func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
 		api.logger.Printf("error serving ui template: status: %v", err)
 	}
 }
+
+/*
+UI auth flow:
+
+client request to a protected UI route without session cookie or invalid/expired session:
+
+- server detects missing/invalid session, goes into auth flow
+- creates new session:
+	* authenticated = false
+	* target_route = the route they attempted to access
+	* state = random data
+- session cookie is the session ID (encrypted)
+- server response is 302 to github auth endpoint w/ state param
+
+client successfully auths w/ github and is redirected to acyl callback URL:
+
+- request contains session cookie set above (session ID)
+- server validates code and state parameters supplied by GitHub in the callback request
+- server validates that the user is authorized (part of the org, etc)
+- server updates session:
+	* authenticated = true
+	* target_route is unset (but remembered for redirect below)
+	* github_user is set
+- server returns a 302 redirect to target_route, with same session cookie
+
+client requests the protected UI route again with valid session cookie:
+
+- server decrypts and validates the session, response is the content for the protected route
+
+###############
+
+Error flow:
+
+- callback URL detects invalid state or code, or the authenticated user fails permission check:
+	* server returns 302 to an unauthenticated "login error"/"access denied" page
+
+*/

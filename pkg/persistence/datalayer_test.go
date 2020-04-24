@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -1472,25 +1473,26 @@ func TestDataLayerCreateUISession(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.CreateUISession([]byte("something"), []byte("foo"), []byte("bar"), time.Now().UTC().Add(10*time.Minute)); err != nil {
+	id, err := dl.CreateUISession("/asdf", []byte("bar"), net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(10*time.Minute))
+	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	uis, err := dl.GetUISession([]byte("something"))
+	uis, err := dl.GetUISession(id)
 	if err != nil {
 		t.Fatalf("error getting ui session: %v", err)
 	}
-	if string(uis.Data) != "foo" {
-		t.Fatalf("bad data: %v", string(uis.Data))
+	if uis.TargetRoute != "/asdf" {
+		t.Fatalf("bad target route: %v", string(uis.TargetRoute))
 	}
 	if string(uis.State) != "bar" {
 		t.Fatalf("bad state: %v", string(uis.State))
 	}
 	// expired
-	if err := dl.CreateUISession([]byte("something"), []byte("foo"), []byte("bar"), time.Now().UTC().Add(-10*time.Minute)); err == nil {
+	if _, err := dl.CreateUISession("a", []byte("bar"), net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(-10*time.Minute)); err == nil {
 		t.Fatalf("should have failed because expired")
 	}
 	// missing params
-	if err := dl.CreateUISession([]byte(""), nil, nil, time.Now().UTC().Add(10*time.Minute)); err == nil {
+	if _, err := dl.CreateUISession("", nil, net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(10*time.Minute)); err == nil {
 		t.Fatalf("should have failed with missing params")
 	}
 }
@@ -1501,18 +1503,22 @@ func TestDataLayerUpdateUISession(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.CreateUISession([]byte("something"), []byte("foo"), []byte("bar"), time.Now().UTC().Add(10*time.Minute)); err != nil {
+	id, err := dl.CreateUISession("/asdf", []byte("bar"), net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(10*time.Minute))
+	if err != nil {
+		t.Fatalf("create should have succeeded: %v", err)
+	}
+	if err := dl.UpdateUISession(id, "someuser", true); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	if err := dl.UpdateUISession([]byte("something"), []byte("12345"), time.Now().UTC().Add(10*time.Minute)); err != nil {
-		t.Fatalf("should have succeeded: %v", err)
-	}
-	uis, err := dl.GetUISession([]byte("something"))
+	uis, err := dl.GetUISession(id)
 	if err != nil {
 		t.Fatalf("error getting ui session: %v", err)
 	}
-	if string(uis.Data) != "12345" {
-		t.Fatalf("bad data: %v", string(uis.Data))
+	if string(uis.GitHubUser) != "someuser" {
+		t.Fatalf("bad user: %v", uis.GitHubUser)
+	}
+	if !uis.Authenticated {
+		t.Fatalf("should have been authenticated")
 	}
 }
 
@@ -1522,17 +1528,18 @@ func TestDataLayerDeleteUISession(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.CreateUISession([]byte("something"), []byte("foo"), []byte("bar"), time.Now().UTC().Add(10*time.Minute)); err != nil {
+	id, err := dl.CreateUISession("/asdf", []byte("bar"), net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(10*time.Minute))
+	if err != nil {
 		t.Fatalf("create should have succeeded: %v", err)
 	}
-	_, err := dl.GetUISession([]byte("something"))
+	_, err = dl.GetUISession(id)
 	if err != nil {
 		t.Fatalf("error getting ui session: %v", err)
 	}
-	if err := dl.DeleteUISession([]byte("something")); err != nil {
+	if err := dl.DeleteUISession(id); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	if uis, err := dl.GetUISession([]byte("something")); err != nil || uis != nil {
+	if uis, err := dl.GetUISession(id); err != nil || uis != nil {
 		t.Fatalf("get should have succeeded and returned nil: %v: %+v", err, *uis)
 	}
 }
@@ -1543,15 +1550,16 @@ func TestDataLayerGetUISession(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.CreateUISession([]byte("something"), []byte("foo"), []byte("bar"), time.Now().UTC().Add(10*time.Minute)); err != nil {
+	id, err := dl.CreateUISession("/asdf", []byte("bar"), net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(10*time.Minute))
+	if err != nil {
 		t.Fatalf("create should have succeeded: %v", err)
 	}
-	uis, err := dl.GetUISession([]byte("something"))
+	uis, err := dl.GetUISession(id)
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	if string(uis.Data) != "foo" {
-		t.Fatalf("bad data: %v", string(uis.Data))
+	if uis.TargetRoute != "/asdf" {
+		t.Fatalf("bad data: %v", uis.TargetRoute)
 	}
 	if string(uis.State) != "bar" {
 		t.Fatalf("bad state: %v", string(uis.State))
@@ -1564,26 +1572,33 @@ func TestDataLayerDeleteExpiredUISessions(t *testing.T) {
 		t.Fatalf("error setting up test database: %v", err)
 	}
 	defer tdl.TearDown()
-	if err := dl.CreateUISession([]byte("something"), []byte("foo"), []byte("bar"), time.Now().UTC().Add(10*time.Minute)); err != nil {
+	id1, err := dl.CreateUISession("/asdf", []byte("bar"), net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(10*time.Minute))
+	if err != nil {
 		t.Fatalf("create 1 should have succeeded: %v", err)
 	}
-	if err := dl.CreateUISession([]byte("something2"), []byte("foo"), []byte("bar"), time.Now().UTC().Add(1*time.Millisecond)); err != nil {
+	id2, err := dl.CreateUISession("/asdf", []byte("bar"), net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(1*time.Millisecond))
+	if err != nil {
 		t.Fatalf("create 2 should have succeeded: %v", err)
 	}
-	if err := dl.CreateUISession([]byte("something3"), []byte("foo"), []byte("bar"), time.Now().UTC().Add(2*time.Millisecond)); err != nil {
+	id3, err := dl.CreateUISession("/asdf", []byte("bar"), net.ParseIP("192.168.0.1"), "useragent", time.Now().UTC().Add(2*time.Millisecond))
+	if err != nil {
 		t.Fatalf("create 3 should have succeeded: %v", err)
 	}
 	time.Sleep(5 * time.Millisecond)
-	if err := dl.DeleteExpiredUISessions(); err != nil {
+	n, err := dl.DeleteExpiredUISessions()
+	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
-	if uis, err := dl.GetUISession([]byte("something")); err != nil || uis == nil {
+	if n != 2 {
+		t.Fatalf("unexpected deleted count: %v (wanted 2)", n)
+	}
+	if uis, err := dl.GetUISession(id1); err != nil || uis == nil {
 		t.Fatalf("error getting ui session or missing session: %v: %v", err, uis)
 	}
-	if uis, err := dl.GetUISession([]byte("something2")); err != nil || uis != nil {
+	if uis, err := dl.GetUISession(id2); err != nil || uis != nil {
 		t.Fatalf("error getting ui session or session not deleted: %v: %+v", err, *uis)
 	}
-	if uis, err := dl.GetUISession([]byte("something3")); err != nil || uis != nil {
+	if uis, err := dl.GetUISession(id3); err != nil || uis != nil {
 		t.Fatalf("error getting ui session or session not deleted: %v: %+v", err, *uis)
 	}
 }

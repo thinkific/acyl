@@ -1,8 +1,11 @@
 CREATE TABLE ui_sessions (
     id bigserial PRIMARY KEY,
-    key bytea,
-    data bytea,
-    state bytea,
+    github_user text, -- user will be empty prior to successful auth
+    target_route text, -- the URL that the user attempted to access prior to authentication
+    authenticated boolean, -- has the session been successfully authenticated & authorized?
+    state bytea, -- random state data for oauth redirect
+    client_ip text, -- not inet because github.com/lib/pq doesn't support that type
+    user_agent text,
     created timestamptz NOT NULL DEFAULT now(),
     updated timestamptz,
     expires timestamptz NOT NULL

@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
@@ -87,9 +88,9 @@ type EventLoggerDataLayer interface {
 }
 
 type UISessionsDataLayer interface {
-	CreateUISession(key, data, state []byte, expires time.Time) error
-	UpdateUISession(key, data []byte, expires time.Time) error
-	DeleteUISession(key []byte) error
-	GetUISession(key []byte) (*models.UISession, error)
-	DeleteExpiredUISessions() error
+	CreateUISession(targetRoute string, state []byte, clientIP net.IP, userAgent string, expires time.Time) (int, error)
+	UpdateUISession(id int, githubUser string, authenticated bool) error
+	DeleteUISession(id int) error
+	GetUISession(id int) (*models.UISession, error)
+	DeleteExpiredUISessions() (uint, error)
 }

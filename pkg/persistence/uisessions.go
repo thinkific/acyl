@@ -3,6 +3,7 @@ package persistence
 import (
 	"database/sql"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/pkg/errors"
@@ -10,52 +11,49 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/models"
 )
 
-func (pg *PGLayer) CreateUISession(key, data, state []byte, expires time.Time) error {
-	if len(key) == 0 || len(data) == 0 || len(state) == 0 {
-		return errors.New("key, data and state are required")
+// CreateUISession creates a new unauthenticated UI session and returns the ID
+func (pg *PGLayer) CreateUISession(targetRoute string, state []byte, clientIP net.IP, userAgent string, expires time.Time) (int, error) {
+	if len(targetRoute) == 0 || len(state) == 0 {
+		return 0, errors.New("targetRoute and state are required")
 	}
 	if expires.IsZero() || time.Now().UTC().After(expires) {
-		return fmt.Errorf("invalid expires time: %v", expires)
+		return 0, fmt.Errorf("invalid expires time: %v", expires)
 	}
 	uis := models.UISession{
-		Key:     key,
-		Data:    data,
-		State:   state,
-		Expires: expires,
+		TargetRoute:   targetRoute,
+		State:         state,
+		ClientIP:      clientIP.String(),
+		UserAgent:     userAgent,
+		Expires:       expires,
+		Authenticated: false,
 	}
-	q := `INSERT INTO ui_sessions (` + uis.InsertColumns() + `) VALUES (` + uis.InsertParams() + `);`
-	_, err := pg.db.Exec(q, uis.InsertValues()...)
-	return errors.Wrap(err, "error inserting ui session")
+	q := `INSERT INTO ui_sessions (` + uis.InsertColumns() + `) VALUES (` + uis.InsertParams() + `) RETURNING id;`
+	var id int
+	if err := pg.db.QueryRow(q, uis.InsertValues()...).Scan(&id); err != nil {
+		return 0, errors.Wrap(err, "error inserting ui session")
+	}
+	return id, nil
 }
 
-func (pg *PGLayer) UpdateUISession(key, data []byte, expires time.Time) error {
-	if len(key) == 0 || len(data) == 0 {
-		return errors.New("key and data are required")
-	}
-	if expires.IsZero() || time.Now().UTC().After(expires) {
-		return fmt.Errorf("invalid expires time: %v", expires)
-	}
-	q := `UPDATE ui_sessions SET data = $1, expires = $2 WHERE key = $3;`
-	_, err := pg.db.Exec(q, data, expires, key)
+// UpdateUISession updates the session with ID with githubUser and authenticated flag
+func (pg *PGLayer) UpdateUISession(id int, githubUser string, authenticated bool) error {
+	q := `UPDATE ui_sessions SET github_user = $1, authenticated = $2 WHERE id = $3;`
+	_, err := pg.db.Exec(q, githubUser, authenticated, id)
 	return errors.Wrap(err, "error updating ui session")
 }
 
-func (pg *PGLayer) DeleteUISession(key []byte) error {
-	if len(key) == 0 {
-		return errors.New("key is required")
-	}
-	q := `DELETE FROM ui_sessions WHERE key = $1;`
-	_, err := pg.db.Exec(q, key)
+// DeleteUISession unconditionally deletes the session with ID
+func (pg *PGLayer) DeleteUISession(id int) error {
+	q := `DELETE FROM ui_sessions WHERE id = $1;`
+	_, err := pg.db.Exec(q, id)
 	return errors.Wrap(err, "error deleting ui session")
 }
 
-func (pg *PGLayer) GetUISession(key []byte) (*models.UISession, error) {
-	if len(key) == 0 {
-		return nil, errors.New("key is required")
-	}
+// GetUISession returns the session with id or nil if not found
+func (pg *PGLayer) GetUISession(id int) (*models.UISession, error) {
 	out := &models.UISession{}
-	q := `SELECT ` + out.Columns() + ` FROM ui_sessions WHERE key = $1;`
-	if err := pg.db.QueryRow(q, key).Scan(out.ScanValues()...); err != nil {
+	q := `SELECT ` + out.Columns() + ` FROM ui_sessions WHERE id = $1;`
+	if err := pg.db.QueryRow(q, id).Scan(out.ScanValues()...); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -64,7 +62,12 @@ func (pg *PGLayer) GetUISession(key []byte) (*models.UISession, error) {
 	return out, nil
 }
 
-func (pg *PGLayer) DeleteExpiredUISessions() error {
-	_, err := pg.db.Exec(`DELETE FROM ui_sessions WHERE expires < now();`)
-	return errors.Wrap(err, "error deleting expired ui sessions")
+// DeleteExpiredUISessions deletes all expired sessions and returns the number deleted
+func (pg *PGLayer) DeleteExpiredUISessions() (uint, error) {
+	res, err := pg.db.Exec(`DELETE FROM ui_sessions WHERE expires < now();`)
+	if err != nil {
+		return 0, errors.Wrap(err, "error deleting expired ui sessions")
+	}
+	rows, err := res.RowsAffected()
+	return uint(rows), errors.Wrap(err, "error getting rows affected")
 }
