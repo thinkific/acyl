@@ -12,6 +12,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
+	"github.com/pkg/errors"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
 )
 
@@ -206,8 +207,30 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	}
 	d.waitgroups = append(d.waitgroups, &apiv2.wg)
 
+	oauthcfg := OAuthConfig{
+		AppInstallationID:      int64(ropts.ghConfig.OAuth.AppInstallationID),
+		ClientID:               ropts.ghConfig.OAuth.ClientID,
+		ClientSecret:           ropts.ghConfig.OAuth.ClientSecret,
+		AppGHClientFactoryFunc: func(tkn string) ghclient.GitHubAppInstallationClient { return ghclient.NewGitHubClient(tkn) },
+		CookieAuthKey:          ropts.ghConfig.OAuth.CookieAuthKey,
+		CookieEncKey:           ropts.ghConfig.OAuth.CookieEncKey,
+	}
+	if err := oauthcfg.SetValidateURL("https://github.com/login/oauth/access_token"); err != nil {
+		return errors.Wrap(err, "error parsing validate URL")
+	}
+	if err := oauthcfg.SetAuthURL("https://github.com/login/oauth/authorize"); err != nil {
+		return errors.Wrap(err, "error parsing validate URL")
+	}
+
 	// The UI API does not participate in the wait group
-	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL, ropts.uiOptions.assetsPath, ropts.uiOptions.routePrefix, ropts.uiOptions.reload, ropts.uiOptions.branding, deps.DataLayer, deps.Logger)
+	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL,
+		ropts.uiOptions.assetsPath,
+		ropts.uiOptions.routePrefix,
+		ropts.uiOptions.reload,
+		ropts.uiOptions.branding,
+		deps.DataLayer,
+		oauthcfg,
+		deps.Logger)
 	if err != nil {
 		return fmt.Errorf("error creating UI api: %v", err)
 	}
