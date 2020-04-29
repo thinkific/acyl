@@ -36,6 +36,7 @@ type uiBranding struct {
 
 // OAuthConfig models the configuration needed to support a GitHub OAuth authn/authz flow
 type OAuthConfig struct {
+	Enforce                     bool                                                    // Enforce OAuth authn/authz for protected routes
 	AppInstallationID           int64                                                   // GitHub App installation ID
 	ClientID, ClientSecret      string                                                  // GitHub App ClientID/secret
 	ValidateURL                 url.URL                                                 // URL to validate callback code and exchange for bearer token
@@ -289,6 +290,10 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 		return []byte(string(out))
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !ui.oauth.Enforce {
+			f(w, r)
+			return
+		}
 		redirectToAuth := func(s *sessions.Session) {
 			if s == nil {
 				var err error

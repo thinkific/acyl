@@ -168,6 +168,7 @@ type VaultConfig struct {
 }
 
 type GithubOAuthConfig struct {
+	Enforce           bool
 	AppInstallationID uint
 	ClientID          string
 	ClientSecret      string

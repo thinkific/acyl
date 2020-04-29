@@ -241,6 +241,7 @@ func TestUI_Authenticate(t *testing.T) {
 			dl := persistence.NewFakeDataLayer()
 			tt.dbSetupFunc(dl)
 			oauthcfg := OAuthConfig{
+				Enforce:                true,
 				AppInstallationID:      1,
 				ClientID:               "asdf",
 				ClientSecret:           "asdf",
@@ -622,6 +623,7 @@ func TestUI_AuthCallbackHandler(t *testing.T) {
 			dl := persistence.NewFakeDataLayer()
 			tt.dbSetupFunc(dl)
 			oauthcfg := OAuthConfig{
+				Enforce:           true,
 				AppInstallationID: 1,
 				ClientID:          "asdf",
 				ClientSecret:      "asdf",

@@ -208,6 +208,7 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	d.waitgroups = append(d.waitgroups, &apiv2.wg)
 
 	oauthcfg := OAuthConfig{
+		Enforce:                ropts.ghConfig.OAuth.Enforce,
 		AppInstallationID:      int64(ropts.ghConfig.OAuth.AppInstallationID),
 		ClientID:               ropts.ghConfig.OAuth.ClientID,
 		ClientSecret:           ropts.ghConfig.OAuth.ClientSecret,
