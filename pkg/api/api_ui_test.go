@@ -34,6 +34,8 @@ func TestUI_Authenticate(t *testing.T) {
 		cookiekeys [2][32]byte
 	}
 	var sessID int64
+	authURL := "https://github.com/some/path"
+	clientID := "asdf"
 	authKey := randomCookieKey()
 	encKey := randomCookieKey()
 	expectStatus := func(rc *httptest.ResponseRecorder, status int) error {
@@ -46,6 +48,16 @@ func TestUI_Authenticate(t *testing.T) {
 		return expectStatus(rc, 200)
 	}
 	expectAuthRedirect := func(rc *httptest.ResponseRecorder, dl persistence.UISessionsDataLayer) error {
+		aurl, err := url.Parse(rc.Result().Header.Get("Location"))
+		if err != nil {
+			return errors.Wrap(err, "error parsing location header")
+		}
+		if state := aurl.Query().Get("state"); state == "" {
+			return errors.New("empty or missing state")
+		}
+		if cid := aurl.Query().Get("client_id"); cid != clientID {
+			return fmt.Errorf("empty or incorrect client ID: %v", cid)
+		}
 		return expectStatus(rc, 302)
 	}
 	tests := []struct {
@@ -243,13 +255,13 @@ func TestUI_Authenticate(t *testing.T) {
 			oauthcfg := OAuthConfig{
 				Enforce:                true,
 				AppInstallationID:      1,
-				ClientID:               "asdf",
+				ClientID:               clientID,
 				ClientSecret:           "asdf",
 				AppGHClientFactoryFunc: func(_ string) ghclient.GitHubAppInstallationClient { return &ghclient.FakeRepoClient{} },
 				CookieAuthKey:          tt.fields.cookiekeys[0],
 				CookieEncKey:           tt.fields.cookiekeys[1],
 			}
-			oauthcfg.SetAuthURL("https://github.com/some/path")
+			oauthcfg.SetAuthURL(authURL)
 			oauthcfg.SetValidateURL("https://github.com/oauth/login")
 			uapi, err := newUIAPI(
 				"https://something.com",

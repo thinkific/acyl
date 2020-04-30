@@ -321,6 +321,7 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 			aurl := ui.oauth.AuthURL
 			qvals := make(url.Values, 1)
 			qvals.Add("state", string(state))
+			qvals.Add("client_id", ui.oauth.ClientID)
 			aurl.RawQuery = qvals.Encode()
 			w.Header().Add("Location", aurl.String())
 			w.WriteHeader(http.StatusFound)
