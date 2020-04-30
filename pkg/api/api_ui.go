@@ -131,21 +131,23 @@ func (api *uiapi) StartSessionsCleanup() {
 	d := time.Duration(18+rand.Intn(7)) * time.Hour // random interval between 18-24 hours
 	log.Printf("ui api: starting periodic ui sessions cleanup: interval: %v", d)
 	ticker := time.NewTicker(d)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			n, err := api.dl.DeleteExpiredUISessions()
-			if err != nil {
-				log.Printf("ui api: error deleting expired sessions: %v", err)
-				continue
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				n, err := api.dl.DeleteExpiredUISessions()
+				if err != nil {
+					log.Printf("ui api: error deleting expired sessions: %v", err)
+					continue
+				}
+				log.Printf("ui api: deleted %v expired ui sessions", n)
+			case <-api.stop:
+				log.Printf("ui api: close signalled, stopping sessions cleanup")
+				return
 			}
-			log.Printf("ui api: deleted %v expired ui sessions", n)
-		case <-api.stop:
-			log.Printf("ui api: close signalled, stopping sessions cleanup")
-			return
 		}
-	}
+	}()
 }
 
 // Close stops any async processes such as sessions cleanup
