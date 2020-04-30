@@ -195,7 +195,7 @@ func TestUI_Authenticate(t *testing.T) {
 			},
 			dbSetupFunc: func(dl persistence.UISessionsDataLayer) {},
 			requestFunc: func() *http.Request {
-				req, _ := http.NewRequest("GET", "https://example.com/some/protected/path", nil)
+				req, _ := http.NewRequest("GET", "https://example.com/some/protected/path?somekey=someval", nil)
 				req.RemoteAddr = "10.0.0.0:2000"
 				req.Header.Add("User-Agent", "some useragent")
 				return req
@@ -226,7 +226,7 @@ func TestUI_Authenticate(t *testing.T) {
 				if uis.UserAgent != "some useragent" {
 					return fmt.Errorf("bad user agent: %v", uis.UserAgent)
 				}
-				if uis.TargetRoute != "/some/protected/path" {
+				if uis.TargetRoute != "/some/protected/path?somekey=someval" {
 					return fmt.Errorf("bad target route: %v", uis.TargetRoute)
 				}
 				rurl, err := url.Parse(rc.Result().Header.Get("Location"))

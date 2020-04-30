@@ -91,7 +91,7 @@ func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding con
 		return nil, errors.New("all dependencies required")
 	}
 	cstore := sessions.NewCookieStore(oauthCfg.CookieAuthKey[:], oauthCfg.CookieEncKey[:])
-	cstore.Options.SameSite = http.SameSiteLaxMode
+	cstore.Options.SameSite = http.SameSiteLaxMode // Lax mode is required so callback request contains the session cookie
 	cstore.Options.Secure = true
 	cstore.MaxAge(int(cookieMaxAge.Seconds()))
 	oauthCfg.cookiestore = cstore
@@ -307,7 +307,11 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 			}
 			state := randstate(stateSizeBytes)
 			ip, _, _ := net.SplitHostPort(r.RemoteAddr) // ignore the error if the remote addr can't be parsed
-			id, err := ui.dl.CreateUISession(r.URL.Path, state, net.ParseIP(ip), r.UserAgent(), time.Now().UTC().Add(cookieMaxAge))
+			troute := r.URL.Path
+			if r.URL.RawQuery != "" {
+				troute += "?" + r.URL.RawQuery
+			}
+			id, err := ui.dl.CreateUISession(troute, state, net.ParseIP(ip), r.UserAgent(), time.Now().UTC().Add(cookieMaxAge))
 			if err != nil {
 				log.Printf("error creating session in db: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
