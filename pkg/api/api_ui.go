@@ -91,7 +91,7 @@ func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding con
 		return nil, errors.New("all dependencies required")
 	}
 	cstore := sessions.NewCookieStore(oauthCfg.CookieAuthKey[:], oauthCfg.CookieEncKey[:])
-	cstore.Options.SameSite = http.SameSiteStrictMode
+	cstore.Options.SameSite = http.SameSiteLaxMode
 	cstore.Options.Secure = true
 	cstore.MaxAge(int(cookieMaxAge.Seconds()))
 	oauthCfg.cookiestore = cstore
@@ -389,7 +389,7 @@ func (api *uiapi) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	sess, err := api.oauth.cookiestore.Get(r, uiSessionName)
 	if err != nil || sess.IsNew {
 		// invalid cookie or failure to authenticate/decrypt
-		log.Printf("error getting session, redirecting to auth: %v", err)
+		log.Printf("error getting session or new session, redirecting to error: %v", err)
 		redirectToError() // Get returns a new session on error
 		return
 	}
