@@ -78,6 +78,7 @@ type uiapi struct {
 	viewmtx     sync.RWMutex
 	branding    uiBranding
 	oauth       OAuthConfig
+	stop        chan struct{}
 }
 
 var viewPaths = map[string]string{
@@ -106,6 +107,7 @@ func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding con
 		oauth:       oauthCfg,
 		reload:      reload,
 		views:       make(map[string]*template.Template, len(viewPaths)),
+		stop:        make(chan struct{}),
 	}
 	for k := range viewPaths {
 		if err := api.loadTemplate(k); err != nil {
@@ -121,6 +123,34 @@ func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding con
 	}
 	api.cacheRenderedAuthErrorPage()
 	return api, nil
+}
+
+// StartSessionsCleanup begins periodic async cleanup of expired UI sessions
+func (api *uiapi) StartSessionsCleanup() {
+	rand.Seed(time.Now().UTC().UnixNano())
+	d := time.Duration(18+rand.Intn(7)) * time.Hour // random interval between 18-24 hours
+	log.Printf("ui api: starting periodic ui sessions cleanup: interval: %v", d)
+	ticker := time.NewTicker(d)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			n, err := api.dl.DeleteExpiredUISessions()
+			if err != nil {
+				log.Printf("ui api: error deleting expired sessions: %v", err)
+				continue
+			}
+			log.Printf("ui api: deleted %v expired ui sessions", n)
+		case <-api.stop:
+			log.Printf("ui api: close signalled, stopping sessions cleanup")
+			return
+		}
+	}
+}
+
+// Close stops any async processes such as sessions cleanup
+func (api *uiapi) Close() {
+	close(api.stop)
 }
 
 func (api *uiapi) processBranding(b config.UIBrandingConfig) error {

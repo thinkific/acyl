@@ -153,12 +153,20 @@ func WithGitHubConfig(ghconfig config.GithubConfig) RegisterOption {
 type Dispatcher struct {
 	s          *http.Server
 	waitgroups []*sync.WaitGroup
+	uiapi      *uiapi
 }
 
 // NewDispatcher returns an initialized Dispatcher.
 // s should be preconfigured to be able to run ListenAndServeTLS()
 func NewDispatcher(s *http.Server) *Dispatcher {
 	return &Dispatcher{s: s}
+}
+
+// Stop stops any async processes such as UI sessions cleanup
+func (d *Dispatcher) Stop() {
+	if d.uiapi != nil {
+		d.uiapi.Close()
+	}
 }
 
 // RegisterVersions registers all API versions with the supplied http.Server
@@ -239,6 +247,8 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	if err != nil {
 		return fmt.Errorf("error registering UI api: %v", err)
 	}
+	uiapi.StartSessionsCleanup()
+	d.uiapi = uiapi
 
 	if ropts.debugEndpoints {
 		dbg := newDebugEndpoints()

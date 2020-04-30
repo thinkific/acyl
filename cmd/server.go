@@ -321,6 +321,7 @@ func server(cmd *cobra.Command, args []string) {
 			cancel()
 		}
 	}()
+	defer httpapi.Stop()
 
 	stype := "HTTPS"
 	if serverConfig.DisableTLS {
