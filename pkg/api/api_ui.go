@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -319,7 +320,7 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 			aurl := ui.oauth.AuthURL
-			qvals := make(url.Values, 1)
+			qvals := make(url.Values, 2)
 			qvals.Add("state", string(state))
 			qvals.Add("client_id", ui.oauth.ClientID)
 			aurl.RawQuery = qvals.Encode()
@@ -448,25 +449,23 @@ func (api *uiapi) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
 // - the user has explicit permissions for this installation of this GitHub app
 // - the user has at least one repository accessible via this installation
 func (api *uiapi) getAndAuthorizeGitHubUser(ctx context.Context, code, state string) (string, error) {
-	req, err := http.NewRequest("POST", api.oauth.ValidateURL.String(), nil)
+	form := make(url.Values, 4)
+	form.Add("client_id", api.oauth.ClientID)
+	form.Add("client_secret", api.oauth.ClientSecret)
+	form.Add("code", code)
+	form.Add("state", state)
+	req, err := http.NewRequest("POST", api.oauth.ValidateURL.String(), strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", errors.Wrap(err, "error creating validate request")
 	}
-	req.PostForm = url.Values{}
-	req.PostForm.Add("client_id", api.oauth.ClientID)
-	req.PostForm.Add("client_secret", api.oauth.ClientSecret)
-	req.PostForm.Add("code", code)
-	req.PostForm.Add("state", state)
 	resp, err := api.oauth.hc.Do(req)
 	if err != nil {
 		return "", errors.Wrap(err, "error validating code")
 	}
-	if resp.StatusCode != 200 {
-		b, _ := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
-		return "", fmt.Errorf("validation response indicates error: %v: %v", resp.StatusCode, string(b))
-	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("validation response indicates error: %v", resp.StatusCode)
+	}
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", errors.Wrap(err, "error reading response body")

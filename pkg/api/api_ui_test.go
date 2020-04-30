@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
@@ -315,6 +316,21 @@ func TestUI_AuthCallbackHandler(t *testing.T) {
 		return req
 	}
 	defaultvalidateHandler := func(w http.ResponseWriter, r *http.Request) {
+		b, _ := ioutil.ReadAll(r.Body)
+		r.Body.Close()
+		reqform, err := url.ParseQuery(string(b))
+		if err != nil {
+			t.Logf("could not parse req form: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		for _, k := range []string{"client_id", "client_secret", "code", "state"} {
+			if reqform.Get(k) == "" {
+				t.Logf("missing req form key: %v", k)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+		}
 		vals := url.Values{}
 		vals.Add("access_token", "1234")
 		vals.Add("token_type", "bearer")
