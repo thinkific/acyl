@@ -10,6 +10,7 @@ application:
   image: quay.io/dollarshaveclub/acyl
   value_overrides:
     - "app.ui.enforce_oauth=true"
+    - "ingress.traefik.enabled=false"
 # uncomment to use in-environment Furan
 #    - "app.furan_addr=furan:4001"
 # local:
@@ -18,7 +19,6 @@ application:
 #    - "app.secrets_mapping=ACYL_{{ .ID }}"
 #    - "app.secrets_from_env=true"
 #    - "app.k8s_secret_injections="
-#    - "ingress.traefik.enabled=false"
 #    - "app.operation_timeout_override=10m"
 #    - "app.k8s_secret_injections=image-pull-secret=k8s/image_pull_secret"
 #    - "app.ui_base_url=http://192.168.64.10:4000"
@@ -45,11 +45,11 @@ notifications:
       templates:
         success:
           description: 'The Acyl environment {{ .EnvName }} was created successfully.'
-          target_url: 'https://{{ .EnvName }}-acyl.dqa.email'
+          target_url: 'https://www.youtube.com/watch?v=8hP9D6kZseM'
   templates:
     success:
       title: "🏁 Success"
       sections:
         - title: "{{ .EnvName }}"
-          text: "{{ .Repo }} PR #{{ .PullRequest }} {{ .SourceBranch }}\nK8s Namespace: {{ .K8sNamespace }}\nhttps://{{ .EnvName }}-acyl.dqa.email"
+          text: "{{ .Repo }} PR #{{ .PullRequest }} {{ .SourceBranch }}\nK8s Namespace: {{ .K8sNamespace }}"
           style: 'good'
