@@ -86,16 +86,20 @@ var viewPaths = map[string]string{
 	"auth_error": path.Join("views", "autherror.html"),
 }
 
+func newSessionsCookieStore(oauthCfg OAuthConfig) sessions.Store {
+	cstore := sessions.NewCookieStore(oauthCfg.CookieAuthKey[:], oauthCfg.CookieEncKey[:])
+	cstore.Options.SameSite = http.SameSiteLaxMode // Lax mode is required so callback request contains the session cookie
+	cstore.Options.Secure = true
+	cstore.MaxAge(int(cookieMaxAge.Seconds()))
+	return cstore
+}
+
 func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding config.UIBrandingConfig, dl persistence.DataLayer, oauthCfg OAuthConfig, logger *log.Logger) (*uiapi, error) {
 	if assetsPath == "" || routePrefix == "" ||
 		dl == nil {
 		return nil, errors.New("all dependencies required")
 	}
-	cstore := sessions.NewCookieStore(oauthCfg.CookieAuthKey[:], oauthCfg.CookieEncKey[:])
-	cstore.Options.SameSite = http.SameSiteLaxMode // Lax mode is required so callback request contains the session cookie
-	cstore.Options.Secure = true
-	cstore.MaxAge(int(cookieMaxAge.Seconds()))
-	oauthCfg.cookiestore = cstore
+	oauthCfg.cookiestore = newSessionsCookieStore(oauthCfg)
 	api := &uiapi{
 		apiBase: apiBase{
 			logger: logger,

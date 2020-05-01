@@ -179,8 +179,27 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		opt(ropts)
 	}
 
+	oauthcfg := OAuthConfig{
+		Enforce:                ropts.ghConfig.OAuth.Enforce,
+		AppInstallationID:      int64(ropts.ghConfig.OAuth.AppInstallationID),
+		ClientID:               ropts.ghConfig.OAuth.ClientID,
+		ClientSecret:           ropts.ghConfig.OAuth.ClientSecret,
+		AppGHClientFactoryFunc: func(tkn string) ghclient.GitHubAppInstallationClient { return ghclient.NewGitHubClient(tkn) },
+		CookieAuthKey:          ropts.ghConfig.OAuth.CookieAuthKey,
+		CookieEncKey:           ropts.ghConfig.OAuth.CookieEncKey,
+	}
+	if err := oauthcfg.SetValidateURL("https://github.com/login/oauth/access_token"); err != nil {
+		return errors.Wrap(err, "error parsing validate URL")
+	}
+	if err := oauthcfg.SetAuthURL("https://github.com/login/oauth/authorize"); err != nil {
+		return errors.Wrap(err, "error parsing validate URL")
+	}
+
 	authMiddleware.apiKeys = ropts.apiKeys
 	ipWhitelistMiddleware.ipwl = ropts.ipWhitelist
+	sessionAuthMiddleware.Enforce = oauthcfg.Enforce
+	sessionAuthMiddleware.CookieStore = newSessionsCookieStore(oauthcfg)
+	sessionAuthMiddleware.DL = deps.DataLayer
 
 	r := muxtrace.NewRouter(muxtrace.WithServiceName(deps.DatadogServiceName))
 	r.HandleFunc("/health", d.healthHandler).Methods("GET")
@@ -214,22 +233,6 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		return fmt.Errorf("error registering api v2: %v", err)
 	}
 	d.waitgroups = append(d.waitgroups, &apiv2.wg)
-
-	oauthcfg := OAuthConfig{
-		Enforce:                ropts.ghConfig.OAuth.Enforce,
-		AppInstallationID:      int64(ropts.ghConfig.OAuth.AppInstallationID),
-		ClientID:               ropts.ghConfig.OAuth.ClientID,
-		ClientSecret:           ropts.ghConfig.OAuth.ClientSecret,
-		AppGHClientFactoryFunc: func(tkn string) ghclient.GitHubAppInstallationClient { return ghclient.NewGitHubClient(tkn) },
-		CookieAuthKey:          ropts.ghConfig.OAuth.CookieAuthKey,
-		CookieEncKey:           ropts.ghConfig.OAuth.CookieEncKey,
-	}
-	if err := oauthcfg.SetValidateURL("https://github.com/login/oauth/access_token"); err != nil {
-		return errors.Wrap(err, "error parsing validate URL")
-	}
-	if err := oauthcfg.SetAuthURL("https://github.com/login/oauth/authorize"); err != nil {
-		return errors.Wrap(err, "error parsing validate URL")
-	}
 
 	// The UI API does not participate in the wait group
 	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL,
