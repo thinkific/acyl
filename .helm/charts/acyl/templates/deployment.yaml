@@ -103,8 +103,9 @@ spec:
           {{ end }}
           - "--ui-branding"
           - '{{ .Values.app.ui.branding | toJson }}'
+          {{ if .Values.app.ui.enforce_oauth }}
           - "--ui-enforce-oauth"
-          - '{{ .Values.app.ui.enforce_oauth }}'
+          {{ end }}
         ports:
         - containerPort: {{ .Values.service.internalPort }}
         livenessProbe:
