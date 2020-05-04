@@ -167,6 +167,15 @@ type VaultConfig struct {
 	UserIDPath  string
 }
 
+type GithubOAuthConfig struct {
+	Enforce           bool
+	AppInstallationID uint
+	ClientID          string
+	ClientSecret      string
+	CookieAuthKey     [32]byte
+	CookieEncKey      [32]byte
+}
+
 type GithubConfig struct {
 	HookSecret    string
 	Token         string
@@ -174,6 +183,7 @@ type GithubConfig struct {
 	AppID         uint
 	PrivateKeyPEM []byte
 	AppHookSecret string
+	OAuth         GithubOAuthConfig
 }
 
 type BackendConfig struct {

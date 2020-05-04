@@ -772,6 +772,22 @@
   version = "v1.4.0"
 
 [[projects]]
+  digest = "1:51a1d17ba9fe6648d9fdd5b822baa616d6ec7f28c8669c2091126d206796b5ae"
+  name = "github.com/gorilla/securecookie"
+  packages = ["."]
+  pruneopts = ""
+  revision = "e59506cc896acb7f7bf732d4fdf5e25f7ccd8983"
+  version = "v1.1.1"
+
+[[projects]]
+  digest = "1:2c2d6229f9afe4e2fc1f74b6b245b8ccd44ac04cac3e3a3b1b3e21df4b45461b"
+  name = "github.com/gorilla/sessions"
+  packages = ["."]
+  pruneopts = ""
+  revision = "4355a998706e83fe1d71c31b07af94e34f68d74a"
+  version = "v1.2.0"
+
+[[projects]]
   branch = "master"
   digest = "1:009a1928b8c096338b68b5822d838a72b4d8520715c1463614476359f3282ec8"
   name = "github.com/gregjones/httpcache"
@@ -2456,6 +2472,8 @@
     "github.com/google/go-github/github",
     "github.com/google/uuid",
     "github.com/gorilla/mux",
+    "github.com/gorilla/securecookie",
+    "github.com/gorilla/sessions",
     "github.com/hashicorp/consul/api",
     "github.com/hashicorp/go-multierror",
     "github.com/imdario/mergo",

@@ -11,8 +11,10 @@ import (
 func TestMain(m *testing.M) {
 	var exit int
 	defer func() { os.Exit(exit) }()
-	ldb := localdb.New(log.Printf)
-	ldb.MustRun()
-	defer ldb.Stop()
+	if os.Getenv("ACYL_NO_DB") == "" {
+		ldb := localdb.New(log.Printf)
+		ldb.MustRun()
+		defer ldb.Stop()
+	}
 	exit = m.Run()
 }

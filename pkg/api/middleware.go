@@ -1,9 +1,14 @@
 package api
 
 import (
+	"log"
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/gorilla/sessions"
+
+	"github.com/dollarshaveclub/acyl/pkg/persistence"
 )
 
 type middleware func(http.HandlerFunc) http.HandlerFunc
@@ -81,5 +86,72 @@ func (iwc *ipWhitelistChecker) checkIPWhitelist(f http.HandlerFunc) http.Handler
 			}
 		}
 		w.WriteHeader(http.StatusForbidden)
+	}
+}
+
+// globals are a bad idea but this is how all the other middlewares work, so...
+var sessionAuthMiddleware = &sessionAuthenticator{}
+
+// sessionAuthenticator is a middleware that authenticates UI API calls with session cookies
+type sessionAuthenticator struct {
+	Enforce     bool
+	CookieStore sessions.Store
+	DL          persistence.UISessionsDataLayer
+}
+
+func (sa *sessionAuthenticator) sessionAuth(f http.HandlerFunc) http.HandlerFunc {
+	if sa.CookieStore == nil || sa.DL == nil {
+		return f
+	}
+	if !sa.Enforce {
+		return f
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		accessDenied := func() {
+			w.WriteHeader(http.StatusForbidden)
+		}
+		// Get returns the session from the cookie or creates a new session if missing
+		sess, err := sa.CookieStore.Get(r, uiSessionName)
+		if err != nil {
+			// invalid cookie or failure to authenticate/decrypt
+			log.Printf("sessionAuth: error getting session, access denied: %v", err)
+			accessDenied()
+			return
+		}
+		if sess.IsNew {
+			log.Printf("sessionAuth: session missing from request, access denied")
+			accessDenied()
+			return
+		}
+		id, ok := sess.Values[cookieIDkey].(int)
+		if !ok {
+			// missing id
+			log.Printf("sessionAuth: session id is missing from cookie")
+			accessDenied()
+			return
+		}
+		uis, err := sa.DL.GetUISession(id)
+		if err != nil {
+			log.Printf("sessionAuth: error getting session by id: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if uis == nil {
+			// not found in db
+			log.Printf("sessionAuth: session %v not found in db, access denied", id)
+			accessDenied()
+			return
+		}
+		if !uis.IsValid() {
+			if err := sa.DL.DeleteUISession(id); err != nil {
+				log.Printf("sessionAuth: error deleting session: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			log.Printf("sessionAuth: session %v isn't valid, access denied", id)
+			accessDenied()
+			return
+		}
+		f(w, r)
 	}
 }

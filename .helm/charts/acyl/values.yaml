@@ -33,6 +33,7 @@ app:
   operation_timeout_override: ''
   ui:
     base_url: 'http://localhost:4000'
+    enforce_oauth: false
     branding:
       logo_url: ''
       logo_width: ''

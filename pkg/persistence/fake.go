@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,10 +21,11 @@ import (
 type lockingDataMap struct {
 	sync.RWMutex
 	// each field below represents a table
-	d     map[string]*models.QAEnvironment
-	helm  map[string][]models.HelmRelease
-	k8s   map[string]*models.KubernetesEnvironment
-	elogs map[uuid.UUID]*models.EventLog
+	d          map[string]*models.QAEnvironment
+	helm       map[string][]models.HelmRelease
+	k8s        map[string]*models.KubernetesEnvironment
+	elogs      map[uuid.UUID]*models.EventLog
+	uisessions map[int]*models.UISession
 }
 
 // FakeDataLayer is a fake implementation of DataLayer that persists data in-memory, for testing purposes
@@ -35,14 +37,19 @@ type FakeDataLayer struct {
 
 var _ DataLayer = &FakeDataLayer{}
 
+func newLockingDataMap() *lockingDataMap {
+	return &lockingDataMap{
+		d:          make(map[string]*models.QAEnvironment),
+		helm:       make(map[string][]models.HelmRelease),
+		k8s:        make(map[string]*models.KubernetesEnvironment),
+		elogs:      make(map[uuid.UUID]*models.EventLog),
+		uisessions: make(map[int]*models.UISession),
+	}
+}
+
 func NewFakeDataLayer() *FakeDataLayer {
 	return &FakeDataLayer{
-		data: &lockingDataMap{
-			d:     make(map[string]*models.QAEnvironment),
-			helm:  make(map[string][]models.HelmRelease),
-			k8s:   make(map[string]*models.KubernetesEnvironment),
-			elogs: make(map[uuid.UUID]*models.EventLog),
-		},
+		data: newLockingDataMap(),
 	}
 }
 
@@ -63,12 +70,7 @@ func NewPopulatedFakeDataLayer(qaenvs []models.QAEnvironment, k8senvs []models.K
 
 func NewDelayedFakeDataLayer(delay time.Duration) *FakeDataLayer {
 	return &FakeDataLayer{
-		data: &lockingDataMap{
-			d:     make(map[string]*models.QAEnvironment),
-			helm:  make(map[string][]models.HelmRelease),
-			k8s:   make(map[string]*models.KubernetesEnvironment),
-			elogs: make(map[uuid.UUID]*models.EventLog),
-		},
+		data:  newLockingDataMap(),
 		delay: delay,
 	}
 }
@@ -1029,4 +1031,75 @@ func (fdl *FakeDataLayer) SetEventStatusRenderedStatus(id uuid.UUID, rstatus mod
 		elog.Status.Config.RenderedStatus = rstatus
 	}
 	return nil
+}
+
+func (fdl *FakeDataLayer) CreateUISession(targetRoute string, state []byte, clientIP net.IP, userAgent string, expires time.Time) (int, error) {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	if len(targetRoute) == 0 || len(state) == 0 {
+		return 0, errors.New("targetRoute and state are required")
+	}
+	if expires.IsZero() || time.Now().UTC().After(expires) {
+		return 0, fmt.Errorf("invalid expires time: %v", expires)
+	}
+	id := len(fdl.data.uisessions) + 1
+	fdl.data.uisessions[id] = &models.UISession{
+		TargetRoute:   targetRoute,
+		State:         state,
+		Expires:       expires,
+		ClientIP:      clientIP.String(),
+		UserAgent:     userAgent,
+		Authenticated: false,
+	}
+	return id, nil
+}
+
+func (fdl *FakeDataLayer) UpdateUISession(id int, githubUser string, authenticated bool) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	uis, ok := fdl.data.uisessions[id]
+	if !ok {
+		return nil
+	}
+	uis.GitHubUser = githubUser
+	uis.Authenticated = authenticated
+	return nil
+}
+
+func (fdl *FakeDataLayer) DeleteUISession(id int) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	delete(fdl.data.uisessions, id)
+	return nil
+}
+
+func (fdl *FakeDataLayer) GetUISession(id int) (*models.UISession, error) {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	uis, ok := fdl.data.uisessions[id]
+	if !ok {
+		return nil, nil
+	}
+	out := *uis
+	return &out, nil
+}
+
+func (fdl *FakeDataLayer) DeleteExpiredUISessions() (uint, error) {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	rmkeys := []int{}
+	for key, val := range fdl.data.uisessions {
+		if val.Expires.Before(time.Now().UTC()) {
+			rmkeys = append(rmkeys, key)
+		}
+	}
+	for _, k := range rmkeys {
+		delete(fdl.data.uisessions, k)
+	}
+	return uint(len(rmkeys)), nil
 }

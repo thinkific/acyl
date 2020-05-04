@@ -14,18 +14,23 @@ import (
 // Secret IDs
 // These will be interpolated as .ID in the secrets mapping
 const (
-	awsAccessKeyIDid     = "aws/access_key_id"
-	awsSecretAccessKeyid = "aws/secret_access_key"
-	githubHookSecretid   = "github/hook_secret"
-	githubTokenid        = "github/token"
-	githubAppID          = "github/app/id"
-	githubAppPK          = "github/app/private_key"
-	githubAppHookSecret  = "github/app/hook_secret"
-	apiKeysid            = "api_keys"
-	slackTokenid         = "slack/token"
-	tlsCertid            = "tls/cert"
-	tlsKeyid             = "tls/key"
-	dbURIid              = "db/uri"
+	awsAccessKeyIDid         = "aws/access_key_id"
+	awsSecretAccessKeyid     = "aws/secret_access_key"
+	githubHookSecretid       = "github/hook_secret"
+	githubTokenid            = "github/token"
+	githubAppID              = "github/app/id"
+	githubAppPK              = "github/app/private_key"
+	githubAppHookSecret      = "github/app/hook_secret"
+	githubOAuthInstID        = "github/app/oauth/installation_id"
+	githubOAuthClientID      = "github/app/oauth/client/id"
+	githubOAuthClientSecret  = "github/app/oauth/client/secret"
+	githubOAuthCookieEncKey  = "github/app/oauth/cookie/encryption_key"
+	githubOAuthCookieAuthKey = "github/app/oauth/cookie/authentication_key"
+	apiKeysid                = "api_keys"
+	slackTokenid             = "slack/token"
+	tlsCertid                = "tls/cert"
+	tlsKeyid                 = "tls/key"
+	dbURIid                  = "db/uri"
 )
 
 type SecretFetcher interface {
@@ -108,6 +113,7 @@ func (psf *PVCSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App ID")
 	}
+	// GitHub App
 	appid, err := strconv.Atoi(string(s))
 	if err != nil {
 		return errors.Wrap(err, "app ID must be a valid integer")
@@ -126,6 +132,45 @@ func (psf *PVCSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
 		return errors.Wrap(err, "error getting GitHub App hook secret")
 	}
 	gh.AppHookSecret = string(s)
+	// GitHub App OAuth
+	s, err = psf.sc.Get(githubOAuthInstID)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App installation id")
+	}
+	iid, err := strconv.Atoi(string(s))
+	if err != nil {
+		return errors.Wrap(err, "error converting installation id into integer")
+	}
+	if iid < 1 {
+		return fmt.Errorf("invalid installation id: %v", iid)
+	}
+	gh.OAuth.AppInstallationID = uint(iid)
+	s, err = psf.sc.Get(githubOAuthClientID)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App client id")
+	}
+	gh.OAuth.ClientID = string(s)
+	s, err = psf.sc.Get(githubOAuthClientSecret)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App client secret")
+	}
+	gh.OAuth.ClientSecret = string(s)
+	s, err = psf.sc.Get(githubOAuthCookieAuthKey)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App cookie auth key")
+	}
+	if len(s) != 32 {
+		return fmt.Errorf("bad cookie auth key: length must be exactly 32 bytes, value size: %v", len(s))
+	}
+	copy(gh.OAuth.CookieAuthKey[:], s)
+	s, err = psf.sc.Get(githubOAuthCookieEncKey)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App cookie enc key")
+	}
+	if len(s) != 32 {
+		return fmt.Errorf("bad cookie enc key: length must be exactly 32 bytes, value size: %v", len(s))
+	}
+	copy(gh.OAuth.CookieEncKey[:], s)
 	return nil
 }
 

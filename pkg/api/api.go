@@ -12,6 +12,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
+	"github.com/pkg/errors"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
 )
 
@@ -152,12 +153,20 @@ func WithGitHubConfig(ghconfig config.GithubConfig) RegisterOption {
 type Dispatcher struct {
 	s          *http.Server
 	waitgroups []*sync.WaitGroup
+	uiapi      *uiapi
 }
 
 // NewDispatcher returns an initialized Dispatcher.
 // s should be preconfigured to be able to run ListenAndServeTLS()
 func NewDispatcher(s *http.Server) *Dispatcher {
 	return &Dispatcher{s: s}
+}
+
+// Stop stops any async processes such as UI sessions cleanup
+func (d *Dispatcher) Stop() {
+	if d.uiapi != nil {
+		d.uiapi.Close()
+	}
 }
 
 // RegisterVersions registers all API versions with the supplied http.Server
@@ -170,8 +179,27 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		opt(ropts)
 	}
 
+	oauthcfg := OAuthConfig{
+		Enforce:                ropts.ghConfig.OAuth.Enforce,
+		AppInstallationID:      int64(ropts.ghConfig.OAuth.AppInstallationID),
+		ClientID:               ropts.ghConfig.OAuth.ClientID,
+		ClientSecret:           ropts.ghConfig.OAuth.ClientSecret,
+		AppGHClientFactoryFunc: func(tkn string) ghclient.GitHubAppInstallationClient { return ghclient.NewGitHubClient(tkn) },
+		CookieAuthKey:          ropts.ghConfig.OAuth.CookieAuthKey,
+		CookieEncKey:           ropts.ghConfig.OAuth.CookieEncKey,
+	}
+	if err := oauthcfg.SetValidateURL("https://github.com/login/oauth/access_token"); err != nil {
+		return errors.Wrap(err, "error parsing validate URL")
+	}
+	if err := oauthcfg.SetAuthURL("https://github.com/login/oauth/authorize"); err != nil {
+		return errors.Wrap(err, "error parsing validate URL")
+	}
+
 	authMiddleware.apiKeys = ropts.apiKeys
 	ipWhitelistMiddleware.ipwl = ropts.ipWhitelist
+	sessionAuthMiddleware.Enforce = oauthcfg.Enforce
+	sessionAuthMiddleware.CookieStore = newSessionsCookieStore(oauthcfg)
+	sessionAuthMiddleware.DL = deps.DataLayer
 
 	r := muxtrace.NewRouter(muxtrace.WithServiceName(deps.DatadogServiceName))
 	r.HandleFunc("/health", d.healthHandler).Methods("GET")
@@ -207,7 +235,14 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	d.waitgroups = append(d.waitgroups, &apiv2.wg)
 
 	// The UI API does not participate in the wait group
-	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL, ropts.uiOptions.assetsPath, ropts.uiOptions.routePrefix, ropts.uiOptions.reload, ropts.uiOptions.branding, deps.DataLayer, deps.Logger)
+	uiapi, err := newUIAPI(ropts.uiOptions.apiBaseURL,
+		ropts.uiOptions.assetsPath,
+		ropts.uiOptions.routePrefix,
+		ropts.uiOptions.reload,
+		ropts.uiOptions.branding,
+		deps.DataLayer,
+		oauthcfg,
+		deps.Logger)
 	if err != nil {
 		return fmt.Errorf("error creating UI api: %v", err)
 	}
@@ -215,6 +250,8 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	if err != nil {
 		return fmt.Errorf("error registering UI api: %v", err)
 	}
+	uiapi.StartSessionsCleanup()
+	d.uiapi = uiapi
 
 	if ropts.debugEndpoints {
 		dbg := newDebugEndpoints()

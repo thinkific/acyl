@@ -1,0 +1,29 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <style>
+            .title {
+                font: 32px sans-serif;
+                font-weight: bold;
+            }
+        </style>
+        <link rel="icon" type="{{ .Branding.FaviconType }}" href="{{ .Branding.FaviconURL }}">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/solid.min.css" integrity="sha256-APTxfVyJgjHUS35EeuRpYs2tAbIQO7UF0nAV6krdYJ0=" crossorigin="anonymous" />
+    </head>
+    <body>
+        <div class="container-fluid">
+            <div class="title">
+                <a href="{{ .Branding.LogoLink }}">
+                    <img width="{{ .Branding.LogoWidth }}" height="{{ .Branding.LogoHeight }}" style="{{ .Branding.LogoStyle }}" src="{{ .Branding.LogoURL }}" alt="{{ .Branding.LogoAlt }}" />
+                </a>
+                <span style="{{ .Branding.TitleStyle }}">{{ .Branding.Title }}</span>
+            </div>
+        </div>
+    <div class="jumbotron">
+        <h1><span class="fas" style="color: #ff0000">&#xf071;</span> Access Denied</h1>
+        <p class="lead">User access denied. You have insufficient privileges to this app installation.</p>
+        <hr class="my-4">
+        <p>Sorry, your GitHub user doesn't appear to have access to this GitHub app installation. Contact your app administrator for help.</p>
+    </div>
+    </body>
+</html>
