@@ -285,16 +285,16 @@ function updateTree(treedata) {
     function getNodeIconColor(d) {
         if (d.data.image !== null) {
             if (d.data.image.error) {
-                return "#ff0000";
+                return "#dc3545";
             }
         }
         switch (d.data.chart.status) {
             case "done":
-                return "#00ff00";
+                return "#28a745";
             case "failed":
-                return "#ff0000";
+                return "#dc3545";
         }
-        return "#000000";
+        return "#343a40";
     }
 
     // Declare the nodes

@@ -6,6 +6,7 @@
       integrity="sha384-oOs/gFavzADqv3i5nCM+9CzXe3e5vXLXZ5LZ7PplpsWpTCufB7kqkTlC9FtZ5nJo"
       crossorigin="anonymous"
     /> -->
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
     <link
       rel="stylesheet"
       href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
@@ -37,10 +38,6 @@
       crossorigin="anonymous"
     />
     <style>
-      /* .title {
-        font: 32px sans-serif;
-        font-weight: bold;
-      } */
 
       /* These classes are used by D3 */
 
@@ -86,15 +83,6 @@
         border-radius: 8px;
         pointer-events: none;
       }
-
-      /* .status-text {
-        padding-top: 2px;
-      }
-
-      .status-link {
-        vertical-align: middle;
-        padding-left: 10px;
-      } */
 
       /* Spinner circle animation */
       /* based on: https://glennmccomb.com/articles/building-a-pure-css-animated-svg-spinner/ */
@@ -148,12 +136,33 @@
       }
 
       /** ACYL UI **/
+
+      * {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+      }
+
+      ::-moz-selection {
+        /* color:
+        background-color: */
+      }
+
+      ::selection {
+        /* color:
+        background-color:  */
+      }
+
       .acyl-ui {
         padding-top: 5rem;
+        font-family: 'Open Sans', sans-serif;
       }
-      .acyl__logs {
+      .acyl-logs {
         font-family: monospace;
         max-height: 25rem;
+      }
+      .acyl-nav {
+        box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
       }
     </style>
     <link
@@ -163,17 +172,16 @@
     />
   </head>
   <body class="acyl-ui">
-    <nav class="navbar navbar-dark bg-dark fixed-top">
+    <nav class="acyl-nav navbar navbar-dark bg-dark fixed-top">
       <div class="container">
         <a class="navbar-brand" href="{{ .Branding.LogoLink }}">
           <img
             src="{{ .Branding.LogoURL }}"
-            width="30"
             height="30"
-            class="d-inline-block align-top"
+            class="d-inline-block align-top mr-1"
             alt="{{ .Branding.LogoAlt }}"
           />
-          {{ .Branding.Title }}
+          <strong>{{ .Branding.Title }}</strong>
         </a>
 
         <form class="form-inline mb-0">
@@ -193,53 +201,7 @@
     </nav>
 
     <div class="container">
-      <!-------------------- Next Section -------------------->
-      <!-- <div class="row">
-        <div class="col">
-          <div class="card">
-            <div class="card-header" id="statusHeading">
-              <h2 class="mb-0">
-                <button
-                  class="btn btn-link"
-                  type="button"
-                  data-toggle="collapse"
-                  data-target="#collapseStatus"
-                  aria-expanded="true"
-                  aria-controls="collapseStatus"
-                >
-                  Status
-                </button>
-                <span id="status-icon" class="fas status-icon"></span>
-              </h2>
-            </div>
-            <div
-              id="collapseStatus"
-              class="collapse show"
-              aria-labelledby="envStatus"
-            >
-              <div class="card-body">
-                <div class="row">
-                  <div class="col-lg d-flex justify-content-left">
-                    <span class="status-text" id="status-link-title"></span>
-                    <a
-                      class="fas status-link"
-                      target="_blank"
-                      id="rendered-status-link"
-                      href=""
-                      alt="status link"
-                      ><button id="status-link-btn" class="btn-sm">
-                        Open Link &#xf35d;
-                      </button></a
-                    >
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div> -->
 
-      <!-------------------- Next Section -------------------->
       <div class="row">
         <div class="col">
           <div class="accordion">
@@ -263,10 +225,10 @@
                 class="collapse show"
                 aria-labelledby="envTreeHeading"
               >
-                <div class="card-body">
+                <div class="card-body p-0">
                   <div class="row">
                     <div
-                      class="col-lg d-flex justify-content-center overflow-auto border"
+                      class="col d-flex justify-content-center overflow-auto"
                       id="envtree"
                     ></div>
                   </div>
@@ -387,7 +349,7 @@
                 aria-labelledby="logsHeading"
               >
                 <div class="card-body p-0 bg-dark text-light">
-                  <div class="overflow-auto acyl__logs p-4" id="logsContainer"></div>
+                  <div class="overflow-auto acyl-logs p-4" id="logsContainer"></div>
                 </div>
               </div>
             </div>
@@ -395,8 +357,6 @@
         </div>
       </div>
     </div>
-
-    <hr />
 
     <script
       src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
