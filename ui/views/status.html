@@ -147,9 +147,14 @@
         }
       }
 
-    /** ACYL UI **/
-    .acyl-ui { padding-top: 5rem; }
-
+      /** ACYL UI **/
+      .acyl-ui {
+        padding-top: 5rem;
+      }
+      .acyl__logs {
+        font-family: monospace;
+        max-height: 25rem;
+      }
     </style>
     <link
       rel="icon"
@@ -173,7 +178,13 @@
 
         <form class="form-inline mb-0">
           <small id="status-link-title" class="navbar-text mr-3"></small>
-          <a target="_blank" id="status-link-btn" class="btn btn-sm" role="button" id="status-link-btn">
+          <a
+            target="_blank"
+            id="status-link-btn"
+            class="btn btn-sm"
+            role="button"
+            id="status-link-btn"
+          >
             <small id="status-icon" class="fas status-icon mr-1"></small>
             Open DQA
           </a>
@@ -231,65 +242,60 @@
       <!-------------------- Next Section -------------------->
       <div class="row">
         <div class="col">
-          <div class="card">
-            <div class="card-header" id="envTreeHeading">
-              <h2 class="mb-0">
-                <button
-                  class="btn btn-link"
-                  type="button"
-                  data-toggle="collapse"
-                  data-target="#collapseEnvTree"
-                  aria-expanded="true"
-                  aria-controls="collapseEnvTree"
-                >
-                  Environment Tree
-                </button>
-              </h2>
-            </div>
-            <div
-              id="collapseEnvTree"
-              class="collapse show"
-              aria-labelledby="envTreeHeading"
-            >
-              <div class="card-body">
-                <div class="row">
-                  <div
-                    class="col-lg d-flex justify-content-center overflow-auto border"
-                    id="envtree"
-                  ></div>
+          <div class="accordion">
+            <div class="card">
+              <div class="card-header" id="envTreeHeading">
+                <h2 class="mb-0">
+                  <button
+                    class="btn btn-link text-dark"
+                    type="button"
+                    data-toggle="collapse"
+                    data-target="#collapseEnvTree"
+                    aria-expanded="true"
+                    aria-controls="collapseEnvTree"
+                  >
+                    Environment Tree
+                  </button>
+                </h2>
+              </div>
+              <div
+                id="collapseEnvTree"
+                class="collapse show"
+                aria-labelledby="envTreeHeading"
+              >
+                <div class="card-body">
+                  <div class="row">
+                    <div
+                      class="col-lg d-flex justify-content-center overflow-auto border"
+                      id="envtree"
+                    ></div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-------------------- Next Section -------------------->
-      <div class="row">
-        <div class="col">
-          <div class="card">
-            <div class="card-header" id="detailsHeading">
-              <h2 class="mb-0">
-                <button
-                  class="btn btn-link collapsed"
-                  type="button"
-                  data-toggle="collapse"
-                  data-target="#collapseDetails"
-                  aria-expanded="true"
-                  aria-controls="collapseDetails"
-                >
-                  Event Details
-                </button>
-              </h2>
-            </div>
-            <div
-              id="collapseDetails"
-              class="collapse"
-              aria-labelledby="detailsHeading"
-            >
-              <div class="card-body">
-                <div class="container">
-                  <div id="cfg-table-div" class="container">
+            <div class="card">
+              <div class="card-header" id="detailsHeading">
+                <h2 class="mb-0">
+                  <button
+                    class="btn btn-link text-dark"
+                    type="button"
+                    data-toggle="collapse"
+                    data-target="#collapseDetails"
+                    aria-expanded="true"
+                    aria-controls="collapseDetails"
+                  >
+                    Event Details
+                  </button>
+                </h2>
+              </div>
+              <div
+                id="collapseDetails"
+                class="collapse"
+                aria-labelledby="detailsHeading"
+              >
+                <div class="card-body p-0 bg-dark">
+                  <div id="cfg-table-div">
                     <table
                       class="table table-sm table-striped table-dark table-hover"
                     >
@@ -346,7 +352,7 @@
                     </table>
                     <table
                       id="refmap-table"
-                      class="table table-sm table-striped table-dark table-hover"
+                      class="table table-sm table-striped table-dark table-hover mb-0"
                     >
                       <tbody>
                         <tr id="refmap-table-header">
@@ -359,64 +365,36 @@
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-------------------- Next Section -------------------->
-      <div class="row">
-        <div class="col">
-          <div class="card">
-            <div class="card-header" id="logsHeading">
-              <h2 class="mb-0">
-                <button
-                  class="btn btn-link collapsed"
-                  type="button"
-                  data-toggle="collapse"
-                  data-target="#collapseLogs"
-                  aria-expanded="true"
-                  aria-controls="collapseLogs"
-                >
-                  Debug Logs
-                </button>
-              </h2>
-            </div>
-            <div
-              id="collapseLogs"
-              class="collapse"
-              aria-labelledby="logsHeading"
-            >
-              <div class="card-body">
-                <div
-                  class="container overflow-auto"
-                  id="logsContainer"
-                  style="
-                    width: 80rem;
-                    max-height: 25rem;
-                    font-family: monospace;
-                  "
-                ></div>
+            <div class="card">
+              <div class="card-header" id="logsHeading">
+                <h2 class="mb-0">
+                  <button
+                    class="btn btn-link text-dark"
+                    type="button"
+                    data-toggle="collapse"
+                    data-target="#collapseLogs"
+                    aria-expanded="true"
+                    aria-controls="collapseLogs"
+                  >
+                    Debug Logs
+                  </button>
+                </h2>
+              </div>
+              <div
+                id="collapseLogs"
+                class="collapse"
+                aria-labelledby="logsHeading"
+              >
+                <div class="card-body p-0 bg-dark text-light">
+                  <div class="overflow-auto acyl__logs p-4" id="logsContainer"></div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- <div class="title">
-            <a href="{{ .Branding.LogoLink }}">
-              <img
-                width="{{ .Branding.LogoWidth }}"
-                height="{{ .Branding.LogoHeight }}"
-                style="{{ .Branding.LogoStyle }}"
-                src="{{ .Branding.LogoURL }}"
-                alt="{{ .Branding.LogoAlt }}"
-              />
-            </a>
-            <span style="{{ .Branding.TitleStyle }}"
-              >{{ .Branding.Title }}</span
-            >
-          </div> -->
 
     <hr />
 
