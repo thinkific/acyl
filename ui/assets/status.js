@@ -65,28 +65,24 @@ function updateConfig(cfg) {
     let slinkbtnclass = "";
     switch (cfg.status) {
         case "pending":
-            slinkbtnclass = "btn-outline-primary";
-            sicon.style.color = "#0000ff";
+            slinkbtnclass = "btn-primary";
             sicon.innerHTML = "\uf28b";
             break;
         case "done":
-            slinkbtnclass = "btn-outline-success";
-            sicon.style.color = "#00ff00";
+            slinkbtnclass = "btn-success";
             sicon.innerHTML = "\uf058";
             break;
         case "failed":
-            slinkbtnclass = "btn-outline-danger";
-            sicon.style.color = "#ff0000";
+            slinkbtnclass = "btn-danger";
             sicon.innerHTML = "\uf071";
             break;
         default:
-            slinkbtnclass = "btn-outline-warning";
-            sicon.style.color = "#ffffff";
+            slinkbtnclass = "btn-warning";
             sicon.innerHTML = "";
     }
-    document.getElementById("status-link-btn").className = `btn-sm ${slinkbtnclass}`;
+    document.getElementById("status-link-btn").className = `btn btn-sm ${slinkbtnclass}`;
+    document.getElementById("status-link-btn").href = cfg.rendered_status.link_target_url;
     document.getElementById("status-link-title").innerHTML = `${cfg.rendered_status.description}`;
-    document.getElementById("rendered-status-link").href = cfg.rendered_status.link_target_url;
     const prurl = `https://github.com/${cfg.triggering_repo}/pull/${cfg.pull_request}`;
     document.getElementById("trepo-pr-link").text = prurl;
     document.getElementById("trepo-pr-link").href = prurl;
