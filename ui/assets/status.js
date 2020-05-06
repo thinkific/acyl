@@ -150,12 +150,8 @@ function createTree() {
     svg = d3.select("#envtree").append("svg")
         .attr("width", width)
         .attr("height", height)
-        // .attr('viewBox', `0 0 ${h} ${w}`)
         .append("g")
         .style("transform", "translate(50%, 12%)");
-    // window.addEventListener('resize', (e) => {
-    //     console.log(e)
-    // })
 }
 
 // stratify processes the flat object of nodes into a nested structure for D3
@@ -192,10 +188,10 @@ function updateTree(treedata) {
                 .attr("class", "container")
                 .append("div")
                 .attr("id", `tooltip-${d.id}`)
-                .attr("class", "tree-tooltip btn-group-vertical")
+                .attr("class", "tree-tooltip btn-group-vertical bg-dark text-light")
                 .style("display", "none");
 
-            nttd.append("h5")
+            nttd.append("h6")
                 .attr("id", `tooltip-${d.id}-name`);
 
             nttd.append("button")
@@ -354,7 +350,7 @@ function updateTree(treedata) {
 
     let tt = d3.selectAll(".tree-tooltip").data(nodes);
 
-    tt.select("h5")
+    tt.select("h6")
         .html(function(d) { return d.id; });
 
     tt.select(".tt-repo-btn")

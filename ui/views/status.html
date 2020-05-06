@@ -1,12 +1,9 @@
 <html>
   <head>
-    <!-- <link
-      href="https://stackpath.bootstrapcdn.com/bootswatch/4.4.1/lux/bootstrap.min.css"
+    <link
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap"
       rel="stylesheet"
-      integrity="sha384-oOs/gFavzADqv3i5nCM+9CzXe3e5vXLXZ5LZ7PplpsWpTCufB7kqkTlC9FtZ5nJo"
-      crossorigin="anonymous"
-    /> -->
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+    />
     <link
       rel="stylesheet"
       href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
@@ -29,23 +26,22 @@
       crossorigin="anonymous"
     />
     <style>
-
       /* These classes are used by D3 */
 
       .node circle {
-        fill: gray;
-        stroke: black;
-        stroke-width: 3px;
+        fill: #eee;
+        stroke: #222223;
+        stroke-width: 2px;
       }
 
       .node-label {
-        font: 14px sans-serif;
+        font-size: 12px;
         font-weight: bold;
       }
 
       .link {
         fill: none;
-        stroke: #000;
+        stroke: #ddd;
         stroke-width: 2px;
       }
 
@@ -63,11 +59,9 @@
       .tree-tooltip {
         position: absolute;
         text-align: left;
-        opacity: 1e-6;
+        opacity: 0;
         padding: 8px;
-        font: 12px sans-serif;
-        background: darkgray;
-        border: solid 1px #aaa;
+        font-size: 12px;
         border-radius: 8px;
         pointer-events: none;
       }
@@ -132,18 +126,18 @@
       }
 
       ::-moz-selection {
-        /* color:
-        background-color: */
+        color: #fff;
+        background-color: #343a40;
       }
 
       ::selection {
-        /* color:
-        background-color:  */
+        color: #fff;
+        background-color: #343a40;
       }
 
       .acyl-ui {
         padding-top: 5rem;
-        font-family: 'Open Sans', sans-serif;
+        font-family: "Open Sans", sans-serif;
       }
       .acyl-logs {
         font-family: monospace;
@@ -167,6 +161,9 @@
       .acyl-ref-map-title {
         padding-left: 2rem;
       }
+      .acyl-tree {
+        cursor: default;
+      }
     </style>
     <link
       rel="icon"
@@ -188,7 +185,10 @@
         </a>
 
         <form class="form-inline mb-0">
-          <small id="status-link-title" class="navbar-text mr-3 acyl-status"></small>
+          <small
+            id="status-link-title"
+            class="navbar-text mr-3 acyl-status"
+          ></small>
           <a
             target="_blank"
             id="status-link-btn"
@@ -204,7 +204,6 @@
     </nav>
 
     <div class="container">
-
       <div class="row">
         <div class="col">
           <div class="accordion">
@@ -231,7 +230,7 @@
                 <div class="card-body p-0">
                   <div class="row">
                     <div
-                      class="col d-flex justify-content-center overflow-auto"
+                      class="col d-flex justify-content-center overflow-auto acyl-tree"
                       id="envtree"
                     ></div>
                   </div>
@@ -355,7 +354,10 @@
                 aria-labelledby="logsHeading"
               >
                 <div class="card-body p-0">
-                  <div class="overflow-auto acyl-logs p-4" id="logsContainer"></div>
+                  <div
+                    class="overflow-auto acyl-logs p-4"
+                    id="logsContainer"
+                  ></div>
                 </div>
               </div>
             </div>
