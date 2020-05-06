@@ -114,14 +114,29 @@ function updateConfig(cfg) {
 
 let tree, svg, diagonal = null;
 
-// createTree creates the initial D3 tree w/o any node definitions after initial page load
-function createTree() {
-
+function treeDimensions () {
     let viewwidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 
     let margin = {top: 50, right: 0, bottom: 0, left: 0},
         width = viewwidth - margin.right - margin.left,
         height = 400 - margin.top - margin.bottom;
+
+    let h = height + margin.top + margin.bottom;
+    let w = width + margin.right + margin.left;
+
+    return {
+        width,
+        height
+    }
+}
+
+// createTree creates the initial D3 tree w/o any node definitions after initial page load
+function createTree() {
+
+    const {
+        width,
+        height,
+    } = treeDimensions()
 
     tree = d3.layout.tree()
         .nodeSize([4,4])
@@ -132,14 +147,15 @@ function createTree() {
             return [d.x, d.y];
         });
 
-    let h = height + margin.top + margin.bottom;
-    let w = width + margin.right + margin.left;
-
     svg = d3.select("#envtree").append("svg")
-        .attr("width", w)
-        .attr("height", h)
+        .attr("width", width)
+        .attr("height", height)
+        // .attr('viewBox', `0 0 ${h} ${w}`)
         .append("g")
         .style("transform", "translate(50%, 12%)");
+    // window.addEventListener('resize', (e) => {
+    //     console.log(e)
+    // })
 }
 
 // stratify processes the flat object of nodes into a nested structure for D3

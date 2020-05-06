@@ -13,11 +13,6 @@
       integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh"
       crossorigin="anonymous"
     />
-    <script type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
-    <script
-      type="text/javascript"
-      src="https://d3js.org/d3-hierarchy.v1.min.js"
-    ></script>
     <script type="text/javascript">
       const urlParams = new URLSearchParams(window.location.search);
       const event_id = urlParams.get("id");
@@ -27,10 +22,6 @@
       const statusEndpoint = `${apiBaseURL}/v2/event/${event_id}/status`;
       const logsEndpoint = `${apiBaseURL}/v2/event/${event_id}/logs`;
     </script>
-    <script
-      type="text/javascript"
-      src="{{ .APIBaseURL }}/ui/static/status.js"
-    ></script>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/solid.min.css"
@@ -67,9 +58,6 @@
       .nscopybtn {
         text-align: center;
         padding-bottom: 3px;
-        /* change clipboard icon to white */
-        filter: invert(100%) sepia(0%) saturate(0%) hue-rotate(127deg)
-          brightness(103%) contrast(101%);
       }
 
       .tree-tooltip {
@@ -164,6 +152,21 @@
       .acyl-nav {
         box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
       }
+      .acyl-status {
+        font-size: 12px;
+      }
+      .acyl-table__events th[scope="row"],
+      .acyl-table__refs tr > th:first-child,
+      .acyl-table__refs tr > td:first-child {
+        padding-left: 2rem;
+      }
+      .acyl-table__events td {
+        text-align: right;
+        padding-right: 2rem;
+      }
+      .acyl-ref-map-title {
+        padding-left: 2rem;
+      }
     </style>
     <link
       rel="icon"
@@ -185,7 +188,7 @@
         </a>
 
         <form class="form-inline mb-0">
-          <small id="status-link-title" class="navbar-text mr-3"></small>
+          <small id="status-link-title" class="navbar-text mr-3 acyl-status"></small>
           <a
             target="_blank"
             id="status-link-btn"
@@ -209,7 +212,7 @@
               <div class="card-header" id="envTreeHeading">
                 <h2 class="mb-0">
                   <button
-                    class="btn btn-link text-dark"
+                    class="btn btn-link text-dark btn-lg"
                     type="button"
                     data-toggle="collapse"
                     data-target="#collapseEnvTree"
@@ -240,7 +243,7 @@
               <div class="card-header" id="detailsHeading">
                 <h2 class="mb-0">
                   <button
-                    class="btn btn-link text-dark"
+                    class="btn btn-link text-dark btn-lg"
                     type="button"
                     data-toggle="collapse"
                     data-target="#collapseDetails"
@@ -256,10 +259,10 @@
                 class="collapse"
                 aria-labelledby="detailsHeading"
               >
-                <div class="card-body p-0 bg-dark">
+                <div class="card-body p-0">
                   <div id="cfg-table-div">
                     <table
-                      class="table table-sm table-striped table-dark table-hover"
+                      class="table table-sm table-striped table-hover acyl-table__events m-0"
                     >
                       <tbody>
                         <tr>
@@ -312,9 +315,12 @@
                         </tr>
                       </tbody>
                     </table>
+                    <hr class="m-0" />
+
+                    <h4 class="acyl-ref-map-title pt-4">Reference Map</h4>
                     <table
                       id="refmap-table"
-                      class="table table-sm table-striped table-dark table-hover mb-0"
+                      class="table table-sm table-striped table-hover mb-0 acyl-table__refs"
                     >
                       <tbody>
                         <tr id="refmap-table-header">
@@ -328,11 +334,11 @@
               </div>
             </div>
 
-            <div class="card">
+            <div class="card mb-5">
               <div class="card-header" id="logsHeading">
                 <h2 class="mb-0">
                   <button
-                    class="btn btn-link text-dark"
+                    class="btn btn-link text-dark btn-lg"
                     type="button"
                     data-toggle="collapse"
                     data-target="#collapseLogs"
@@ -348,7 +354,7 @@
                 class="collapse"
                 aria-labelledby="logsHeading"
               >
-                <div class="card-body p-0 bg-dark text-light">
+                <div class="card-body p-0">
                   <div class="overflow-auto acyl-logs p-4" id="logsContainer"></div>
                 </div>
               </div>
@@ -358,6 +364,11 @@
       </div>
     </div>
 
+    <script type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
+    <script
+      type="text/javascript"
+      src="https://d3js.org/d3-hierarchy.v1.min.js"
+    ></script>
     <script
       src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
       integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
@@ -372,6 +383,10 @@
       src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
       integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
       crossorigin="anonymous"
+    ></script>
+    <script
+      type="text/javascript"
+      src="{{ .APIBaseURL }}/ui/static/status.js"
     ></script>
   </body>
 </html>
