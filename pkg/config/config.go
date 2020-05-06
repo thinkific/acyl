@@ -217,7 +217,8 @@ type UIBrandingConfig struct {
 var DefaultUIBranding = UIBrandingConfig{
 	FaviconURL: "https://dsc-misc.s3.amazonaws.com/img/acyl-favicon.png",
 	LogoURL:    "https://s3.amazonaws.com/dsc-misc/img/acyl.png",
-	LogoWidth:  "30",
+	LogoHeight: "30",
+	LogoStyle:  "d-inline-block align-top mr-1",
 	LogoLink:   "https://github.com/dollarshaveclub/acyl",
 	LogoAlt:    "Acyl Chloride",
 	Title:      "Acyl UI",

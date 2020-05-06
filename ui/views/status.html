@@ -177,8 +177,15 @@
         <a class="navbar-brand" href="{{ .Branding.LogoLink }}">
           <img
             src="{{ .Branding.LogoURL }}"
-            height="30"
-            class="d-inline-block align-top mr-1"
+          {{ if .Branding.LogoHeight }}
+            height="{{ .Branding.LogoHeight }}"
+          {{ end }}
+          {{ if .Branding.LogoWidth }}
+            width="{{ .Branding.LogoWidth }}"
+          {{ end }}
+          {{ if .Branding.LogoStyle }}
+            class="{{ .Branding.LogoStyle }}"
+          {{ end }}
             alt="{{ .Branding.LogoAlt }}"
           />
           <strong>{{ .Branding.Title }}</strong>
