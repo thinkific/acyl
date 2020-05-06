@@ -1,15 +1,7 @@
 <html>
   <head>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
-      integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh"
-      crossorigin="anonymous"
-    />
+    {{ template "header-head" . }}
+
     <script type="text/javascript">
       const urlParams = new URLSearchParams(window.location.search);
       const event_id = urlParams.get("id");
@@ -19,196 +11,9 @@
       const statusEndpoint = `${apiBaseURL}/v2/event/${event_id}/status`;
       const logsEndpoint = `${apiBaseURL}/v2/event/${event_id}/logs`;
     </script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/solid.min.css"
-      integrity="sha256-APTxfVyJgjHUS35EeuRpYs2tAbIQO7UF0nAV6krdYJ0="
-      crossorigin="anonymous"
-    />
-    <style>
-      /* These classes are used by D3 */
-
-      .node circle {
-        fill: #eee;
-        stroke: #222223;
-        stroke-width: 2px;
-      }
-
-      .node-label {
-        font-size: 12px;
-        font-weight: bold;
-      }
-
-      .link {
-        fill: none;
-        stroke: #ddd;
-        stroke-width: 2px;
-      }
-
-      .status-icon {
-        -webkit-transform: scale(1.2);
-        transform: scale(1.2);
-        opacity: 1;
-      }
-
-      .nscopybtn {
-        text-align: center;
-        padding-bottom: 3px;
-      }
-
-      .tree-tooltip {
-        position: absolute;
-        text-align: left;
-        opacity: 0;
-        padding: 8px;
-        font-size: 12px;
-        border-radius: 8px;
-        pointer-events: none;
-      }
-
-      /* Spinner circle animation */
-      /* based on: https://glennmccomb.com/articles/building-a-pure-css-animated-svg-spinner/ */
-      .spinning-svg {
-        animation: 2s linear infinite svg-animation;
-        max-width: 100px;
-      }
-
-      /* SVG animation */
-      @keyframes svg-animation {
-        0% {
-          transform: rotateZ(0deg);
-        }
-        100% {
-          transform: rotateZ(360deg);
-        }
-      }
-
-      /* Circle styles. */
-      .spinning-circle {
-        animation: 1.4s ease-in-out infinite both circle-animation;
-        display: block;
-        fill: transparent;
-        stroke: #2f3d4c;
-        stroke-linecap: round;
-        stroke-dasharray: 283;
-        stroke-dashoffset: 280;
-        stroke-width: 3px;
-        transform-origin: 0% 0% 0;
-      }
-
-      /* Circle animation. */
-      @keyframes circle-animation {
-        0%,
-        25% {
-          stroke-dashoffset: 280;
-          transform: rotate(0deg);
-        }
-
-        50%,
-        75% {
-          /* the correct value varies depending upon circle radius */
-          stroke-dashoffset: 235; /* radius: 10 */
-          transform: rotate(45deg);
-        }
-
-        100% {
-          stroke-dashoffset: 280;
-          transform: rotate(360deg);
-        }
-      }
-
-      /** ACYL UI **/
-
-      * {
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        text-rendering: optimizeLegibility;
-      }
-
-      ::-moz-selection {
-        color: #fff;
-        background-color: #343a40;
-      }
-
-      ::selection {
-        color: #fff;
-        background-color: #343a40;
-      }
-
-      .acyl-ui {
-        padding-top: 5rem;
-        font-family: "Open Sans", sans-serif;
-      }
-      .acyl-logs {
-        font-family: monospace;
-        max-height: 25rem;
-      }
-      .acyl-nav {
-        box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
-      }
-      .acyl-status {
-        font-size: 12px;
-      }
-      .acyl-table__events th[scope="row"],
-      .acyl-table__refs tr > th:first-child,
-      .acyl-table__refs tr > td:first-child {
-        padding-left: 2rem;
-      }
-      .acyl-table__events td {
-        text-align: right;
-        padding-right: 2rem;
-      }
-      .acyl-ref-map-title {
-        padding-left: 2rem;
-      }
-      .acyl-tree {
-        cursor: default;
-      }
-    </style>
-    <link
-      rel="icon"
-      type="{{ .Branding.FaviconType }}"
-      href="{{ .Branding.FaviconURL }}"
-    />
   </head>
   <body class="acyl-ui">
-    <nav class="acyl-nav navbar navbar-dark bg-dark fixed-top">
-      <div class="container">
-        <a class="navbar-brand" href="{{ .Branding.LogoLink }}">
-          <img
-            src="{{ .Branding.LogoURL }}"
-          {{ if .Branding.LogoHeight }}
-            height="{{ .Branding.LogoHeight }}"
-          {{ end }}
-          {{ if .Branding.LogoWidth }}
-            width="{{ .Branding.LogoWidth }}"
-          {{ end }}
-          {{ if .Branding.LogoStyle }}
-            class="{{ .Branding.LogoStyle }}"
-          {{ end }}
-            alt="{{ .Branding.LogoAlt }}"
-          />
-          <strong>{{ .Branding.Title }}</strong>
-        </a>
-
-        <form class="form-inline mb-0">
-          <small
-            id="status-link-title"
-            class="navbar-text mr-3 acyl-status"
-          ></small>
-          <a
-            target="_blank"
-            id="status-link-btn"
-            class="btn btn-sm"
-            role="button"
-            id="status-link-btn"
-          >
-            <small id="status-icon" class="fas status-icon mr-1"></small>
-            Open DQA
-          </a>
-        </form>
-      </div>
-    </nav>
+    {{ template "header-nav" . }}
 
     <div class="container">
       <div class="row">
@@ -373,29 +178,10 @@
       </div>
     </div>
 
-    <script type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
-    <script
-      type="text/javascript"
-      src="https://d3js.org/d3-hierarchy.v1.min.js"
-    ></script>
-    <script
-      src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
-      integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
-      crossorigin="anonymous"
-    ></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
-      integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
-      crossorigin="anonymous"
-    ></script>
-    <script
-      src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
-      integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
-      crossorigin="anonymous"
-    ></script>
-    <script
-      type="text/javascript"
-      src="{{ .APIBaseURL }}/ui/static/status.js"
-    ></script>
+  {{ template "footer-scripts" . }}
+  <script
+          type="text/javascript"
+          src="{{ .APIBaseURL }}/ui/static/status.js"
+  ></script>
   </body>
 </html>
