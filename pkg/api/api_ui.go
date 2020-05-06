@@ -21,6 +21,7 @@ import (
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
+	"github.com/dollarshaveclub/acyl/pkg/models"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -79,6 +80,11 @@ type uiapi struct {
 	branding    uiBranding
 	oauth       OAuthConfig
 	stop        chan struct{}
+}
+
+var partials = map[string]string{
+	"header": path.Join("views", "partials", "header.html"),
+	"footer": path.Join("views", "partials", "footer.html"),
 }
 
 var viewPaths = map[string]string{
@@ -184,14 +190,32 @@ func (api *uiapi) loadTemplate(name string) error {
 	if v == "" {
 		return fmt.Errorf("view not found: %v", name)
 	}
-	p := path.Join(api.assetsPath, v)
-	d, err := ioutil.ReadFile(p)
-	if err != nil {
-		return errors.Wrapf(err, "error reading asset: %v", p)
+	var tmpl *template.Template
+	var err error
+	var b []byte
+	// partials are parsed & available to every view
+	for k, v := range partials {
+		b, err = ioutil.ReadFile(path.Join(api.assetsPath, v))
+		if err != nil {
+			return errors.Wrap(err, "error reading partial")
+		}
+		if tmpl == nil {
+			tmpl, err = template.New(k).Parse(string(b))
+		} else {
+			tmpl, err = tmpl.New(k).Parse(string(b))
+		}
+		if err != nil {
+			return errors.Wrapf(err, "error parsing template: %v", v)
+		}
 	}
-	tmpl, err := template.New(name).Parse(string(d))
+
+	b, err = ioutil.ReadFile(path.Join(api.assetsPath, v))
 	if err != nil {
-		return errors.Wrapf(err, "error parsing asset template: %v", p)
+		return errors.Wrap(err, "error reading asset template")
+	}
+	tmpl, err = tmpl.New(name).Parse(string(b))
+	if err != nil {
+		return errors.Wrapf(err, "error parsing asset template: %v", name)
 	}
 	api.viewmtx.Lock()
 	api.views[name] = tmpl
@@ -220,44 +244,10 @@ func (api *uiapi) register(r *muxtrace.Router) error {
 	return nil
 }
 
-type StatusTemplateData struct {
-	APIBaseURL string
-	LogKey     string
-	Branding   uiBranding
-}
-
-func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
-	ids := r.URL.Query()["id"]
-	if len(ids) != 1 {
-		api.logger.Printf("error serving status page: missing event id")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	id, err := uuid.Parse(ids[0])
-	if err != nil {
-		api.logger.Printf("error serving status page: invalid event id: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	elog, err := api.dl.GetEventLogByID(id)
-	if err != nil {
-		api.logger.Printf("error serving status page: error getting event log: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if elog == nil {
-		api.logger.Printf("error serving status page: event log not found: %v", id)
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	tmpldata := StatusTemplateData{
-		Branding:   api.branding,
-		APIBaseURL: api.apiBaseURL,
-		LogKey:     elog.LogKey.String(),
-	}
+func (api *uiapi) render(w http.ResponseWriter, name string, td interface{}) {
 	w.Header().Add("Content-Type", "text/html")
 	if api.reload {
-		if err := api.loadTemplate("status"); err != nil {
+		if err := api.loadTemplate(name); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			api.logger.Printf("error serving ui template: %v", err)
 			return
@@ -265,10 +255,70 @@ func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	api.viewmtx.RLock()
 	defer api.viewmtx.RUnlock()
-	if err := api.views["status"].Execute(w, &tmpldata); err != nil {
+	if _, ok := api.views[name]; !ok {
 		w.WriteHeader(http.StatusInternalServerError)
-		api.logger.Printf("error serving ui template: status: %v", err)
+		api.logger.Printf("view not found: %v", name)
+		return
 	}
+	if err := api.views[name].Execute(w, td); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		api.logger.Printf("error serving ui template: %v: %v", name, err)
+	}
+}
+
+type BaseTemplateData struct {
+	APIBaseURL      string
+	Branding        uiBranding
+	RenderEventLink bool
+}
+
+func (api *uiapi) defaultBaseTemplateData() BaseTemplateData {
+	return BaseTemplateData{
+		APIBaseURL:      api.apiBaseURL,
+		Branding:        api.branding,
+		RenderEventLink: false,
+	}
+}
+
+type StatusTemplateData struct {
+	BaseTemplateData
+	LogKey string
+}
+
+func (api *uiapi) getEventFromIDString(idstr string) (*models.EventLog, error) {
+	id, err := uuid.Parse(idstr)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid event id")
+	}
+	elog, err := api.dl.GetEventLogByID(id)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting event log")
+	}
+	return elog, nil
+}
+
+func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
+	elog, err := api.getEventFromIDString(r.URL.Query().Get("id"))
+	if err != nil {
+		api.logger.Printf("error serving status page: %v", err)
+		if strings.Contains(err.Error(), "invalid") {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if elog == nil {
+		api.logger.Printf("error serving status page: event log not found: %v", r.URL.Query().Get("id"))
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	tmpldata := StatusTemplateData{
+		BaseTemplateData: api.defaultBaseTemplateData(),
+		LogKey:           elog.LogKey.String(),
+	}
+	tmpldata.RenderEventLink = true
+	api.render(w, "status", tmpldata)
 }
 
 /*
@@ -543,17 +593,12 @@ func (api *uiapi) getAndAuthorizeGitHubUser(ctx context.Context, code, state str
 // cacheRenderedAuthErrorPage renders the auth error page and saves the output for future use
 // it must be called via uiapi constructor only as no locking is performed
 func (api *uiapi) cacheRenderedAuthErrorPage() {
-	tmpldata := struct {
-		Branding uiBranding
-	}{
-		Branding: api.branding,
-	}
 	if err := api.loadTemplate("auth_error"); err != nil {
 		api.logger.Printf("error loading auth_error template: %v", err)
 		return
 	}
 	b := bytes.Buffer{}
-	if err := api.views["auth_error"].Execute(&b, &tmpldata); err != nil {
+	if err := api.views["auth_error"].Execute(&b, api.defaultBaseTemplateData()); err != nil {
 		api.logger.Printf("error rendering auth_error template: %v", err)
 		return
 	}
@@ -561,29 +606,11 @@ func (api *uiapi) cacheRenderedAuthErrorPage() {
 }
 
 func (api *uiapi) authErrorHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/html")
 	if api.reload || len(api.oauth.errorPage) == 0 {
-		tmpldata := struct {
-			Branding uiBranding
-		}{
-			Branding: api.branding,
-		}
-		if err := api.loadTemplate("auth_error"); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			api.logger.Printf("error serving ui template: %v", err)
-			return
-		}
-		b := bytes.Buffer{}
-		api.viewmtx.RLock()
-		defer api.viewmtx.RUnlock()
-		if err := api.views["auth_error"].Execute(&b, &tmpldata); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			api.logger.Printf("error serving ui template: status: %v", err)
-		}
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write(b.Bytes())
+		api.render(w, "auth_error", api.defaultBaseTemplateData())
 		return
 	}
+	w.Header().Add("Content-Type", "text/html")
 	w.WriteHeader(http.StatusUnauthorized)
 	w.Write(api.oauth.errorPage)
 }

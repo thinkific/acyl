@@ -65,28 +65,24 @@ function updateConfig(cfg) {
     let slinkbtnclass = "";
     switch (cfg.status) {
         case "pending":
-            slinkbtnclass = "btn-outline-primary";
-            sicon.style.color = "#0000ff";
+            slinkbtnclass = "btn-primary";
             sicon.innerHTML = "\uf28b";
             break;
         case "done":
-            slinkbtnclass = "btn-outline-success";
-            sicon.style.color = "#00ff00";
+            slinkbtnclass = "btn-success";
             sicon.innerHTML = "\uf058";
             break;
         case "failed":
-            slinkbtnclass = "btn-outline-danger";
-            sicon.style.color = "#ff0000";
+            slinkbtnclass = "btn-danger";
             sicon.innerHTML = "\uf071";
             break;
         default:
-            slinkbtnclass = "btn-outline-warning";
-            sicon.style.color = "#ffffff";
+            slinkbtnclass = "btn-warning";
             sicon.innerHTML = "";
     }
-    document.getElementById("status-link-btn").className = `btn-sm ${slinkbtnclass}`;
+    document.getElementById("status-link-btn").className = `btn btn-sm ${slinkbtnclass}`;
+    document.getElementById("status-link-btn").href = cfg.rendered_status.link_target_url;
     document.getElementById("status-link-title").innerHTML = `${cfg.rendered_status.description}`;
-    document.getElementById("rendered-status-link").href = cfg.rendered_status.link_target_url;
     const prurl = `https://github.com/${cfg.triggering_repo}/pull/${cfg.pull_request}`;
     document.getElementById("trepo-pr-link").text = prurl;
     document.getElementById("trepo-pr-link").href = prurl;
@@ -118,14 +114,29 @@ function updateConfig(cfg) {
 
 let tree, svg, diagonal = null;
 
-// createTree creates the initial D3 tree w/o any node definitions after initial page load
-function createTree() {
-
+function treeDimensions () {
     let viewwidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 
     let margin = {top: 50, right: 0, bottom: 0, left: 0},
         width = viewwidth - margin.right - margin.left,
         height = 400 - margin.top - margin.bottom;
+
+    let h = height + margin.top + margin.bottom;
+    let w = width + margin.right + margin.left;
+
+    return {
+        width,
+        height
+    }
+}
+
+// createTree creates the initial D3 tree w/o any node definitions after initial page load
+function createTree() {
+
+    const {
+        width,
+        height,
+    } = treeDimensions()
 
     tree = d3.layout.tree()
         .nodeSize([4,4])
@@ -136,12 +147,9 @@ function createTree() {
             return [d.x, d.y];
         });
 
-    let h = height + margin.top + margin.bottom;
-    let w = width + margin.right + margin.left;
-
     svg = d3.select("#envtree").append("svg")
-        .attr("width", w)
-        .attr("height", h)
+        .attr("width", width)
+        .attr("height", height)
         .append("g")
         .style("transform", "translate(50%, 12%)");
 }
@@ -180,10 +188,10 @@ function updateTree(treedata) {
                 .attr("class", "container")
                 .append("div")
                 .attr("id", `tooltip-${d.id}`)
-                .attr("class", "tree-tooltip btn-group-vertical")
+                .attr("class", "tree-tooltip btn-group-vertical bg-dark text-light")
                 .style("display", "none");
 
-            nttd.append("h5")
+            nttd.append("h6")
                 .attr("id", `tooltip-${d.id}-name`);
 
             nttd.append("button")
@@ -289,16 +297,16 @@ function updateTree(treedata) {
     function getNodeIconColor(d) {
         if (d.data.image !== null) {
             if (d.data.image.error) {
-                return "#ff0000";
+                return "#dc3545";
             }
         }
         switch (d.data.chart.status) {
             case "done":
-                return "#00ff00";
+                return "#28a745";
             case "failed":
-                return "#ff0000";
+                return "#dc3545";
         }
-        return "#000000";
+        return "#343a40";
     }
 
     // Declare the nodes
@@ -342,7 +350,7 @@ function updateTree(treedata) {
 
     let tt = d3.selectAll(".tree-tooltip").data(nodes);
 
-    tt.select("h5")
+    tt.select("h6")
         .html(function(d) { return d.id; });
 
     tt.select(".tt-repo-btn")
