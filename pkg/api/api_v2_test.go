@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/testhelper/testdatalayer"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
 )
@@ -270,5 +271,45 @@ func TestAPIv2EventStatus(t *testing.T) {
 	}
 	if rsl := res.Config.RenderedStatus.LinkTargetURL; rsl != "https://foobar.com" {
 		t.Fatalf("bad rendered link url: %+v", rsl)
+	}
+}
+
+func TestAPIv2UserEnvs(t *testing.T) {
+	dl, tdl := testdatalayer.New(testlogger, t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	if err != nil {
+		t.Fatalf("error creating api: %v", err)
+	}
+
+	uis := models.UISession{
+		Authenticated: true,
+		GitHubUser:    "bobsmith",
+	}
+	req, _ := http.NewRequest("GET", "https://foo.com/v2/userenvs?history=48h", nil)
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc := httptest.NewRecorder()
+
+	apiv2.userEnvsHandler(rc, req)
+
+	res := rc.Result()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+
+	out := []V2UserEnv{}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatalf("error decoding response: %v", err)
+	}
+	res.Body.Close()
+
+	if len(out) != 1 {
+		t.Fatalf("expected 1, got %v", len(out))
 	}
 }

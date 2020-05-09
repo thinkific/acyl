@@ -18,14 +18,17 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 
-	"github.com/dollarshaveclub/acyl/pkg/api"
 	"github.com/spf13/cobra"
+
+	"github.com/dollarshaveclub/acyl/pkg/api"
 )
 
 // serverCmd represents the server command
@@ -36,7 +39,7 @@ var mockuiCmd = &cobra.Command{
 	Run:   mockui,
 }
 
-var listenAddr string
+var listenAddr, mockDataFile, mockUser string
 
 func addUIFlags(cmd *cobra.Command) {
 	brj, err := json.Marshal(&config.DefaultUIBranding)
@@ -48,12 +51,35 @@ func addUIFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&serverConfig.UIBaseRoute, "ui-base-route", "/ui", "Base prefix for UI HTTP routes")
 	cmd.PersistentFlags().StringVar(&serverConfig.UIBrandingJSON, "ui-branding", string(brj), "Branding JSON configuration (see doc)")
 	cmd.PersistentFlags().BoolVar(&githubConfig.OAuth.Enforce, "ui-enforce-oauth", false, "Enforce GitHub App OAuth authn/authz for UI routes")
+	cmd.PersistentFlags().StringVar(&mockDataFile, "mock-data", "", "Path to mock data file (JSON object: {\"qa_environments\": [],\n    \"kubernetes_environments\": [],\n    \"helm_releases\": []})")
+	cmd.PersistentFlags().StringVar(&mockUser, "mock-user", "bobsmith", "Mock username (for sessions)")
 }
 
 func init() {
 	mockuiCmd.PersistentFlags().StringVar(&listenAddr, "listen-addr", "localhost:4000", "Listen address")
 	addUIFlags(mockuiCmd)
 	RootCmd.AddCommand(mockuiCmd)
+}
+
+func setCreatedTimestamps(qas []models.QAEnvironment) []models.QAEnvironment {
+	now := time.Now().UTC()
+	for i := range qas {
+		qas[i].Created = now.AddDate(0, 0, -(i * 3))
+	}
+	return qas
+}
+
+func loadMockData(fpath string) *persistence.FakeDataLayer {
+	f, err := os.Open(fpath)
+	if err != nil {
+		log.Fatalf("error opening mock data file: %v", err)
+	}
+	defer f.Close()
+	td := testData{}
+	if err := json.NewDecoder(f).Decode(&td); err != nil {
+		log.Fatalf("error unmarshaling mock data file: %v", err)
+	}
+	return persistence.NewPopulatedFakeDataLayer(setCreatedTimestamps(td.QAEnvironments), td.K8sEnvironments, td.HelmReleases)
 }
 
 // randomPEMKey generates a random RSA key in PEM format
@@ -83,7 +109,12 @@ func mockui(cmd *cobra.Command, args []string) {
 	server := &http.Server{Addr: listenAddr}
 
 	httpapi := api.NewDispatcher(server)
-	dl := persistence.NewFakeDataLayer()
+	var dl *persistence.FakeDataLayer
+	if mockDataFile != "" {
+		dl = loadMockData(mockDataFile)
+	} else {
+		dl = persistence.NewFakeDataLayer()
+	}
 	dl.CreateMissingEventLog = true
 	deps := &api.Dependencies{
 		DataLayer:    dl,
@@ -99,6 +130,7 @@ func mockui(cmd *cobra.Command, args []string) {
 	}
 
 	// dummy values
+	githubConfig.OAuth.Enforce = true // using dummy session user
 	githubConfig.PrivateKeyPEM = randomPEMKey()
 	githubConfig.AppID = 1
 	githubConfig.AppHookSecret = "asdf"
@@ -109,7 +141,8 @@ func mockui(cmd *cobra.Command, args []string) {
 		api.WithUIAssetsPath(serverConfig.UIPath),
 		api.WithUIRoutePrefix(serverConfig.UIBaseRoute),
 		api.WithUIReload(),
-		api.WithUIBranding(branding)); err != nil {
+		api.WithUIBranding(branding),
+		api.WithUIDummySessionUser(mockUser)); err != nil {
 		log.Fatalf("error registering api versions: %v", err)
 	}
 

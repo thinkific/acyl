@@ -369,5 +369,7 @@ type EnvSearchParameters struct {
 	SourceBranch string
 	User         string
 	Status       EnvironmentStatus
+	Statuses     []EnvironmentStatus // include all these statuses (in addition to Status, if set)
+	CreatedSince time.Duration       // Duration prior to time.Now().UTC()
 	TrackingRef  string
 }

@@ -671,6 +671,35 @@ func TestDataLayerSearch(t *testing.T) {
 	if len(qas) != 0 {
 		t.Fatalf("multi 2: expected no results: %v", qas)
 	}
+	sopts = models.EnvSearchParameters{}
+	sopts.Statuses = []EnvironmentStatus{models.Destroyed, models.Failure}
+	qas, err = dl.Search(context.Background(), sopts)
+	if err != nil {
+		t.Fatalf("statuses: should have succeeded: %v", err)
+	}
+	if len(qas) != 2 {
+		t.Fatalf("statuses: expected 2, got: %v", len(qas))
+	}
+	sopts = models.EnvSearchParameters{}
+	sopts.CreatedSince = 2 * 24 * time.Hour
+	qas, err = dl.Search(context.Background(), sopts)
+	if err != nil {
+		t.Fatalf("created since: should have succeeded: %v", err)
+	}
+	if len(qas) != 2 {
+		t.Fatalf("created since: expected 2, got: %v", len(qas))
+	}
+	sopts = models.EnvSearchParameters{}
+	sopts.CreatedSince = 2 * 24 * time.Hour
+	sopts.User = "bobsmith"
+	sopts.Statuses = []EnvironmentStatus{models.Success, models.Spawned, models.Updating, models.Failure}
+	qas, err = dl.Search(context.Background(), sopts)
+	if err != nil {
+		t.Fatalf("multi userenvs: should have succeeded: %v", err)
+	}
+	if len(qas) != 1 {
+		t.Fatalf("multi userenvs: expected 1, got: %v", len(qas))
+	}
 }
 
 func TestDataLayerSearchWithTrackingRef(t *testing.T) {

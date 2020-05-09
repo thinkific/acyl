@@ -282,6 +282,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/eventlog/{id}", middlewareChain(api.eventLogHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/event/{id}/status", middlewareChain(api.eventStatusHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/event/{id}/logs", middlewareChain(api.logsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+	r.HandleFunc("/v2/userenvs", middlewareChain(api.userEnvsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
 	return nil
 }
@@ -490,4 +491,90 @@ func (api *v2api) logsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Add("Content-Type", "application/json")
 	w.Write(j)
+}
+
+type V2UserEnv struct {
+	Repo        string    `json:"repo"`
+	PullRequest uint      `json:"pull_request"`
+	EnvName     string    `json:"env_name"`
+	LastEvent   time.Time `json:"last_event"`
+	Status      string    `json:"status"`
+}
+
+func v2UserEnvFromQAEnvironment(qa models.QAEnvironment) V2UserEnv {
+	out := V2UserEnv{
+		Repo:        qa.Repo,
+		PullRequest: qa.PullRequest,
+		EnvName:     qa.Name,
+		LastEvent:   qa.Created.Truncate(time.Second),
+	}
+	switch qa.Status {
+	case models.Destroyed:
+		out.Status = "destroyed"
+	case models.Success:
+		out.Status = "success"
+	case models.Failure:
+		out.Status = "failed"
+	case models.Spawned:
+		fallthrough
+	case models.Updating:
+		out.Status = "pending"
+	default:
+		out.Status = "unknown"
+	}
+	return out
+}
+
+var (
+	defaultUserEnvsHistory = 7 * 24 * time.Hour
+)
+
+// userEnvsHandler returns the environments for the session user that have been created/updated within the history duration
+func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		log.Printf("userEnvs: session missing from context")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	history := defaultUserEnvsHistory
+	if h := r.URL.Query().Get("history"); h != "" {
+		hd, err := time.ParseDuration(h)
+		if err != nil {
+			log.Printf("userEnvs: invalid history duration: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		history = hd
+	}
+	statuses := []models.EnvironmentStatus{
+		models.Success,
+		models.Spawned,
+		models.Updating,
+		models.Failure,
+	}
+	if incd := r.URL.Query().Get("include_destroyed"); incd == "true" {
+		statuses = append(statuses, models.Destroyed)
+	}
+	sparams := models.EnvSearchParameters{
+		User:         uis.GitHubUser,
+		Statuses:     statuses,
+		CreatedSince: history,
+	}
+	envs, err := api.dl.Search(r.Context(), sparams)
+	if err != nil {
+		log.Printf("userEnvs: error getting envs: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	out := make([]V2UserEnv, len(envs))
+	for i, env := range envs {
+		out[i] = v2UserEnvFromQAEnvironment(env)
+	}
+	w.Header().Add("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		log.Printf("userEnvs: error marshaling envs: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }

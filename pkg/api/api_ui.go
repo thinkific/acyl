@@ -39,6 +39,7 @@ type uiBranding struct {
 // OAuthConfig models the configuration needed to support a GitHub OAuth authn/authz flow
 type OAuthConfig struct {
 	Enforce                     bool                                                    // Enforce OAuth authn/authz for protected routes
+	DummySessionUser            string                                                  // Create a new authenticated dummy session with username if no session exists (for testing)
 	AppInstallationID           int64                                                   // GitHub App installation ID
 	ClientID, ClientSecret      string                                                  // GitHub App ClientID/secret
 	ValidateURL                 url.URL                                                 // URL to validate callback code and exchange for bearer token
@@ -90,12 +91,16 @@ var partials = map[string]string{
 var viewPaths = map[string]string{
 	"status":     path.Join("views", "status.html"),
 	"auth_error": path.Join("views", "autherror.html"),
+	"home":       path.Join("views", "home.html"),
 }
 
 func newSessionsCookieStore(oauthCfg OAuthConfig) sessions.Store {
 	cstore := sessions.NewCookieStore(oauthCfg.CookieAuthKey[:], oauthCfg.CookieEncKey[:])
 	cstore.Options.SameSite = http.SameSiteLaxMode // Lax mode is required so callback request contains the session cookie
 	cstore.Options.Secure = true
+	if oauthCfg.DummySessionUser != "" {
+		cstore.Options.Secure = false
+	}
 	cstore.MaxAge(int(cookieMaxAge.Seconds()))
 	return cstore
 }
@@ -237,6 +242,7 @@ func (api *uiapi) register(r *muxtrace.Router) error {
 	r.HandleFunc(urlPath("/event/status"), middlewareChain(api.statusHandler, api.authenticate)).Methods("GET")
 	r.HandleFunc(urlPath(baseErrorRoute), middlewareChain(api.authErrorHandler)).Methods("GET")
 	r.HandleFunc(urlPath("/oauth/callback"), middlewareChain(api.authCallbackHandler)).Methods("GET")
+	r.HandleFunc(urlPath("/home"), middlewareChain(api.homeHandler, api.authenticate)).Methods("GET")
 
 	// static assets
 	r.PathPrefix(urlPath("/static/")).Handler(http.StripPrefix(urlPath("/static/"), http.FileServer(http.Dir(path.Join(api.assetsPath, "assets")))))
@@ -407,6 +413,18 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 			if err := s.Save(r, w); err != nil {
 				log.Printf("error saving session in cookie store: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			// if dummy session, don't redirect to auth
+			// set session as authenticated w/ username, return route content
+			if ui.oauth.DummySessionUser != "" {
+				log.Printf("dummy session user set: %v, setting session to authenticated", ui.oauth.DummySessionUser)
+				if err := ui.dl.UpdateUISession(id, ui.oauth.DummySessionUser, true); err != nil {
+					log.Printf("error updating dummy ui session: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				f(w, r)
 				return
 			}
 			aurl := ui.oauth.AuthURL
@@ -613,4 +631,8 @@ func (api *uiapi) authErrorHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/html")
 	w.WriteHeader(http.StatusUnauthorized)
 	w.Write(api.oauth.errorPage)
+}
+
+func (api *uiapi) homeHandler(w http.ResponseWriter, r *http.Request) {
+	api.render(w, "home", api.defaultBaseTemplateData())
 }

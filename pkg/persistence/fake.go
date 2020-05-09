@@ -565,6 +565,19 @@ func (fdl *FakeDataLayer) Search(ctx context.Context, opts models.EnvSearchParam
 	if opts.Status != models.UnknownStatus {
 		envs = filter(envs, func(e models.QAEnvironment) bool { return e.Status == opts.Status })
 	}
+	if len(opts.Statuses) > 0 {
+		envs = filter(envs, func(e models.QAEnvironment) bool {
+			for _, s := range opts.Statuses {
+				if e.Status == s {
+					return true
+				}
+			}
+			return false
+		})
+	}
+	if opts.CreatedSince != 0 {
+		envs = filter(envs, func(e models.QAEnvironment) bool { return e.Created.After(time.Now().UTC().Add(-opts.CreatedSince)) })
+	}
 	if opts.TrackingRef != "" {
 		envs = filter(envs, func(e models.QAEnvironment) bool { return e.SourceRef == opts.TrackingRef })
 	}

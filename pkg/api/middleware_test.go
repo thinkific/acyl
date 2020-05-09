@@ -112,6 +112,7 @@ func TestMiddleware_SessionAuth(t *testing.T) {
 	var sessID int64
 	authKey := randomCookieKey()
 	encKey := randomCookieKey()
+	defaultHandler := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }
 	expectStatus := func(rc *httptest.ResponseRecorder, status int) error {
 		if rc.Result().StatusCode != status {
 			return fmt.Errorf("unexpected status code: %v (wanted %v)", rc.Result().StatusCode, status)
@@ -129,6 +130,7 @@ func TestMiddleware_SessionAuth(t *testing.T) {
 		fields      fields
 		enforce     bool
 		wantErr     bool
+		handler     func(w http.ResponseWriter, r *http.Request)
 		dbSetupFunc func(dl persistence.UISessionsDataLayer)
 		requestFunc func() *http.Request
 		verifyfunc  func(*httptest.ResponseRecorder, persistence.UISessionsDataLayer) error
@@ -139,6 +141,12 @@ func TestMiddleware_SessionAuth(t *testing.T) {
 				cookiekeys: [2][32]byte{authKey, encKey},
 			},
 			enforce: true,
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if _, err := getSessionFromContext(r.Context()); err != nil {
+					t.Fatalf("session missing from context: %v", err)
+				}
+				w.WriteHeader(http.StatusOK)
+			},
 			dbSetupFunc: func(dl persistence.UISessionsDataLayer) {
 				id, _ := dl.CreateUISession("/some/other/path", []byte("asdf"), net.ParseIP("10.0.0.0"), "some agent", time.Now().UTC().Add(24*time.Hour))
 				dl.UpdateUISession(id, "johndoe", true)
@@ -281,7 +289,10 @@ func TestMiddleware_SessionAuth(t *testing.T) {
 				DL:          dl,
 			}
 			rc := httptest.NewRecorder()
-			h := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }
+			h := tt.handler
+			if h == nil {
+				h = defaultHandler
+			}
 			mh := middlewareChain(h, sauth.sessionAuth)
 			mh(rc, tt.requestFunc())
 			if err := tt.verifyfunc(rc, dl); err != nil {

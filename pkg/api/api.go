@@ -63,11 +63,12 @@ type Manager interface {
 }
 
 type uiRegisterOptions struct {
-	reload      bool
-	apiBaseURL  string
-	assetsPath  string
-	routePrefix string
-	branding    config.UIBrandingConfig
+	reload           bool
+	apiBaseURL       string
+	assetsPath       string
+	routePrefix      string
+	branding         config.UIBrandingConfig
+	dummySessionUser string
 }
 
 type registerOptions struct {
@@ -143,6 +144,12 @@ func WithUIBranding(branding config.UIBrandingConfig) RegisterOption {
 	}
 }
 
+func WithUIDummySessionUser(user string) RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.dummySessionUser = user
+	}
+}
+
 func WithGitHubConfig(ghconfig config.GithubConfig) RegisterOption {
 	return func(ropts *registerOptions) {
 		ropts.ghConfig = ghconfig
@@ -181,6 +188,7 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 
 	oauthcfg := OAuthConfig{
 		Enforce:                ropts.ghConfig.OAuth.Enforce,
+		DummySessionUser:       ropts.uiOptions.dummySessionUser,
 		AppInstallationID:      int64(ropts.ghConfig.OAuth.AppInstallationID),
 		ClientID:               ropts.ghConfig.OAuth.ClientID,
 		ClientSecret:           ropts.ghConfig.OAuth.ClientSecret,

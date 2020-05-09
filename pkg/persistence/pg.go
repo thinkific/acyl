@@ -447,6 +447,18 @@ func (p *PGLayer) Search(ctx context.Context, opts models.EnvSearchParameters) (
 		sargs = append(sargs, opts.Status)
 		i++
 	}
+	if len(opts.Statuses) > 0 {
+		sclause := make([]string, len(opts.Statuses))
+		for n := range opts.Statuses {
+			sclause[n] = fmt.Sprintf("status = $%v", i)
+			sargs = append(sargs, opts.Statuses[n])
+			i++
+		}
+		sopts = append(sopts, "( "+strings.Join(sclause, " OR ")+" )")
+	}
+	if opts.CreatedSince > 0 {
+		sopts = append(sopts, fmt.Sprintf("created >= (current_timestamp - interval '%d hours')", int(opts.CreatedSince.Hours())))
+	}
 	if opts.TrackingRef != "" {
 		sopts = append(sopts, fmt.Sprintf("source_ref = $%v", i))
 		sargs = append(sargs, opts.TrackingRef)

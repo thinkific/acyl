@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/gorilla/sessions"
 
+	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 )
 
@@ -92,6 +95,26 @@ func (iwc *ipWhitelistChecker) checkIPWhitelist(f http.HandlerFunc) http.Handler
 // globals are a bad idea but this is how all the other middlewares work, so...
 var sessionAuthMiddleware = &sessionAuthenticator{}
 
+// these are used to store the session ID in the request context
+const sessionIDContextKeyVal = "ctx_acyl_session_id"
+
+type sessionIDContextKey string
+
+func withSession(ctx context.Context, uis models.UISession) context.Context {
+	return context.WithValue(ctx, sessionIDContextKey(sessionIDContextKeyVal), uis)
+}
+
+func getSessionFromContext(ctx context.Context) (models.UISession, error) {
+	uis, ok := ctx.Value(sessionIDContextKey(sessionIDContextKeyVal)).(models.UISession)
+	if !ok {
+		return models.UISession{}, fmt.Errorf("session missing from context")
+	}
+	if !uis.Authenticated || uis.GitHubUser == "" {
+		return models.UISession{}, fmt.Errorf("unauthenticated session or empty GitHub user")
+	}
+	return uis, nil
+}
+
 // sessionAuthenticator is a middleware that authenticates UI API calls with session cookies
 type sessionAuthenticator struct {
 	Enforce     bool
@@ -152,6 +175,6 @@ func (sa *sessionAuthenticator) sessionAuth(f http.HandlerFunc) http.HandlerFunc
 			accessDenied()
 			return
 		}
-		f(w, r)
+		f(w, r.Clone(withSession(r.Context(), *uis)))
 	}
 }
