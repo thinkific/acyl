@@ -174,6 +174,7 @@ type GithubOAuthConfig struct {
 	ClientSecret      string
 	CookieAuthKey     [32]byte
 	CookieEncKey      [32]byte
+	UserTokenEncKey   [32]byte
 }
 
 type GithubConfig struct {
