@@ -1,0 +1,17 @@
+<html>
+    <head>
+        {{ template "header-head" . }}
+    </head>
+    <body class="acyl-ui">
+        {{ template "header-nav" . }}
+        <div class="container">
+            <div class="jumbotron">
+                <h1><span class="fas" style="color: #ff0000">&#xf071;</span> Permission Denied</h1>
+                <p class="lead">Sorry! You don't have permission to view this.</p>
+                <hr class="my-4">
+                <p>You might be missing repository permissions. Contact your organization administrator for help.</p>
+            </div>
+        </div>
+        {{ template "footer-scripts" . }}
+    </body>
+</html>

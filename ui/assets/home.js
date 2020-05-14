@@ -1,4 +1,4 @@
-// clearenvlist removes all table rows except for the header row
+// setenvlist replaces the table body with tbody
 function setenvlist(tbody) {
     let oldtbody = document.getElementById("envlist-tbody");
     if (tbody === null) {
@@ -22,7 +22,7 @@ function envrow(env) {
     tr.appendChild(tdpr)
     let tdname = document.createElement("td");
     tdname.className = "text-left";
-    tdname.innerHTML = env.env_name;
+    tdname.innerHTML = `<a href="${apiBaseURL}/ui/env/${env.env_name}">${env.env_name}</a>`;
     tr.appendChild(tdname);
     let tdlastevent = document.createElement("td");
     tdlastevent.className = "text-left";
@@ -70,10 +70,34 @@ function renderenvlist(envs) {
     setenvlist(tbody);
 }
 
-function update(hist, destroyed) {
+function setFormValues() {
+    localStorage.setItem("filterIndex", document.getElementById("envgroup").selectedIndex);
+    localStorage.setItem("historyIndex", document.getElementById("history").selectedIndex);
+    localStorage.setItem("incDestroyedBool", document.getElementById("destroyed").checked);
+}
+
+function getFormValues() {
+    let fidx = localStorage.getItem("filterIndex");
+    if (fidx === null) {
+        fidx = "0";
+    }
+    let tidx = localStorage.getItem("historyIndex");
+    if (tidx === null) {
+        tidx = "0";
+    }
+    let dbool = localStorage.getItem("incDestroyedBool");
+    if (dbool === null) {
+        dbool = "false";
+    }
+    document.getElementById("envgroup").selectedIndex = fidx;
+    document.getElementById("history").selectedIndex = tidx;
+    document.getElementById("destroyed").checked = (dbool === "true");
+}
+
+function update(allenvs, hist, destroyed) {
     let req = new XMLHttpRequest();
 
-    req.open('GET', `${apiBaseURL}/v2/userenvs?history=${hist}h&include_destroyed=${destroyed}`, true);
+    req.open('GET', `${apiBaseURL}/v2/userenvs?history=${hist}h&include_destroyed=${destroyed}&allenvs=${allenvs}`, true);
     req.onload = function (e) {
         if (req.status !== 200) {
             console.log(`userenvs request failed: ${req.status}: ${req.responseText}`);
@@ -85,6 +109,7 @@ function update(hist, destroyed) {
             console.log(`userenvs received unexpected data (wanted array): ${data}`);
             return;
         }
+        setFormValues();
         renderenvlist(data);
     };
     req.onerror = function (e) {
@@ -110,10 +135,19 @@ function gethistory() {
     }
 }
 
+function getdestroyed() {
+    return document.getElementById("destroyed").checked;
+}
+
+function getallenvs() {
+    return document.getElementById("envgroup").selectedIndex === 1;
+}
+
 document.addEventListener("DOMContentLoaded", function(){
+    getFormValues();
     document.getElementById("refreshbtn").addEventListener('click', function(e){
         e.preventDefault();
-        update(gethistory(), document.getElementById("destroyed").checked);
+        update(getallenvs(), gethistory(), getdestroyed());
     });
-    update(gethistory(), document.getElementById("destroyed").checked);
+    update(getallenvs(), gethistory(), getdestroyed());
 });

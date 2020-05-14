@@ -10,6 +10,15 @@
         <div class="container">
             <div class="row">
                 <div class="col">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item active"><a href="#">Home</a></li>
+                        </ol>
+                    </nav>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
                     <div class="accordion">
                         <div class="card">
                             <div class="card-header" id="envListHeading">
@@ -28,15 +37,18 @@
                                             </button>
                                         </h2>
                                     </div>
-                                    <div class="col-2 pt-2 mt-1">
-                                        <span>(<a href="https://github.com/bkeroackdsc">bkeroackdsc</a>)</span>
-                                    </div>
                                 </div>
                                 <hr class="m-0" />
                                 <div class="row">
-                                    <div class="col-4">
+                                    <div class="col-8">
                                         <form class="pl-3 mt-3">
                                             <div class="form-row">
+                                                <div class="col">
+                                                    <select id="envgroup" class="form-control form-control-sm">
+                                                        <option>{{ .GitHubUser }}</option>
+                                                        <option>All</option>
+                                                    </select>
+                                                </div>
                                                 <div class="col">
                                                     <select id="history" class="form-control form-control-sm">
                                                         <option>7 days</option>
@@ -48,7 +60,7 @@
                                                 <div class="col pr-0 pl-2">
                                                     <div class="form-check form-control-sm">
                                                         <input type="checkbox" class="form-check-input" id="destroyed">
-                                                        <label class="form-check-label" for="destroyed">Destroyed</label>
+                                                        <label class="form-check-label pr-2" for="destroyed">Include Destroyed</label>
                                                     </div>
                                                 </div>
                                                 <div class="col pl-0">
@@ -67,21 +79,23 @@
                                 <div class="card-body p-0">
                                     <div class="row">
                                         <div class="col">
-                                            <table
-                                                    class="table table-sm table-hover m-0"
-                                            >
-                                                <thead>
-                                                    <tr id="envlist-hrow">
-                                                        <th scope="col">Repo</th>
-                                                        <th scope="col">PR</th>
-                                                        <th scope="col">Name</th>
-                                                        <th scope="col">Last Event</th>
-                                                        <th scope="col">Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="envlist-tbody">
-                                                </tbody>
-                                            </table>
+                                            <div class="container">
+                                                <table
+                                                        class="table table-sm table-hover m-0"
+                                                >
+                                                    <thead>
+                                                        <tr id="envlist-hrow">
+                                                            <th scope="col">Repo</th>
+                                                            <th scope="col">PR</th>
+                                                            <th scope="col">Name</th>
+                                                            <th scope="col">Last Event</th>
+                                                            <th scope="col">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="envlist-tbody">
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

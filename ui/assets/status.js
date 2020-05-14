@@ -60,6 +60,13 @@ function updateNSCopyBtn(k8s_ns) {
     }
 }
 
+function updateBreadcrumb(cfg) {
+    document.getElementById("bc-eventid").innerHTML = `Event: ${event_id}`;
+    if (cfg.env_name !== "") {
+        document.getElementById("bc-envname").innerHTML = `<a href="${apiBaseURL}/ui/env/${cfg.env_name}">${cfg.env_name}</a>`;
+    }
+}
+
 function updateConfig(cfg) {
     let sicon = document.getElementById("status-icon");
     let slinkbtnclass = "";
@@ -110,6 +117,7 @@ function updateConfig(cfg) {
 
     document.getElementById("event-elapsed").innerHTML = millisToMinutesAndSeconds(end - start);
     updateRefmap(cfg.ref_map);
+    updateBreadcrumb(cfg);
 }
 
 let tree, svg, diagonal = null;
