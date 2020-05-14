@@ -4,10 +4,11 @@
             "name": "dyslexic-right-hand-man",
             "repo": "acme/microservice",
             "pull_request": 89,
+            "source_branch": "feature-spam",
             "status_int": 5,
             "created": "2020-05-07T21:50:14+00:00",
             "updated": "2020-05-07T21:50:14+00:00",
-            "user": "bkeroackdsc"
+            "user": "bobsmith"
         },
         {
             "name": "foonly-foobar",
@@ -16,7 +17,7 @@
             "status_int": 2,
             "created": "2020-05-07T20:50:14+00:00",
             "updated": "2020-05-07T20:50:14+00:00",
-            "user": "bkeroackdsc"
+            "user": "bobsmith"
         },
         {
             "name": "aggressive-fern-tree",
@@ -25,7 +26,7 @@
             "status_int": 2,
             "created": "2020-05-06T21:50:14+00:00",
             "updated": "2020-05-06T21:50:14+00:00",
-            "user": "bkeroackdsc"
+            "user": "bobsmith"
         },
         {
             "name": "relaxed-corvette",
@@ -34,7 +35,7 @@
             "status_int": 3,
             "created": "2020-05-05T21:50:14+00:00",
             "updated": "2020-05-05T21:50:14+00:00",
-            "user": "bkeroackdsc"
+            "user": "bobsmith"
         },
         {
             "name": "frantic-cobb-salad",
@@ -43,11 +44,98 @@
             "status_int": 4,
             "created": "2020-05-04T21:50:14+00:00",
             "updated": "2020-05-04T21:50:14+00:00",
-            "user": "bkeroackdsc"
+            "user": "alicejones"
+        },
+        {
+            "name": "unassuming-skyscraper",
+            "repo": "acme/botmaker",
+            "pull_request": 32,
+            "status_int": 2,
+            "created": "2020-05-04T21:50:14+00:00",
+            "updated": "2020-05-04T21:50:14+00:00",
+            "user": "johndoe"
         }
     ],
     "kubernetes_environments": [
+        {
+            "created": "2020-05-04T21:50:14+00:00",
+            "namespace": "nitro-9989-dyslexic-right-hand-man",
+            "env_name": "dyslexic-right-hand-man",
+            "config": "YXNkZgo=",
+            "config_signature": "YXNkZgo=",
+            "ref_map_json": "{}",
+            "tiller_addr": "0.0.0.0:7777",
+            "privileged": false
+        },
+        {
+            "created": "2020-05-04T21:50:14+00:00",
+            "namespace": "nitro-9999-foonly-foobar",
+            "env_name": "foonly-foobar",
+            "config": "YXNkZgo=",
+            "config_signature": "YXNkZgo=",
+            "ref_map_json": "{}",
+            "tiller_addr": "0.0.0.0:7777",
+            "privileged": false
+        },
+        {
+            "created": "2020-05-04T21:50:14+00:00",
+            "namespace": "nitro-9999-aggressive-fern-tree",
+            "env_name": "aggressive-fern-tree",
+            "config": "YXNkZgo=",
+            "config_signature": "YXNkZgo=",
+            "ref_map_json": "{}",
+            "tiller_addr": "0.0.0.0:7777",
+            "privileged": false
+        },
+        {
+            "created": "2020-05-04T21:50:14+00:00",
+            "namespace": "nitro-9999-relaxed-corvette",
+            "env_name": "relaxed-corvette",
+            "config": "YXNkZgo=",
+            "config_signature": "YXNkZgo=",
+            "ref_map_json": "{}",
+            "tiller_addr": "0.0.0.0:7777",
+            "privileged": false
+        },
+        {
+            "created": "2020-05-04T21:50:14+00:00",
+            "namespace": "nitro-9999-frantic-cobb-salad",
+            "env_name": "frantic-cobb-salad",
+            "config": "YXNkZgo=",
+            "config_signature": "YXNkZgo=",
+            "ref_map_json": "{}",
+            "tiller_addr": "0.0.0.0:7777",
+            "privileged": false
+        },
+        {
+            "created": "2020-05-04T21:50:14+00:00",
+            "namespace": "nitro-9999-unassuming-skyscraper",
+            "env_name": "unassuming-skyscraper",
+            "config": "YXNkZgo=",
+            "config_signature": "YXNkZgo=",
+            "ref_map_json": "{}",
+            "tiller_addr": "0.0.0.0:7777",
+            "privileged": false
+        }
     ],
     "helm_releases": [
+        {
+            "id": 43,
+            "created": "2020-05-04T21:50:14+00:00",
+            "env_name": "dyslexic-right-hand-man",
+            "k8s_namespace": "nitro-9989-dyslexic-right-hand-man",
+            "release": "postgres",
+            "revision_sha": "1234",
+            "name": "postgres"
+        },
+        {
+            "id": 43,
+            "created": "2020-05-04T21:50:14+00:00",
+            "env_name": "foonly-foobar",
+            "k8s_namespace": "nitro-9999-foonly-foobar",
+            "release": "postgres",
+            "revision_sha": "1234",
+            "name": "postgres"
+        }
     ]
 }

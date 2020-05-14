@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 
@@ -40,6 +41,7 @@ var mockuiCmd = &cobra.Command{
 }
 
 var listenAddr, mockDataFile, mockUser string
+var mockRepos []string
 
 func addUIFlags(cmd *cobra.Command) {
 	brj, err := json.Marshal(&config.DefaultUIBranding)
@@ -51,8 +53,9 @@ func addUIFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&serverConfig.UIBaseRoute, "ui-base-route", "/ui", "Base prefix for UI HTTP routes")
 	cmd.PersistentFlags().StringVar(&serverConfig.UIBrandingJSON, "ui-branding", string(brj), "Branding JSON configuration (see doc)")
 	cmd.PersistentFlags().BoolVar(&githubConfig.OAuth.Enforce, "ui-enforce-oauth", false, "Enforce GitHub App OAuth authn/authz for UI routes")
-	cmd.PersistentFlags().StringVar(&mockDataFile, "mock-data", "", "Path to mock data file (JSON object: {\"qa_environments\": [],\n    \"kubernetes_environments\": [],\n    \"helm_releases\": []})")
+	cmd.PersistentFlags().StringVar(&mockDataFile, "mock-data", "testdata/data.json", "Path to mock data file")
 	cmd.PersistentFlags().StringVar(&mockUser, "mock-user", "bobsmith", "Mock username (for sessions)")
+	cmd.PersistentFlags().StringSliceVar(&mockRepos, "mock-repos", []string{"acme/microservice", "acme/widgets", "acme/customers"}, "Mock repo read permissions (for session user)")
 }
 
 func init() {
@@ -61,12 +64,18 @@ func init() {
 	RootCmd.AddCommand(mockuiCmd)
 }
 
-func setCreatedTimestamps(qas []models.QAEnvironment) []models.QAEnvironment {
-	now := time.Now().UTC()
-	for i := range qas {
-		qas[i].Created = now.AddDate(0, 0, -(i * 3))
+func mockEvents(fdl *persistence.FakeDataLayer, qae []models.QAEnvironment) {
+	// add some mock events
+	if len(qae) == 0 {
+		return
 	}
-	return qas
+	env := qae[0]
+	id := fdl.NewFakeEvent(env.Created.Add(1*time.Hour), env.Repo, env.User, env.Name, models.UpdateEvent, true)
+	log.Printf("creating fake update event for %v: %v", env.Name, id)
+	id = fdl.NewFakeEvent(env.Created.Add(2*time.Hour), env.Repo, env.User, env.Name, models.UpdateEvent, false)
+	log.Printf("creating fake update event for %v (failure): %v", env.Name, id)
+	id = fdl.NewFakeEvent(env.Created.Add(3*time.Hour), env.Repo, env.User, env.Name, models.DestroyEvent, true)
+	log.Printf("creating fake destroy event for %v: %v", env.Name, id)
 }
 
 func loadMockData(fpath string) *persistence.FakeDataLayer {
@@ -79,7 +88,24 @@ func loadMockData(fpath string) *persistence.FakeDataLayer {
 	if err := json.NewDecoder(f).Decode(&td); err != nil {
 		log.Fatalf("error unmarshaling mock data file: %v", err)
 	}
-	return persistence.NewPopulatedFakeDataLayer(setCreatedTimestamps(td.QAEnvironments), td.K8sEnvironments, td.HelmReleases)
+	now := time.Now().UTC()
+	for i := range td.QAEnvironments {
+		td.QAEnvironments[i].Created = now.AddDate(0, 0, -(i * 3))
+	}
+	for i := range td.K8sEnvironments {
+		td.K8sEnvironments[i].Created = now.AddDate(0, 0, -(i * 3))
+		td.K8sEnvironments[i].Updated.Time = td.K8sEnvironments[i].Created.Add(1 * time.Hour)
+		td.K8sEnvironments[i].Updated.Valid = true
+	}
+	for i := range td.HelmReleases {
+		td.HelmReleases[i].Created = now.AddDate(0, 0, -(i * 3))
+	}
+	fdl := persistence.NewPopulatedFakeDataLayer(td.QAEnvironments, td.K8sEnvironments, td.HelmReleases)
+	for _, qae := range td.QAEnvironments {
+		log.Printf("creating fake create event for env: %v, repo: %v, user: %v: %v", qae.Name, qae.Repo, qae.User, fdl.NewFakeCreateEvent(qae.Created, qae.Repo, qae.User, qae.Name))
+	}
+	mockEvents(fdl, td.QAEnvironments)
+	return fdl
 }
 
 // randomPEMKey generates a random RSA key in PEM format
@@ -134,6 +160,21 @@ func mockui(cmd *cobra.Command, args []string) {
 	githubConfig.PrivateKeyPEM = randomPEMKey()
 	githubConfig.AppID = 1
 	githubConfig.AppHookSecret = "asdf"
+	copy(githubConfig.OAuth.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
+	httpapi.AppGHClientFactoryFunc = func(_ string) ghclient.GitHubAppInstallationClient {
+		return &ghclient.FakeRepoClient{
+			GetUserAppRepoPermissionsFunc: func(_ context.Context, instID int64) (map[string]ghclient.AppRepoPermissions, error) {
+				out := make(map[string]ghclient.AppRepoPermissions, len(mockRepos))
+				for _, r := range mockRepos {
+					out[r] = ghclient.AppRepoPermissions{
+						Repo: r,
+						Pull: true,
+					}
+				}
+				return out, nil
+			},
+		}
+	}
 
 	if err := httpapi.RegisterVersions(deps,
 		api.WithGitHubConfig(githubConfig),
