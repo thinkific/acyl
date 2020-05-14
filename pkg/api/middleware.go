@@ -9,7 +9,9 @@ import (
 	"sync"
 
 	"github.com/gorilla/sessions"
+	"github.com/pkg/errors"
 
+	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 )
@@ -129,6 +131,9 @@ func (sa *sessionAuthenticator) sessionAuth(f http.HandlerFunc) http.HandlerFunc
 	if !sa.Enforce {
 		return f
 	}
+	log := func(msg string, args ...interface{}) {
+		log.Printf("sessionAuth: "+msg, args...)
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		accessDenied := func() {
 			w.WriteHeader(http.StatusForbidden)
@@ -137,44 +142,80 @@ func (sa *sessionAuthenticator) sessionAuth(f http.HandlerFunc) http.HandlerFunc
 		sess, err := sa.CookieStore.Get(r, uiSessionName)
 		if err != nil {
 			// invalid cookie or failure to authenticate/decrypt
-			log.Printf("sessionAuth: error getting session, access denied: %v", err)
+			log("error getting session, access denied: %v", err)
 			accessDenied()
 			return
 		}
 		if sess.IsNew {
-			log.Printf("sessionAuth: session missing from request, access denied")
+			log("session missing from request, access denied")
 			accessDenied()
 			return
 		}
 		id, ok := sess.Values[cookieIDkey].(int)
 		if !ok {
 			// missing id
-			log.Printf("sessionAuth: session id is missing from cookie")
+			log("session id is missing from cookie")
 			accessDenied()
 			return
 		}
 		uis, err := sa.DL.GetUISession(id)
 		if err != nil {
-			log.Printf("sessionAuth: error getting session by id: %v", err)
+			log("error getting session by id: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if uis == nil {
 			// not found in db
-			log.Printf("sessionAuth: session %v not found in db, access denied", id)
+			log("session %v not found in db, access denied", id)
 			accessDenied()
 			return
 		}
 		if !uis.IsValid() {
 			if err := sa.DL.DeleteUISession(id); err != nil {
-				log.Printf("sessionAuth: error deleting session: %v", err)
+				log("error deleting session: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			log.Printf("sessionAuth: session %v isn't valid, access denied", id)
+			log("session %v isn't valid, access denied", id)
 			accessDenied()
 			return
 		}
 		f(w, r.Clone(withSession(r.Context(), *uis)))
 	}
+}
+
+type userPermissions struct {
+	instID int64
+	deckey [32]byte
+	gcfunc func(tkn string) ghclient.GitHubAppInstallationClient
+}
+
+func userPermissionsClient(oauth OAuthConfig) *userPermissions {
+	return &userPermissions{
+		instID: oauth.AppInstallationID,
+		deckey: oauth.UserTokenEncKey,
+		gcfunc: oauth.AppGHClientFactoryFunc,
+	}
+}
+
+// GetUserVisibleRepos returns the names of all repos (owner/repo) for which the authenticated user has "pull" permissions
+func (up *userPermissions) GetUserVisibleRepos(ctx context.Context, uis models.UISession) ([]string, error) {
+	tkn, err := uis.GetUserToken(up.deckey)
+	if err != nil {
+		return nil, errors.Wrap(err, "error decrypting user token")
+	}
+
+	ghc := up.gcfunc(tkn)
+
+	rps, err := ghc.GetUserAppRepoPermissions(ctx, up.instID)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting user visible repos")
+	}
+	out := []string{}
+	for _, r := range rps {
+		if r.Pull {
+			out = append(out, r.Repo)
+		}
+	}
+	return out, nil
 }

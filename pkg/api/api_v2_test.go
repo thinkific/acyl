@@ -21,7 +21,7 @@ func TestAPIv2SearchByTrackingRef(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestAPIv2EnvDetails(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestAPIv2HealthCheck(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestAPIv2EventLog(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestAPIv2EventStatus(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestAPIv2UserEnvs(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}

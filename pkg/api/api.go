@@ -158,9 +158,10 @@ func WithGitHubConfig(ghconfig config.GithubConfig) RegisterOption {
 
 // Dispatcher is the concrete implementation of Manager
 type Dispatcher struct {
-	s          *http.Server
-	waitgroups []*sync.WaitGroup
-	uiapi      *uiapi
+	AppGHClientFactoryFunc func(tkn string) ghclient.GitHubAppInstallationClient
+	s                      *http.Server
+	waitgroups             []*sync.WaitGroup
+	uiapi                  *uiapi
 }
 
 // NewDispatcher returns an initialized Dispatcher.
@@ -186,15 +187,20 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		opt(ropts)
 	}
 
+	if d.AppGHClientFactoryFunc == nil {
+		d.AppGHClientFactoryFunc = func(tkn string) ghclient.GitHubAppInstallationClient { return ghclient.NewGitHubClient(tkn) }
+	}
+
 	oauthcfg := OAuthConfig{
 		Enforce:                ropts.ghConfig.OAuth.Enforce,
 		DummySessionUser:       ropts.uiOptions.dummySessionUser,
 		AppInstallationID:      int64(ropts.ghConfig.OAuth.AppInstallationID),
 		ClientID:               ropts.ghConfig.OAuth.ClientID,
 		ClientSecret:           ropts.ghConfig.OAuth.ClientSecret,
-		AppGHClientFactoryFunc: func(tkn string) ghclient.GitHubAppInstallationClient { return ghclient.NewGitHubClient(tkn) },
+		AppGHClientFactoryFunc: d.AppGHClientFactoryFunc,
 		CookieAuthKey:          ropts.ghConfig.OAuth.CookieAuthKey,
 		CookieEncKey:           ropts.ghConfig.OAuth.CookieEncKey,
+		UserTokenEncKey:        ropts.ghConfig.OAuth.UserTokenEncKey,
 	}
 	if err := oauthcfg.SetValidateURL("https://github.com/login/oauth/access_token"); err != nil {
 		return errors.Wrap(err, "error parsing validate URL")
@@ -232,7 +238,13 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	}
 	d.waitgroups = append(d.waitgroups, &apiv1.wg)
 
-	apiv2, err := newV2API(deps.DataLayer, deps.GitHubEventWebhook, deps.EnvironmentSpawner, deps.ServerConfig, deps.Logger)
+	apiv2, err := newV2API(
+		deps.DataLayer,
+		deps.GitHubEventWebhook,
+		deps.EnvironmentSpawner,
+		deps.ServerConfig,
+		oauthcfg,
+		deps.Logger)
 	if err != nil {
 		return fmt.Errorf("error creating api v2: %v", err)
 	}

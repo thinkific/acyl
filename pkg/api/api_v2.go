@@ -254,21 +254,23 @@ func V2EventStatusSummaryFromEventStatusSummary(sum *models.EventStatusSummary) 
 
 type v2api struct {
 	apiBase
-	dl persistence.DataLayer
-	ge *ghevent.GitHubEventWebhook
-	es spawner.EnvironmentSpawner
-	sc config.ServerConfig
+	dl    persistence.DataLayer
+	ge    *ghevent.GitHubEventWebhook
+	es    spawner.EnvironmentSpawner
+	sc    config.ServerConfig
+	oauth OAuthConfig
 }
 
-func newV2API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, sc config.ServerConfig, logger *log.Logger) (*v2api, error) {
+func newV2API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, sc config.ServerConfig, oauth OAuthConfig, logger *log.Logger) (*v2api, error) {
 	return &v2api{
 		apiBase: apiBase{
 			logger: logger,
 		},
-		dl: dl,
-		ge: ge,
-		es: es,
-		sc: sc,
+		dl:    dl,
+		ge:    ge,
+		es:    es,
+		sc:    sc,
+		oauth: oauth,
 	}, nil
 }
 
@@ -277,12 +279,19 @@ func (api *v2api) register(r *muxtrace.Router) error {
 		return fmt.Errorf("router is nil")
 	}
 	// v2 routes
+
+	// API token
 	r.HandleFunc("/v2/envs/_search", middlewareChain(api.envSearchHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/envs/{name}", middlewareChain(api.envDetailHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/eventlog/{id}", middlewareChain(api.eventLogHandler, authMiddleware.authRequest)).Methods("GET")
+
+	// Session auth
 	r.HandleFunc("/v2/event/{id}/status", middlewareChain(api.eventStatusHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/event/{id}/logs", middlewareChain(api.logsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs", middlewareChain(api.userEnvsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+	r.HandleFunc("/v2/userenvs/{name}", middlewareChain(api.userEnvDetailHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+
+	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
 	return nil
 }
@@ -531,9 +540,12 @@ var (
 
 // userEnvsHandler returns the environments for the session user that have been created/updated within the history duration
 func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
+	log := func(msg string, args ...interface{}) {
+		api.logger.Printf("userEnvsHandler: "+msg, args...)
+	}
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
-		log.Printf("userEnvs: session missing from context")
+		log("session missing from context")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -541,7 +553,7 @@ func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
 	if h := r.URL.Query().Get("history"); h != "" {
 		hd, err := time.ParseDuration(h)
 		if err != nil {
-			log.Printf("userEnvs: invalid history duration: %v", err)
+			log("invalid history duration: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -561,9 +573,20 @@ func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
 		Statuses:     statuses,
 		CreatedSince: history,
 	}
+	// user-scoped by default unless allenvs=true
+	if r.URL.Query().Get("allenvs") == "true" {
+		sparams.User = ""
+		repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+		if err != nil {
+			log("error getting user visible repos: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		sparams.Repos = repos
+	}
 	envs, err := api.dl.Search(r.Context(), sparams)
 	if err != nil {
-		log.Printf("userEnvs: error getting envs: %v", err)
+		log("error getting envs: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -573,8 +596,123 @@ func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Add("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(out); err != nil {
-		log.Printf("userEnvs: error marshaling envs: %v", err)
+		log("error marshaling envs: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
+	}
+}
+
+type V2EventSummary struct {
+	EventID  string                           `json:"event_id"`
+	Started  time.Time                        `json:"started"`
+	Duration *models.ConfigProcessingDuration `json:"duration"`
+	Type     string                           `json:"type"`
+	Status   string                           `json:"status"`
+}
+
+func durationOrNil(t1, t2 time.Time) *models.ConfigProcessingDuration {
+	if t1.IsZero() || t2.IsZero() || !t1.After(t2) {
+		return nil
+	}
+	return &models.ConfigProcessingDuration{Duration: t1.Sub(t2)}
+}
+
+func V2EventSummariesFromEventLogs(elogs []models.EventLog) []V2EventSummary {
+	out := make([]V2EventSummary, len(elogs))
+	for i := range elogs {
+		out[i] = V2EventSummary{
+			EventID:  elogs[i].ID.String(),
+			Started:  elogs[i].Created,
+			Duration: durationOrNil(elogs[i].Status.Config.Completed, elogs[i].Created),
+			Type:     statusSummaryType(elogs[i].Status.Config.Type),
+			Status:   statusSummaryStatus(elogs[i].Status.Config.Status),
+		}
+	}
+	return out
+}
+
+type V2EnvDetail struct {
+	V2UserEnv
+	GitHubUser   string           `json:"github_user"`
+	PRHeadBranch string           `json:"pr_head_branch"`
+	K8sNamespace string           `json:"k8s_namespace"`
+	Events       []V2EventSummary `json:"events"`
+}
+
+func V2EnvDetailFromQAEnvAndK8sEnv(qae models.QAEnvironment, k8senv models.KubernetesEnvironment) V2EnvDetail {
+	return V2EnvDetail{
+		V2UserEnv:    v2UserEnvFromQAEnvironment(qae),
+		GitHubUser:   qae.User,
+		PRHeadBranch: qae.SourceBranch,
+		K8sNamespace: k8senv.Namespace,
+	}
+}
+
+// userEnvDetailHandler gets environment detail for the UI
+func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
+	log := func(msg string, args ...interface{}) {
+		api.logger.Printf("userEnvDetailHandler: "+msg, args...)
+	}
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		log("session missing from context")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	envname := mux.Vars(r)["name"]
+	if envname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	qae, err := api.dl.GetQAEnvironment(r.Context(), envname)
+	if err != nil {
+		log("error getting qa env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if qae == nil {
+		log("qa env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+	if err != nil {
+		log("error getting user visible repos: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !repoInRepos(repos, qae.Repo) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	k8senv, err := api.dl.GetK8sEnv(r.Context(), envname)
+	if err != nil {
+		log("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if k8senv == nil {
+		log("k8s env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	elogs, err := api.dl.GetEventLogsByEnvName(envname)
+	if err != nil {
+		log("error getting eventlogs from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if len(elogs) == 0 {
+		// it shouldn't be possible to have an environment with zero events
+		log("no eventlogs found for env: %v", envname)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	ed := V2EnvDetailFromQAEnvAndK8sEnv(*qae, *k8senv)
+	ed.Events = V2EventSummariesFromEventLogs(elogs)
+	w.Header().Add("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(&ed); err != nil {
+		log("error marshaling user env detail: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 }

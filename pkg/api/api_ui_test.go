@@ -76,7 +76,7 @@ func TestUI_Authenticate(t *testing.T) {
 			},
 			dbSetupFunc: func(dl persistence.UISessionsDataLayer) {
 				id, _ := dl.CreateUISession("/some/other/path", []byte("asdf"), net.ParseIP("10.0.0.0"), "some agent", time.Now().UTC().Add(24*time.Hour))
-				dl.UpdateUISession(id, "johndoe", true)
+				dl.UpdateUISession(id, "johndoe", []byte(`asdf`), true)
 				atomic.StoreInt64(&sessID, int64(id))
 			},
 			requestFunc: func() *http.Request {
@@ -170,7 +170,7 @@ func TestUI_Authenticate(t *testing.T) {
 			},
 			dbSetupFunc: func(dl persistence.UISessionsDataLayer) {
 				id, _ := dl.CreateUISession("/some/other/path", []byte("asdf"), net.ParseIP("10.0.0.0"), "some agent", time.Now().UTC().Add(1*time.Millisecond))
-				dl.UpdateUISession(id, "johndoe", true)
+				dl.UpdateUISession(id, "johndoe", []byte(`asdf`), true)
 				atomic.StoreInt64(&sessID, int64(id))
 			},
 			requestFunc: func() *http.Request {
