@@ -414,6 +414,12 @@ func (p *PGLayer) Search(ctx context.Context, opts models.EnvSearchParameters) (
 	if opts.TrackingRef != "" && opts.Repo == "" {
 		return nil, fmt.Errorf("search by tracking ref requires repo name")
 	}
+	if opts.Repo != "" && len(opts.Repos) > 0 {
+		return nil, fmt.Errorf("cannot search by repo and repos simultaneously")
+	}
+	if opts.Status != models.UnknownStatus && len(opts.Statuses) > 0 {
+		return nil, fmt.Errorf("cannot search by status and statuses simultaneously")
+	}
 	i := 1
 	sopts := []string{}
 	sargs := []interface{}{}
@@ -426,6 +432,15 @@ func (p *PGLayer) Search(ctx context.Context, opts models.EnvSearchParameters) (
 		sopts = append(sopts, fmt.Sprintf("repo = $%v", i))
 		sargs = append(sargs, opts.Repo)
 		i++
+	}
+	if len(opts.Repos) > 0 {
+		rclause := make([]string, len(opts.Repos))
+		for n := range opts.Repos {
+			rclause[n] = fmt.Sprintf("repo = $%v", i)
+			sargs = append(sargs, opts.Repos[n])
+			i++
+		}
+		sopts = append(sopts, "( "+strings.Join(rclause, " OR ")+" )")
 	}
 	if opts.SourceSHA != "" {
 		sopts = append(sopts, fmt.Sprintf("source_sha = $%v", i))

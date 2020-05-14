@@ -89,7 +89,7 @@ type EventLoggerDataLayer interface {
 
 type UISessionsDataLayer interface {
 	CreateUISession(targetRoute string, state []byte, clientIP net.IP, userAgent string, expires time.Time) (int, error)
-	UpdateUISession(id int, githubUser string, authenticated bool) error
+	UpdateUISession(id int, githubUser string, encryptedtoken []byte, authenticated bool) error
 	DeleteUISession(id int) error
 	GetUISession(id int) (*models.UISession, error)
 	DeleteExpiredUISessions() (uint, error)

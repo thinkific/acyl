@@ -36,9 +36,9 @@ func (pg *PGLayer) CreateUISession(targetRoute string, state []byte, clientIP ne
 }
 
 // UpdateUISession updates the session with ID with githubUser and authenticated flag
-func (pg *PGLayer) UpdateUISession(id int, githubUser string, authenticated bool) error {
-	q := `UPDATE ui_sessions SET github_user = $1, authenticated = $2 WHERE id = $3;`
-	_, err := pg.db.Exec(q, githubUser, authenticated, id)
+func (pg *PGLayer) UpdateUISession(id int, githubUser string, encryptedtoken []byte, authenticated bool) error {
+	q := `UPDATE ui_sessions SET github_user = $1, authenticated = $2, encrypted_user_token = $3 WHERE id = $4;`
+	_, err := pg.db.Exec(q, githubUser, authenticated, encryptedtoken, id)
 	return errors.Wrap(err, "error updating ui session")
 }
 

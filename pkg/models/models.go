@@ -364,12 +364,13 @@ func (qat *QAType) FromYAML(data []byte) error {
 // EnvSearchParameters models the possible parameters for an environment search
 type EnvSearchParameters struct {
 	Repo         string
+	Repos        []string // include all these repos (mutually exclusive with Repo)
 	Pr           uint
 	SourceSHA    string
 	SourceBranch string
 	User         string
 	Status       EnvironmentStatus
-	Statuses     []EnvironmentStatus // include all these statuses (in addition to Status, if set)
+	Statuses     []EnvironmentStatus // include all these statuses (mutually exclusive with Status)
 	CreatedSince time.Duration       // Duration prior to time.Now().UTC()
 	TrackingRef  string
 }
