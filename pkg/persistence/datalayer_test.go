@@ -1192,6 +1192,27 @@ func TestDataLayerGetEventLogsByEnvName(t *testing.T) {
 	}
 }
 
+func TestDataLayerGetEventLogsWithStatusByEnvName(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	logs, err := dl.GetEventLogsWithStatusByEnvName("foo-bar-2")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if i := len(logs); i != 1 {
+		t.Fatalf("expected length of 1: %v", i)
+	}
+	if logs[0].Status.Config.Status == 0 {
+		t.Fatalf("zero value for config status")
+	}
+	if len(logs[0].Status.Tree) == 0 {
+		t.Fatalf("zero length for status tree")
+	}
+}
+
 func TestDataLayerGetEventLogsByRepoAndPR(t *testing.T) {
 	dl, tdl := NewTestDataLayer(t)
 	if err := tdl.Setup(testDataPath); err != nil {

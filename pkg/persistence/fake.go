@@ -804,6 +804,10 @@ func (fdl *FakeDataLayer) GetEventLogsByEnvName(name string) ([]models.EventLog,
 	return out, nil
 }
 
+func (fdl *FakeDataLayer) GetEventLogsWithStatusByEnvName(name string) ([]models.EventLog, error) {
+	return fdl.GetEventLogsByEnvName(name)
+}
+
 func (fdl *FakeDataLayer) GetEventLogsByRepoAndPR(repo string, pr uint) ([]models.EventLog, error) {
 	fdl.doDelay()
 	fdl.data.RLock()

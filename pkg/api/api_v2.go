@@ -695,7 +695,7 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 		// if there's no k8senv yet, we'll just use an empty one (this will result in an empty namespace in the UI)
 		k8senv = &models.KubernetesEnvironment{}
 	}
-	elogs, err := api.dl.GetEventLogsByEnvName(envname)
+	elogs, err := api.dl.GetEventLogsWithStatusByEnvName(envname)
 	if err != nil {
 		log("error getting eventlogs from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -707,6 +707,7 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	ed := V2EnvDetailFromQAEnvAndK8sEnv(*qae, *k8senv)
 	ed.Events = V2EventSummariesFromEventLogs(elogs)
 	w.Header().Add("Content-Type", "application/json")

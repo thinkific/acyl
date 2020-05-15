@@ -85,6 +85,7 @@ type EventLoggerDataLayer interface {
 	SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error
 	GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error)
 	SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error
+	GetEventLogsWithStatusByEnvName(name string) ([]models.EventLog, error)
 }
 
 type UISessionsDataLayer interface {
