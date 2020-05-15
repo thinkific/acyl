@@ -692,9 +692,8 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if k8senv == nil {
-		log("k8s env not found")
-		w.WriteHeader(http.StatusNotFound)
-		return
+		// if there's no k8senv yet, we'll just use an empty one (this will result in an empty namespace in the UI)
+		k8senv = &models.KubernetesEnvironment{}
 	}
 	elogs, err := api.dl.GetEventLogsByEnvName(envname)
 	if err != nil {
