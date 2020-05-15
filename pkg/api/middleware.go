@@ -97,17 +97,17 @@ func (iwc *ipWhitelistChecker) checkIPWhitelist(f http.HandlerFunc) http.Handler
 // globals are a bad idea but this is how all the other middlewares work, so...
 var sessionAuthMiddleware = &sessionAuthenticator{}
 
-// these are used to store the session ID in the request context
-const sessionIDContextKeyVal = "ctx_acyl_session_id"
+// these are used to store the UI session in the request context
+const sessionContextKeyVal = "ctx_acyl_session"
 
-type sessionIDContextKey string
+type sessionContextKey string
 
 func withSession(ctx context.Context, uis models.UISession) context.Context {
-	return context.WithValue(ctx, sessionIDContextKey(sessionIDContextKeyVal), uis)
+	return context.WithValue(ctx, sessionContextKey(sessionContextKeyVal), uis)
 }
 
 func getSessionFromContext(ctx context.Context) (models.UISession, error) {
-	uis, ok := ctx.Value(sessionIDContextKey(sessionIDContextKeyVal)).(models.UISession)
+	uis, ok := ctx.Value(sessionContextKey(sessionContextKeyVal)).(models.UISession)
 	if !ok {
 		return models.UISession{}, fmt.Errorf("session missing from context")
 	}
