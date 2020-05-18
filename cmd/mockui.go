@@ -128,6 +128,14 @@ func randomPEMKey() []byte {
 	return out.Bytes()
 }
 
+func setDummyGHConfig() {
+	githubConfig.OAuth.Enforce = true // using dummy session user
+	githubConfig.PrivateKeyPEM = randomPEMKey()
+	githubConfig.AppID = 1
+	githubConfig.AppHookSecret = "asdf"
+	copy(githubConfig.OAuth.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
+}
+
 func mockui(cmd *cobra.Command, args []string) {
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
@@ -155,12 +163,8 @@ func mockui(cmd *cobra.Command, args []string) {
 		log.Fatalf("error unmarshaling branding config: %v", err)
 	}
 
-	// dummy values
-	githubConfig.OAuth.Enforce = true // using dummy session user
-	githubConfig.PrivateKeyPEM = randomPEMKey()
-	githubConfig.AppID = 1
-	githubConfig.AppHookSecret = "asdf"
-	copy(githubConfig.OAuth.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
+	setDummyGHConfig()
+
 	httpapi.AppGHClientFactoryFunc = func(_ string) ghclient.GitHubAppInstallationClient {
 		return &ghclient.FakeRepoClient{
 			GetUserAppRepoPermissionsFunc: func(_ context.Context, instID int64) (map[string]ghclient.AppRepoPermissions, error) {
