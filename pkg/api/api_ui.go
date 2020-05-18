@@ -386,9 +386,6 @@ const (
 // if a user has a valid session, they are authenticated and have at least one visible repo
 // if not, it creates a new session and redirects to the provided oauth URL
 func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
-	log := func(msg string, args ...interface{}) {
-		log.Printf("ui authenticate: "+msg, args...)
-	}
 	rr := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	// for convenience we use only alphanumerics for the state, so we don't have to base64-encode
 	rset := []rune(`abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`)
@@ -410,7 +407,7 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 				var err error
 				s, err = ui.oauth.cookiestore.New(r, uiSessionName)
 				if err != nil {
-					log("error creating new cookie session: %v", err)
+					ui.rlogger(r).Logf("error creating new cookie session: %v", err)
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -423,24 +420,24 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 			}
 			id, err := ui.dl.CreateUISession(troute, state, net.ParseIP(ip), r.UserAgent(), time.Now().UTC().Add(cookieMaxAge))
 			if err != nil {
-				log("error creating session in db: %v", err)
+				ui.rlogger(r).Logf("error creating session in db: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			s.Values[cookieIDkey] = id
 			if err := s.Save(r, w); err != nil {
-				log("error saving session in cookie store: %v", err)
+				ui.rlogger(r).Logf("error saving session in cookie store: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			// if dummy session, don't redirect to auth
 			// set session as authenticated w/ username, return route content
 			if ui.oauth.DummySessionUser != "" {
-				log("dummy session user set: %v, setting session to authenticated", ui.oauth.DummySessionUser)
+				ui.rlogger(r).Logf("dummy session user set: %v, setting session to authenticated", ui.oauth.DummySessionUser)
 				uis := models.UISession{}
 				uis.EncryptandSetUserToken([]byte(`dummy token`), ui.oauth.UserTokenEncKey)
 				if err := ui.dl.UpdateUISession(id, ui.oauth.DummySessionUser, uis.EncryptedUserToken, true); err != nil {
-					log("error updating dummy ui session: %v", err)
+					ui.rlogger(r).Logf("error updating dummy ui session: %v", err)
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -459,47 +456,47 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 		sess, err := ui.oauth.cookiestore.Get(r, uiSessionName)
 		if err != nil {
 			// invalid cookie or failure to authenticate/decrypt
-			log("error getting session, redirecting to auth: %v", err)
+			ui.rlogger(r).Logf("error getting session, redirecting to auth: %v", err)
 			redirectToAuth(sess) // Get returns a new session on error
 			return
 		}
 		if sess.IsNew {
-			log("session missing from request, redirecting to auth")
+			ui.rlogger(r).Logf("session missing from request, redirecting to auth")
 			redirectToAuth(sess)
 			return
 		}
 		id, ok := sess.Values[cookieIDkey].(int)
 		if !ok {
 			// missing id
-			log("session id is missing from cookie")
+			ui.rlogger(r).Logf("session id is missing from cookie")
 			redirectToAuth(nil)
 			return
 		}
 		uis, err := ui.dl.GetUISession(id)
 		if err != nil {
-			log("error getting session by id: %v", err)
+			ui.rlogger(r).Logf("error getting session by id: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if uis == nil {
 			// not found in db
-			log("session %v not found in db, redirecting to auth", id)
+			ui.rlogger(r).Logf("session %v not found in db, redirecting to auth", id)
 			redirectToAuth(nil)
 			return
 		}
 		if !uis.IsValid() {
 			if err := ui.dl.DeleteUISession(id); err != nil {
-				log("error deleting session: %v", err)
+				ui.rlogger(r).Logf("error deleting session: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			log("session %v isn't valid, redirecting to auth", id)
+			ui.rlogger(r).Logf("session %v isn't valid, redirecting to auth", id)
 			redirectToAuth(nil)
 			return
 		}
 		// we have a valid, authenticated session
 		if err := sess.Save(r, w); err != nil {
-			log("error saving valid session in cookie store: %v", err)
+			ui.rlogger(r).Logf("error saving valid session in cookie store: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -669,7 +666,7 @@ type homeTmplData struct {
 func (api *uiapi) homeHandler(w http.ResponseWriter, r *http.Request) {
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
-		api.logger.Printf("error getting ui session: %v", err)
+		api.rlogger(r).Logf("error getting ui session: %v", err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -697,7 +694,7 @@ func repoInRepos(repos []string, repo string) bool {
 func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
-		api.logger.Printf("error getting ui session: %v", err)
+		api.rlogger(r).Logf("error getting ui session: %v", err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -711,7 +708,7 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	env, err := api.dl.GetQAEnvironment(r.Context(), td.EnvName)
 	if err != nil {
-		api.logger.Printf("ui env: error getting env from db: %v", err)
+		api.rlogger(r).Logf("error getting env from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -721,7 +718,7 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
 	if err != nil {
-		api.logger.Printf("error getting user visible repos: %v", err)
+		api.rlogger(r).Logf("error getting user visible repos: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

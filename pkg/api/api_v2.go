@@ -540,12 +540,9 @@ var (
 
 // userEnvsHandler returns the environments for the session user that have been created/updated within the history duration
 func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
-	log := func(msg string, args ...interface{}) {
-		api.logger.Printf("userEnvsHandler: "+msg, args...)
-	}
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
-		log("session missing from context")
+		api.rlogger(r).Logf("session missing from context")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -553,7 +550,7 @@ func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
 	if h := r.URL.Query().Get("history"); h != "" {
 		hd, err := time.ParseDuration(h)
 		if err != nil {
-			log("invalid history duration: %v", err)
+			api.rlogger(r).Logf("invalid history duration: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -578,7 +575,7 @@ func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
 		sparams.User = ""
 		repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
 		if err != nil {
-			log("error getting user visible repos: %v", err)
+			api.rlogger(r).Logf("error getting user visible repos: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -586,7 +583,7 @@ func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	envs, err := api.dl.Search(r.Context(), sparams)
 	if err != nil {
-		log("error getting envs: %v", err)
+		api.rlogger(r).Logf("error getting envs: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -596,7 +593,7 @@ func (api *v2api) userEnvsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Add("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(out); err != nil {
-		log("error marshaling envs: %v", err)
+		api.rlogger(r).Logf("error marshaling envs: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -650,12 +647,9 @@ func V2EnvDetailFromQAEnvAndK8sEnv(qae models.QAEnvironment, k8senv models.Kuber
 
 // userEnvDetailHandler gets environment detail for the UI
 func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
-	log := func(msg string, args ...interface{}) {
-		api.logger.Printf("userEnvDetailHandler: "+msg, args...)
-	}
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
-		log("session missing from context")
+		api.rlogger(r).Logf("session missing from context")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -666,18 +660,18 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	qae, err := api.dl.GetQAEnvironment(r.Context(), envname)
 	if err != nil {
-		log("error getting qa env from db: %v", err)
+		api.rlogger(r).Logf("error getting qa env from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if qae == nil {
-		log("qa env not found")
+		api.rlogger(r).Logf("qa env not found")
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
 	if err != nil {
-		log("error getting user visible repos: %v", err)
+		api.rlogger(r).Logf("error getting user visible repos: %v: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -687,7 +681,7 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	k8senv, err := api.dl.GetK8sEnv(r.Context(), envname)
 	if err != nil {
-		log("error getting k8s env from db: %v", err)
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -697,13 +691,13 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	elogs, err := api.dl.GetEventLogsWithStatusByEnvName(envname)
 	if err != nil {
-		log("error getting eventlogs from db: %v", err)
+		api.rlogger(r).Logf("error getting eventlogs from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if len(elogs) == 0 {
 		// it shouldn't be possible to have an environment with zero events
-		log("no eventlogs found for env: %v", envname)
+		api.rlogger(r).Logf("no eventlogs found for env: %v", envname)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -712,7 +706,7 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 	ed.Events = V2EventSummariesFromEventLogs(elogs)
 	w.Header().Add("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(&ed); err != nil {
-		log("error marshaling user env detail: %v", err)
+		api.rlogger(r).Logf("error marshaling user env detail: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }

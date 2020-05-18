@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
@@ -43,6 +44,27 @@ func (api *apiBase) notfoundError(w http.ResponseWriter) {
 
 func (api *apiBase) forbiddenError(w http.ResponseWriter, msg string) {
 	api.httpError(w, fmt.Errorf("forbidden: %v", msg), http.StatusForbidden)
+}
+
+type routeLogger struct {
+	route  string
+	logger *log.Logger
+}
+
+// Logf logs a log string to the base logger prefixed by the request route
+func (r routeLogger) Logf(msg string, args ...interface{}) {
+	if r.logger == nil {
+		r.logger = log.New(os.Stderr, "", log.LstdFlags)
+	}
+	r.logger.Printf(r.route+": "+msg, args...)
+}
+
+// rlogger returns a new route logger for a request
+func (api *apiBase) rlogger(r *http.Request) routeLogger {
+	return routeLogger{
+		logger: api.logger,
+		route:  r.URL.Path,
+	}
 }
 
 // Dependencies are the dependencies required for the API
