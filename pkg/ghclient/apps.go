@@ -12,6 +12,7 @@ type GitHubAppInstallationClient interface {
 	GetUserAppInstallations(ctx context.Context) (AppInstallations, error)
 	GetUserAppRepos(ctx context.Context, appID int64) ([]string, error)
 	GetUser(ctx context.Context) (string, error)
+	GetUserAppRepoPermissions(ctx context.Context, instID int64) (map[string]AppRepoPermissions, error)
 }
 
 type AppInstallation struct {
@@ -98,4 +99,39 @@ func (ghc *GitHubClient) GetUser(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error getting current authenticated user: %v", err)
 	}
 	return user.GetLogin(), nil
+}
+
+type AppRepoPermissions struct {
+	Repo              string
+	Admin, Push, Pull bool
+}
+
+func (ghc *GitHubClient) GetUserAppRepoPermissions(ctx context.Context, instID int64) (map[string]AppRepoPermissions, error) {
+	lopt := &github.ListOptions{PerPage: 100}
+	rs := []*github.Repository{}
+	for {
+		ctx, cf := context.WithTimeout(ctx, ghTimeout)
+		defer cf()
+		repos, resp, err := ghc.c.Apps.ListUserRepos(ctx, instID, lopt)
+		if err != nil {
+			return nil, fmt.Errorf("error listing user repos: %v", err)
+		}
+		rs = append(rs, repos...)
+		if resp.NextPage == 0 {
+			break
+		}
+		lopt.Page = resp.NextPage
+	}
+	out := make(map[string]AppRepoPermissions, len(rs))
+	for _, r := range rs {
+		fn := r.GetFullName()
+		p := r.GetPermissions()
+		out[fn] = AppRepoPermissions{
+			Repo:  fn,
+			Admin: p["admin"],
+			Push:  p["push"],
+			Pull:  p["pull"],
+		}
+	}
+	return out, nil
 }

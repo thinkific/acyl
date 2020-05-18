@@ -1,7 +1,10 @@
 <html>
   <head>
     {{ template "header-head" . }}
-
+    <link
+            href="{{ .APIBaseURL }}/ui/static/status.css"
+            rel="stylesheet"
+    />
     <script type="text/javascript">
       const urlParams = new URLSearchParams(window.location.search);
       const event_id = urlParams.get("id");
@@ -16,6 +19,17 @@
     {{ template "header-nav" . }}
 
     <div class="container">
+      <div class="row">
+        <div class="col">
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="{{ .APIBaseURL }}/ui/home">Home</a></li>
+              <li class="breadcrumb-item" aria-current="page" id="bc-envname">n/a</li>
+              <li class="breadcrumb-item active" aria-current="page" id="bc-eventid"></li>
+            </ol>
+          </nav>
+        </div>
+      </div>
       <div class="row">
         <div class="col">
           <div class="accordion">

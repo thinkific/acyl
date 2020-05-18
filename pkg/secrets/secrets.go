@@ -14,23 +14,24 @@ import (
 // Secret IDs
 // These will be interpolated as .ID in the secrets mapping
 const (
-	awsAccessKeyIDid         = "aws/access_key_id"
-	awsSecretAccessKeyid     = "aws/secret_access_key"
-	githubHookSecretid       = "github/hook_secret"
-	githubTokenid            = "github/token"
-	githubAppID              = "github/app/id"
-	githubAppPK              = "github/app/private_key"
-	githubAppHookSecret      = "github/app/hook_secret"
-	githubOAuthInstID        = "github/app/oauth/installation_id"
-	githubOAuthClientID      = "github/app/oauth/client/id"
-	githubOAuthClientSecret  = "github/app/oauth/client/secret"
-	githubOAuthCookieEncKey  = "github/app/oauth/cookie/encryption_key"
-	githubOAuthCookieAuthKey = "github/app/oauth/cookie/authentication_key"
-	apiKeysid                = "api_keys"
-	slackTokenid             = "slack/token"
-	tlsCertid                = "tls/cert"
-	tlsKeyid                 = "tls/key"
-	dbURIid                  = "db/uri"
+	awsAccessKeyIDid           = "aws/access_key_id"
+	awsSecretAccessKeyid       = "aws/secret_access_key"
+	githubHookSecretid         = "github/hook_secret"
+	githubTokenid              = "github/token"
+	githubAppID                = "github/app/id"
+	githubAppPK                = "github/app/private_key"
+	githubAppHookSecret        = "github/app/hook_secret"
+	githubOAuthInstID          = "github/app/oauth/installation_id"
+	githubOAuthClientID        = "github/app/oauth/client/id"
+	githubOAuthClientSecret    = "github/app/oauth/client/secret"
+	githubOAuthCookieEncKey    = "github/app/oauth/cookie/encryption_key"
+	githubOAuthCookieAuthKey   = "github/app/oauth/cookie/authentication_key"
+	githubOAuthUserTokenEncKey = "github/app/oauth/user_token/encryption_key"
+	apiKeysid                  = "api_keys"
+	slackTokenid               = "slack/token"
+	tlsCertid                  = "tls/cert"
+	tlsKeyid                   = "tls/key"
+	dbURIid                    = "db/uri"
 )
 
 type SecretFetcher interface {
@@ -171,6 +172,14 @@ func (psf *PVCSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
 		return fmt.Errorf("bad cookie enc key: length must be exactly 32 bytes, value size: %v", len(s))
 	}
 	copy(gh.OAuth.CookieEncKey[:], s)
+	s, err = psf.sc.Get(githubOAuthUserTokenEncKey)
+	if err != nil {
+		return errors.Wrap(err, "error getting GitHub App user token enc key")
+	}
+	if len(s) != 32 {
+		return fmt.Errorf("bad user token enc key: length must be exactly 32 bytes, value size: %v", len(s))
+	}
+	copy(gh.OAuth.UserTokenEncKey[:], s)
 	return nil
 }
 

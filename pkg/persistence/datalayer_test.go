@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -539,167 +540,289 @@ func TestDataLayerGetQAEnvironmentByUser(t *testing.T) {
 		t.Fatalf("wrong env: %v", qas[0].Name)
 	}
 }
-
 func TestDataLayerSearch(t *testing.T) {
 	dl, tdl := NewTestDataLayer(t)
 	if err := tdl.Setup(testDataPath); err != nil {
 		t.Fatalf("error setting up test database: %v", err)
 	}
-
-	sopts := models.EnvSearchParameters{
-		Repo:         "dollarshaveclub/foo-bar",
-		Pr:           0,
-		SourceSHA:    "",
-		SourceBranch: "",
-		User:         "",
-		Status:       0,
-		TrackingRef:  "",
-	}
-
 	defer tdl.TearDown()
-	var qas []QAEnvironment
-	var err error
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("repo: should have succeeded: %v", err)
+	tests := []struct {
+		name       string
+		opts       models.EnvSearchParameters
+		verifyfunc func([]models.QAEnvironment, error) error
+	}{
+		{
+			name: "by repo",
+			opts: models.EnvSearchParameters{
+				Repo: "dollarshaveclub/foo-bar",
+			},
+			verifyfunc: func(envs []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("repo: should have succeeded: %v", err)
+				}
+				if len(envs) != 2 {
+					return fmt.Errorf("repo: unexpected length: %v", len(envs))
+				}
+				return nil
+			},
+		},
+		{
+			name: "by repo and pr",
+			opts: models.EnvSearchParameters{
+				Repo: "dollarshaveclub/foo-bar",
+				Pr:   99,
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("repo/pr: should have succeeded: %v", err)
+				}
+				if len(qas) != 1 {
+					return fmt.Errorf("repo/pr: unexpected length: %v", len(qas))
+				}
+				if qas[0].Name != "foo-bar" {
+					return fmt.Errorf("repo/pr: bad qa: %v", qas[0].Name)
+				}
+				return nil
+			},
+		},
+		{
+			name: "by source sha",
+			opts: models.EnvSearchParameters{
+				SourceSHA: "372829sskskskdkdke499393",
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("source sha: should have succeeded: %v", err)
+				}
+				if len(qas) != 1 {
+					return fmt.Errorf("source sha: unexpected length: %v", len(qas))
+				}
+				if qas[0].Name != "biz-baz" {
+					return fmt.Errorf("source sha: bad qa: %v", qas[0].Name)
+				}
+				return nil
+			},
+		},
+		{
+			name: "by source branch",
+			opts: models.EnvSearchParameters{
+				SourceBranch: "feature-crash-the-site",
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("source branch: should have succeeded: %v", err)
+				}
+				if len(qas) != 1 {
+					return fmt.Errorf("source branch:unexpected length: %v", len(qas))
+				}
+				if qas[0].Name != "foo-baz" {
+					return fmt.Errorf("source branch:bad qa: %v", qas[0].Name)
+				}
+				return nil
+			},
+		},
+		{
+			name: "by user",
+			opts: models.EnvSearchParameters{
+				User: "bobsmith",
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("user: should have succeeded: %v", err)
+				}
+				if len(qas) != 1 {
+					return fmt.Errorf("user: unexpected length: %v", len(qas))
+				}
+				if qas[0].Name != "foo-bar" {
+					return fmt.Errorf("user: bad qa: %v", qas[0].Name)
+				}
+				return nil
+			},
+		},
+		{
+			name: "by status",
+			opts: models.EnvSearchParameters{
+				Status: models.Success,
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("status: should have succeeded: %v", err)
+				}
+				if len(qas) != 5 {
+					return fmt.Errorf("status: unexpected length: %v", len(qas))
+				}
+				return nil
+			},
+		},
+		{
+			name: "by repo, source branch, user and status",
+			opts: models.EnvSearchParameters{
+				Repo:         "dollarshaveclub/foo-bar",
+				SourceBranch: "feature-sell-moar-stuff",
+				User:         "alicejones",
+				Status:       models.Success,
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("multi 1: should have succeeded: %v", err)
+				}
+				if len(qas) != 1 {
+					return fmt.Errorf("multi 1: unexpected length: %v", len(qas))
+				}
+				if qas[0].Name != "foo-bar-2" {
+					return fmt.Errorf("multi 1: bad qa: %v", qas[0].Name)
+				}
+				return nil
+			},
+		},
+		{
+			name: "by repo and status = success",
+			opts: models.EnvSearchParameters{
+				Repo:   "dollarshaveclub/biz-baz",
+				Status: models.Success,
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("repo + status success: should have succeeded: %v", err)
+				}
+				if len(qas) != 2 {
+					return fmt.Errorf("repo + status success: unexpected length: %v", len(qas))
+				}
+				return nil
+			},
+		},
+		{
+			name: "by repo and status = destroyed",
+			opts: models.EnvSearchParameters{
+				Repo:   "dollarshaveclub/biz-baz",
+				Status: models.Destroyed,
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("repo + status destroyed: should have succeeded: %v", err)
+				}
+				if len(qas) != 1 {
+					return fmt.Errorf("repo + status destroyed: unexpected length: %v", len(qas))
+				}
+				if qas[0].Name != "biz-baz" {
+					return fmt.Errorf("repo + status destroyed: unexpected name: %v", qas[0].Name)
+				}
+				return nil
+			},
+		},
+		{
+			name: "by repo, source branch, user and status",
+			opts: models.EnvSearchParameters{
+				Repo:         "dollarshaveclub/foo-bar",
+				SourceBranch: "feature-sell-moar-stuff",
+				User:         "notalicejones",
+				Status:       models.Success,
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("multi 2: should have succeeded: %v", err)
+				}
+				if len(qas) != 0 {
+					return fmt.Errorf("multi 2: expected no results: %v", qas)
+				}
+				return nil
+			},
+		},
+		{
+			name: "by multiple statuses",
+			opts: models.EnvSearchParameters{
+				Statuses: []EnvironmentStatus{models.Destroyed, models.Failure},
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("statuses: should have succeeded: %v", err)
+				}
+				if len(qas) != 2 {
+					return fmt.Errorf("statuses: expected 2, got: %v", len(qas))
+				}
+				return nil
+			},
+		},
+		{
+			name: "by created since",
+			opts: models.EnvSearchParameters{
+				CreatedSince: 2 * 24 * time.Hour,
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("created since: should have succeeded: %v", err)
+				}
+				if len(qas) != 2 {
+					return fmt.Errorf("created since: expected 2, got: %v", len(qas))
+				}
+				return nil
+			},
+		},
+		{
+			name: "by created since, user and multiple statuses",
+			opts: models.EnvSearchParameters{
+				CreatedSince: 2 * 24 * time.Hour,
+				User:         "bobsmith",
+				Statuses:     []EnvironmentStatus{models.Success, models.Spawned, models.Updating, models.Failure},
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("multi userenvs: should have succeeded: %v", err)
+				}
+				if len(qas) != 1 {
+					return fmt.Errorf("multi userenvs: expected 1, got: %v", len(qas))
+				}
+				return nil
+			},
+		},
+		{
+			name: "by multiple repos",
+			opts: models.EnvSearchParameters{
+				Repos: []string{"dollarshaveclub/foo-bar", "dollarshaveclub/biz-baz"},
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err != nil {
+					return fmt.Errorf("multi repos: should have succeeded: %v", err)
+				}
+				if len(qas) != 5 {
+					return fmt.Errorf("multi repos: expected 5, got: %v", len(qas))
+				}
+				return nil
+			},
+		},
+		{
+			name: "error for repo and repos",
+			opts: models.EnvSearchParameters{
+				Repo:  "dollarshaveclub/something",
+				Repos: []string{"dollarshaveclub/foo-bar", "dollarshaveclub/biz-baz"},
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err == nil {
+					return fmt.Errorf("expected error for both repo and repos")
+				}
+				return nil
+			},
+		},
+		{
+			name: "error for status and statuses",
+			opts: models.EnvSearchParameters{
+				Status:   models.Success,
+				Statuses: []EnvironmentStatus{models.Spawned, models.Updating, models.Failure},
+			},
+			verifyfunc: func(qas []models.QAEnvironment, err error) error {
+				if err == nil {
+					return fmt.Errorf("expected error for both status and statuses")
+				}
+				return nil
+			},
+		},
 	}
-	if len(qas) != 2 {
-		t.Fatalf("repo: unexpected length: %v", len(qas))
-	}
-
-	sopts.Pr = 99
-
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("repo/pr: should have succeeded: %v", err)
-	}
-	if len(qas) != 1 {
-		t.Fatalf("repo/pr: unexpected length: %v", len(qas))
-	}
-	if qas[0].Name != "foo-bar" {
-		t.Fatalf("repo/pr: bad qa: %v", qas[0].Name)
-	}
-	sopts.Repo = ""
-	sopts.Pr = 0
-	sopts.SourceSHA = "372829sskskskdkdke499393"
-
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("source sha: should have succeeded: %v", err)
-	}
-	if len(qas) != 1 {
-		t.Fatalf("source sha: unexpected length: %v", len(qas))
-	}
-	if qas[0].Name != "biz-baz" {
-		t.Fatalf("source sha: bad qa: %v", qas[0].Name)
-	}
-	sopts.SourceSHA = ""
-	sopts.SourceBranch = "feature-crash-the-site"
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("source branch: should have succeeded: %v", err)
-	}
-	if len(qas) != 1 {
-		t.Fatalf("source branch:unexpected length: %v", len(qas))
-	}
-	if qas[0].Name != "foo-baz" {
-		t.Fatalf("source branch:bad qa: %v", qas[0].Name)
-	}
-	sopts.SourceBranch = ""
-	sopts.User = "bobsmith"
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("user: should have succeeded: %v", err)
-	}
-	if len(qas) != 1 {
-		t.Fatalf("user: unexpected length: %v", len(qas))
-	}
-	if qas[0].Name != "foo-bar" {
-		t.Fatalf("user: bad qa: %v", qas[0].Name)
-	}
-	sopts.User = ""
-	sopts.Status = models.Success
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("status: should have succeeded: %v", err)
-	}
-	if len(qas) != 5 {
-		t.Fatalf("status: unexpected length: %v", len(qas))
-	}
-	sopts.Repo = "dollarshaveclub/foo-bar"
-	sopts.SourceBranch = "feature-sell-moar-stuff"
-	sopts.User = "alicejones"
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("multi 1: should have succeeded: %v", err)
-	}
-	if len(qas) != 1 {
-		t.Fatalf("multi 1: unexpected length: %v", len(qas))
-	}
-	if qas[0].Name != "foo-bar-2" {
-		t.Fatalf("multi 1: bad qa: %v", qas[0].Name)
-	}
-	sopts.Repo = "dollarshaveclub/biz-baz"
-	sopts.SourceBranch = ""
-	sopts.User = ""
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("repo + status success: should have succeeded: %v", err)
-	}
-	if len(qas) != 2 {
-		t.Fatalf("repo + status success: unexpected length: %v", len(qas))
-	}
-	sopts.Status = models.Destroyed
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("repo + status destroyed: should have succeeded: %v", err)
-	}
-	if len(qas) != 1 {
-		t.Fatalf("repo + status destroyed: unexpected length: %v", len(qas))
-	}
-	if qas[0].Name != "biz-baz" {
-		t.Fatalf("repo + status destroyed: unexpected name: %v", qas[0].Name)
-	}
-	sopts.Repo = "dollarshaveclub/foo-bar"
-	sopts.SourceBranch = "feature-sell-moar-stuff"
-	sopts.User = "notalicejones"
-	sopts.Status = models.Success
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("multi 2: should have succeeded: %v", err)
-	}
-	if len(qas) != 0 {
-		t.Fatalf("multi 2: expected no results: %v", qas)
-	}
-}
-
-func TestDataLayerSearchWithTrackingRef(t *testing.T) {
-	dl, tdl := NewTestDataLayer(t)
-	if err := tdl.Setup(testDataPath); err != nil {
-		t.Fatalf("error setting up test database: %v", err)
-	}
-	sopts := models.EnvSearchParameters{
-		Repo:         "dollarshaveclub/biz-baz",
-		Pr:           0,
-		SourceSHA:    "",
-		SourceBranch: "",
-		User:         "",
-		Status:       0,
-		TrackingRef:  "master",
-	}
-
-	defer tdl.TearDown()
-	var qas []QAEnvironment
-	var err error
-	qas, err = dl.Search(context.Background(), sopts)
-	if err != nil {
-		t.Fatalf("should have succeeded: %v", err)
-	}
-	if len(qas) != 1 {
-		t.Fatalf("bad qa count: %v", len(qas))
-	}
-	if qas[0].Name != "biz-biz2" {
-		t.Fatalf("bad qa name: %v", qas[0].Name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.verifyfunc(dl.Search(context.Background(), tt.opts)); err != nil {
+				t.Errorf("subtest %v failed: %v", tt.name, err)
+			}
+		})
 	}
 }
 
@@ -1066,6 +1189,27 @@ func TestDataLayerGetEventLogsByEnvName(t *testing.T) {
 	}
 	if i := len(logs); i != 2 {
 		t.Fatalf("expected length of 2: %v", i)
+	}
+}
+
+func TestDataLayerGetEventLogsWithStatusByEnvName(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	logs, err := dl.GetEventLogsWithStatusByEnvName("foo-bar-2")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if i := len(logs); i != 1 {
+		t.Fatalf("expected length of 1: %v", i)
+	}
+	if logs[0].Status.Config.Status == 0 {
+		t.Fatalf("zero value for config status")
+	}
+	if len(logs[0].Status.Tree) == 0 {
+		t.Fatalf("zero length for status tree")
 	}
 }
 
@@ -1507,18 +1651,21 @@ func TestDataLayerUpdateUISession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create should have succeeded: %v", err)
 	}
-	if err := dl.UpdateUISession(id, "someuser", true); err != nil {
+	if err := dl.UpdateUISession(id, "someuser", []byte(`asdf`), true); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
 	uis, err := dl.GetUISession(id)
 	if err != nil {
 		t.Fatalf("error getting ui session: %v", err)
 	}
-	if string(uis.GitHubUser) != "someuser" {
+	if uis.GitHubUser != "someuser" {
 		t.Fatalf("bad user: %v", uis.GitHubUser)
 	}
 	if !uis.Authenticated {
 		t.Fatalf("should have been authenticated")
+	}
+	if string(uis.EncryptedUserToken) != "asdf" {
+		t.Fatalf("bad encrypted token: %v", string(uis.EncryptedUserToken))
 	}
 }
 

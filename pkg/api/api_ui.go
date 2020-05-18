@@ -17,6 +17,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
@@ -39,12 +40,14 @@ type uiBranding struct {
 // OAuthConfig models the configuration needed to support a GitHub OAuth authn/authz flow
 type OAuthConfig struct {
 	Enforce                     bool                                                    // Enforce OAuth authn/authz for protected routes
+	DummySessionUser            string                                                  // Create a new authenticated dummy session with username if no session exists (for testing)
 	AppInstallationID           int64                                                   // GitHub App installation ID
 	ClientID, ClientSecret      string                                                  // GitHub App ClientID/secret
 	ValidateURL                 url.URL                                                 // URL to validate callback code and exchange for bearer token
 	AuthURL                     url.URL                                                 // URL to initiate OAuth flow
 	AppGHClientFactoryFunc      func(token string) ghclient.GitHubAppInstallationClient // Function that produces a token-scoped GitHubAppInstallationClient
 	CookieAuthKey, CookieEncKey [32]byte                                                // Cookie authentication & encryption keys (AES-256)
+	UserTokenEncKey             [32]byte                                                // Secretbox encryption key for user token
 	cookiestore                 sessions.Store
 	errorPage                   []byte
 	hc                          http.Client
@@ -90,12 +93,18 @@ var partials = map[string]string{
 var viewPaths = map[string]string{
 	"status":     path.Join("views", "status.html"),
 	"auth_error": path.Join("views", "autherror.html"),
+	"home":       path.Join("views", "home.html"),
+	"env":        path.Join("views", "env.html"),
+	"denied":     path.Join("views", "denied.html"),
 }
 
 func newSessionsCookieStore(oauthCfg OAuthConfig) sessions.Store {
 	cstore := sessions.NewCookieStore(oauthCfg.CookieAuthKey[:], oauthCfg.CookieEncKey[:])
 	cstore.Options.SameSite = http.SameSiteLaxMode // Lax mode is required so callback request contains the session cookie
 	cstore.Options.Secure = true
+	if oauthCfg.DummySessionUser != "" {
+		cstore.Options.Secure = false
+	}
 	cstore.MaxAge(int(cookieMaxAge.Seconds()))
 	return cstore
 }
@@ -223,7 +232,10 @@ func (api *uiapi) loadTemplate(name string) error {
 	return nil
 }
 
-const baseErrorRoute = "/oauth/accessdenied"
+const (
+	baseErrorRoute  = "/oauth/accessdenied"
+	baseDeniedRoute = "/denied"
+)
 
 func (api *uiapi) register(r *muxtrace.Router) error {
 	if r == nil {
@@ -235,8 +247,15 @@ func (api *uiapi) register(r *muxtrace.Router) error {
 
 	// UI routes
 	r.HandleFunc(urlPath("/event/status"), middlewareChain(api.statusHandler, api.authenticate)).Methods("GET")
-	r.HandleFunc(urlPath(baseErrorRoute), middlewareChain(api.authErrorHandler)).Methods("GET")
+	r.HandleFunc(urlPath("/home"), middlewareChain(api.homeHandler, api.authenticate)).Methods("GET")
+	r.HandleFunc(urlPath("/env/{envname}"), middlewareChain(api.envHandler, api.authenticate)).Methods("GET")
+
+	// unauthenticated OAuth callback
 	r.HandleFunc(urlPath("/oauth/callback"), middlewareChain(api.authCallbackHandler)).Methods("GET")
+
+	// unauthenticated error pages
+	r.HandleFunc(urlPath(baseErrorRoute), middlewareChain(api.authErrorHandler)).Methods("GET")
+	r.HandleFunc(urlPath(baseDeniedRoute), middlewareChain(api.deniedHandler)).Methods("GET")
 
 	// static assets
 	r.PathPrefix(urlPath("/static/")).Handler(http.StripPrefix(urlPath("/static/"), http.FileServer(http.Dir(path.Join(api.assetsPath, "assets")))))
@@ -363,6 +382,8 @@ const (
 )
 
 // authenticate is a middleware that ensures a request to a protected UI path has an authenticated session
+// authenticate performs authentication but does not perform specific authorization
+// if a user has a valid session, they are authenticated and have at least one visible repo
 // if not, it creates a new session and redirects to the provided oauth URL
 func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 	rr := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
@@ -386,7 +407,7 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 				var err error
 				s, err = ui.oauth.cookiestore.New(r, uiSessionName)
 				if err != nil {
-					log.Printf("error creating new cookie session: %v", err)
+					ui.rlogger(r).Logf("error creating new cookie session: %v", err)
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -399,14 +420,28 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 			}
 			id, err := ui.dl.CreateUISession(troute, state, net.ParseIP(ip), r.UserAgent(), time.Now().UTC().Add(cookieMaxAge))
 			if err != nil {
-				log.Printf("error creating session in db: %v", err)
+				ui.rlogger(r).Logf("error creating session in db: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			s.Values[cookieIDkey] = id
 			if err := s.Save(r, w); err != nil {
-				log.Printf("error saving session in cookie store: %v", err)
+				ui.rlogger(r).Logf("error saving session in cookie store: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			// if dummy session, don't redirect to auth
+			// set session as authenticated w/ username, return route content
+			if ui.oauth.DummySessionUser != "" {
+				ui.rlogger(r).Logf("dummy session user set: %v, setting session to authenticated", ui.oauth.DummySessionUser)
+				uis := models.UISession{}
+				uis.EncryptandSetUserToken([]byte(`dummy token`), ui.oauth.UserTokenEncKey)
+				if err := ui.dl.UpdateUISession(id, ui.oauth.DummySessionUser, uis.EncryptedUserToken, true); err != nil {
+					ui.rlogger(r).Logf("error updating dummy ui session: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				f(w, r)
 				return
 			}
 			aurl := ui.oauth.AuthURL
@@ -421,57 +456,60 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 		sess, err := ui.oauth.cookiestore.Get(r, uiSessionName)
 		if err != nil {
 			// invalid cookie or failure to authenticate/decrypt
-			log.Printf("error getting session, redirecting to auth: %v", err)
+			ui.rlogger(r).Logf("error getting session, redirecting to auth: %v", err)
 			redirectToAuth(sess) // Get returns a new session on error
 			return
 		}
 		if sess.IsNew {
-			log.Printf("session missing from request, redirecting to auth")
+			ui.rlogger(r).Logf("session missing from request, redirecting to auth")
 			redirectToAuth(sess)
 			return
 		}
 		id, ok := sess.Values[cookieIDkey].(int)
 		if !ok {
 			// missing id
-			log.Printf("session id is missing from cookie")
+			ui.rlogger(r).Logf("session id is missing from cookie")
 			redirectToAuth(nil)
 			return
 		}
 		uis, err := ui.dl.GetUISession(id)
 		if err != nil {
-			log.Printf("error getting session by id: %v", err)
+			ui.rlogger(r).Logf("error getting session by id: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if uis == nil {
 			// not found in db
-			log.Printf("session %v not found in db, redirecting to auth", id)
+			ui.rlogger(r).Logf("session %v not found in db, redirecting to auth", id)
 			redirectToAuth(nil)
 			return
 		}
 		if !uis.IsValid() {
 			if err := ui.dl.DeleteUISession(id); err != nil {
-				log.Printf("error deleting session: %v", err)
+				ui.rlogger(r).Logf("error deleting session: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			log.Printf("session %v isn't valid, redirecting to auth", id)
+			ui.rlogger(r).Logf("session %v isn't valid, redirecting to auth", id)
 			redirectToAuth(nil)
 			return
 		}
 		// we have a valid, authenticated session
 		if err := sess.Save(r, w); err != nil {
-			log.Printf("error saving valid session in cookie store: %v", err)
+			ui.rlogger(r).Logf("error saving valid session in cookie store: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		f(w, r)
+		f(w, r.Clone(withSession(r.Context(), *uis)))
 	}
 }
 
 // authCallbackHandler handles the OAuth GitHub callback, verifies that the authenticated GitHub
 // user account is authorized to access UI resources and updates the session accordingly
 func (api *uiapi) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	log := func(msg string, args ...interface{}) {
+		log.Printf("ui auth callback: "+msg, args...)
+	}
 	redirectToError := func() {
 		w.Header().Add("Location", api.apiBaseURL+api.routePrefix+baseErrorRoute)
 		w.WriteHeader(http.StatusFound)
@@ -479,54 +517,59 @@ func (api *uiapi) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	sess, err := api.oauth.cookiestore.Get(r, uiSessionName)
 	if err != nil || sess.IsNew {
 		// invalid cookie or failure to authenticate/decrypt
-		log.Printf("error getting session or new session, redirecting to error: %v", err)
+		log("error getting session or new session, redirecting to error: %v", err)
 		redirectToError() // Get returns a new session on error
 		return
 	}
 	id, ok := sess.Values[cookieIDkey].(int)
 	if !ok {
 		// missing id
-		log.Printf("session id is missing from cookie")
+		log("session id is missing from cookie")
 		redirectToError()
 		return
 	}
 	uis, err := api.dl.GetUISession(id)
 	if err != nil {
-		log.Printf("error getting session by id: %v", err)
+		log("error getting session by id: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if uis == nil {
 		// not found in db
-		log.Printf("session %v not found in db, redirecting to auth", id)
+		log("session %v not found in db, redirecting to auth", id)
 		redirectToError()
 		return
 	}
 	state := r.URL.Query().Get("state")
 	if state != string(uis.State) {
-		log.Printf("missing or invalid state: %v", state)
+		log("missing or invalid state: %v", state)
 		redirectToError()
 		return
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		log.Printf("missing code: %v", code)
+		log("missing code: %v", code)
 		redirectToError()
 		return
 	}
-	ghuser, err := api.getAndAuthorizeGitHubUser(r.Context(), code, state)
+	ghuser, tkn, err := api.getAndAuthorizeGitHubUser(r.Context(), code, state)
 	if err != nil {
-		log.Printf("error authorizing github user: %v", err)
+		log("error authorizing github user: %v", err)
 		redirectToError()
 		return
 	}
-	if err := api.dl.UpdateUISession(id, ghuser, true); err != nil {
-		log.Printf("error updating session: %v", err)
+	if err := uis.EncryptandSetUserToken([]byte(tkn), api.oauth.UserTokenEncKey); err != nil {
+		log("error encrypting user token: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if err := api.dl.UpdateUISession(id, ghuser, uis.EncryptedUserToken, true); err != nil {
+		log("error updating session: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if err := sess.Save(r, w); err != nil {
-		log.Printf("error saving session to cookie store: %v", err)
+		log("error saving session to cookie store: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -538,7 +581,7 @@ func (api *uiapi) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
 // A GitHub user is considered authorized if and only if all the following are true:
 // - the user has explicit permissions for this installation of this GitHub app
 // - the user has at least one repository accessible via this installation
-func (api *uiapi) getAndAuthorizeGitHubUser(ctx context.Context, code, state string) (string, error) {
+func (api *uiapi) getAndAuthorizeGitHubUser(ctx context.Context, code, state string) (string, string, error) {
 	form := make(url.Values, 4)
 	form.Add("client_id", api.oauth.ClientID)
 	form.Add("client_secret", api.oauth.ClientSecret)
@@ -546,48 +589,48 @@ func (api *uiapi) getAndAuthorizeGitHubUser(ctx context.Context, code, state str
 	form.Add("state", state)
 	req, err := http.NewRequest("POST", api.oauth.ValidateURL.String(), strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", errors.Wrap(err, "error creating validate request")
+		return "", "", errors.Wrap(err, "error creating validate request")
 	}
 	resp, err := api.oauth.hc.Do(req)
 	if err != nil {
-		return "", errors.Wrap(err, "error validating code")
+		return "", "", errors.Wrap(err, "error validating code")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("validation response indicates error: %v", resp.StatusCode)
+		return "", "", fmt.Errorf("validation response indicates error: %v", resp.StatusCode)
 	}
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", errors.Wrap(err, "error reading response body")
+		return "", "", errors.Wrap(err, "error reading response body")
 	}
 	vals, err := url.ParseQuery(string(b))
 	if err != nil {
-		return "", errors.Wrap(err, "error parsing response")
+		return "", "", errors.Wrap(err, "error parsing response")
 	}
 	tkn := vals.Get("access_token")
 	if tkn == "" || vals.Get("token_type") != "bearer" {
-		return "", fmt.Errorf("invalid validation reponse or missing values: %v", string(b))
+		return "", "", fmt.Errorf("invalid validation reponse or missing values: %v", string(b))
 	}
 	rc := api.oauth.AppGHClientFactoryFunc(tkn)
 	ghuser, err := rc.GetUser(ctx)
 	if err != nil {
-		return "", errors.Wrap(err, "error getting github user from token")
+		return "", "", errors.Wrap(err, "error getting github user from token")
 	}
 	insts, err := rc.GetUserAppInstallations(ctx)
 	if err != nil {
-		return "", errors.Wrap(err, "error getting user app installations")
+		return "", "", errors.Wrap(err, "error getting user app installations")
 	}
 	if !insts.IDPresent(api.oauth.AppInstallationID) {
-		return "", fmt.Errorf("app installation id missing from user installations")
+		return "", "", fmt.Errorf("app installation id missing from user installations")
 	}
 	repos, err := rc.GetUserAppRepos(ctx, api.oauth.AppInstallationID)
 	if err != nil {
-		return "", fmt.Errorf("error getting user app installation repos")
+		return "", "", fmt.Errorf("error getting user app installation repos")
 	}
 	if len(repos) == 0 {
-		return "", fmt.Errorf("user %v has zero app installation repos", ghuser)
+		return "", "", fmt.Errorf("user %v has zero app installation repos", ghuser)
 	}
-	return ghuser, nil
+	return ghuser, tkn, nil
 }
 
 // cacheRenderedAuthErrorPage renders the auth error page and saves the output for future use
@@ -613,4 +656,80 @@ func (api *uiapi) authErrorHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/html")
 	w.WriteHeader(http.StatusUnauthorized)
 	w.Write(api.oauth.errorPage)
+}
+
+type homeTmplData struct {
+	BaseTemplateData
+	GitHubUser string
+}
+
+func (api *uiapi) homeHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("error getting ui session: %v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	td := homeTmplData{
+		BaseTemplateData: api.defaultBaseTemplateData(),
+		GitHubUser:       uis.GitHubUser,
+	}
+	api.render(w, "home", &td)
+}
+
+type envTmplData struct {
+	BaseTemplateData
+	EnvName string
+}
+
+func repoInRepos(repos []string, repo string) bool {
+	for _, r := range repos {
+		if r == repo {
+			return true
+		}
+	}
+	return false
+}
+
+func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("error getting ui session: %v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	td := envTmplData{
+		BaseTemplateData: api.defaultBaseTemplateData(),
+		EnvName:          mux.Vars(r)["envname"],
+	}
+	if td.EnvName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	env, err := api.dl.GetQAEnvironment(r.Context(), td.EnvName)
+	if err != nil {
+		api.rlogger(r).Logf("error getting env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if env == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user visible repos: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !repoInRepos(repos, env.Repo) {
+		w.Header().Add("Location", api.apiBaseURL+api.routePrefix+baseDeniedRoute)
+		w.WriteHeader(http.StatusFound)
+		return
+	}
+	api.render(w, "env", &td)
+}
+
+func (api *uiapi) deniedHandler(w http.ResponseWriter, r *http.Request) {
+	api.render(w, "denied", api.defaultBaseTemplateData())
 }

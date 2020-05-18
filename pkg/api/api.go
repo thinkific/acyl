@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
@@ -45,6 +46,27 @@ func (api *apiBase) forbiddenError(w http.ResponseWriter, msg string) {
 	api.httpError(w, fmt.Errorf("forbidden: %v", msg), http.StatusForbidden)
 }
 
+type routeLogger struct {
+	route  string
+	logger *log.Logger
+}
+
+// Logf logs a log string to the base logger prefixed by the request route
+func (r routeLogger) Logf(msg string, args ...interface{}) {
+	if r.logger == nil {
+		r.logger = log.New(os.Stderr, "", log.LstdFlags)
+	}
+	r.logger.Printf(r.route+": "+msg, args...)
+}
+
+// rlogger returns a new route logger for a request
+func (api *apiBase) rlogger(r *http.Request) routeLogger {
+	return routeLogger{
+		logger: api.logger,
+		route:  r.URL.Path,
+	}
+}
+
 // Dependencies are the dependencies required for the API
 type Dependencies struct {
 	DataLayer          persistence.DataLayer
@@ -63,11 +85,12 @@ type Manager interface {
 }
 
 type uiRegisterOptions struct {
-	reload      bool
-	apiBaseURL  string
-	assetsPath  string
-	routePrefix string
-	branding    config.UIBrandingConfig
+	reload           bool
+	apiBaseURL       string
+	assetsPath       string
+	routePrefix      string
+	branding         config.UIBrandingConfig
+	dummySessionUser string
 }
 
 type registerOptions struct {
@@ -143,6 +166,12 @@ func WithUIBranding(branding config.UIBrandingConfig) RegisterOption {
 	}
 }
 
+func WithUIDummySessionUser(user string) RegisterOption {
+	return func(ropts *registerOptions) {
+		ropts.uiOptions.dummySessionUser = user
+	}
+}
+
 func WithGitHubConfig(ghconfig config.GithubConfig) RegisterOption {
 	return func(ropts *registerOptions) {
 		ropts.ghConfig = ghconfig
@@ -151,9 +180,10 @@ func WithGitHubConfig(ghconfig config.GithubConfig) RegisterOption {
 
 // Dispatcher is the concrete implementation of Manager
 type Dispatcher struct {
-	s          *http.Server
-	waitgroups []*sync.WaitGroup
-	uiapi      *uiapi
+	AppGHClientFactoryFunc func(tkn string) ghclient.GitHubAppInstallationClient
+	s                      *http.Server
+	waitgroups             []*sync.WaitGroup
+	uiapi                  *uiapi
 }
 
 // NewDispatcher returns an initialized Dispatcher.
@@ -179,14 +209,20 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		opt(ropts)
 	}
 
+	if d.AppGHClientFactoryFunc == nil {
+		d.AppGHClientFactoryFunc = func(tkn string) ghclient.GitHubAppInstallationClient { return ghclient.NewGitHubClient(tkn) }
+	}
+
 	oauthcfg := OAuthConfig{
 		Enforce:                ropts.ghConfig.OAuth.Enforce,
+		DummySessionUser:       ropts.uiOptions.dummySessionUser,
 		AppInstallationID:      int64(ropts.ghConfig.OAuth.AppInstallationID),
 		ClientID:               ropts.ghConfig.OAuth.ClientID,
 		ClientSecret:           ropts.ghConfig.OAuth.ClientSecret,
-		AppGHClientFactoryFunc: func(tkn string) ghclient.GitHubAppInstallationClient { return ghclient.NewGitHubClient(tkn) },
+		AppGHClientFactoryFunc: d.AppGHClientFactoryFunc,
 		CookieAuthKey:          ropts.ghConfig.OAuth.CookieAuthKey,
 		CookieEncKey:           ropts.ghConfig.OAuth.CookieEncKey,
+		UserTokenEncKey:        ropts.ghConfig.OAuth.UserTokenEncKey,
 	}
 	if err := oauthcfg.SetValidateURL("https://github.com/login/oauth/access_token"); err != nil {
 		return errors.Wrap(err, "error parsing validate URL")
@@ -224,7 +260,13 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 	}
 	d.waitgroups = append(d.waitgroups, &apiv1.wg)
 
-	apiv2, err := newV2API(deps.DataLayer, deps.GitHubEventWebhook, deps.EnvironmentSpawner, deps.ServerConfig, deps.Logger)
+	apiv2, err := newV2API(
+		deps.DataLayer,
+		deps.GitHubEventWebhook,
+		deps.EnvironmentSpawner,
+		deps.ServerConfig,
+		oauthcfg,
+		deps.Logger)
 	if err != nil {
 		return fmt.Errorf("error creating api v2: %v", err)
 	}

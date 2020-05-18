@@ -85,11 +85,12 @@ type EventLoggerDataLayer interface {
 	SetEventStatusChartCompleted(id uuid.UUID, name string, status models.NodeChartStatus) error
 	GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error)
 	SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error
+	GetEventLogsWithStatusByEnvName(name string) ([]models.EventLog, error)
 }
 
 type UISessionsDataLayer interface {
 	CreateUISession(targetRoute string, state []byte, clientIP net.IP, userAgent string, expires time.Time) (int, error)
-	UpdateUISession(id int, githubUser string, authenticated bool) error
+	UpdateUISession(id int, githubUser string, encryptedtoken []byte, authenticated bool) error
 	DeleteUISession(id int) error
 	GetUISession(id int) (*models.UISession, error)
 	DeleteExpiredUISessions() (uint, error)

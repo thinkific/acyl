@@ -238,3 +238,25 @@ func (pg *PGLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, err
 	}
 	return out, nil
 }
+
+// GetEventLogsWithStatusByEnvName gets all event logs for an environment including Status
+func (pg *PGLayer) GetEventLogsWithStatusByEnvName(name string) ([]models.EventLog, error) {
+	var logs []models.EventLog
+	q := `SELECT ` + models.EventLog{}.ColumnsWithStatus() + ` FROM event_logs WHERE env_name = $1;`
+	rows, err := pg.db.Query(q, name)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "error querying")
+	}
+	defer rows.Close()
+	for rows.Next() {
+		el := models.EventLog{}
+		if err := rows.Scan(el.ScanValuesWithStatus()...); err != nil {
+			return nil, errors.Wrap(err, "error scanning row")
+		}
+		logs = append(logs, el)
+	}
+	return logs, nil
+}

@@ -537,6 +537,12 @@ func (fdl *FakeDataLayer) Search(ctx context.Context, opts models.EnvSearchParam
 	if opts.TrackingRef != "" && opts.Repo == "" {
 		return nil, fmt.Errorf("search by tracking ref requires repo name")
 	}
+	if opts.Repo != "" && len(opts.Repos) > 0 {
+		return nil, fmt.Errorf("cannot search by repo and repos simultaneously")
+	}
+	if opts.Status != models.UnknownStatus && len(opts.Statuses) > 0 {
+		return nil, fmt.Errorf("cannot search by status and statuses simultaneously")
+	}
 	filter := func(envs []models.QAEnvironment, cf func(e models.QAEnvironment) bool) []models.QAEnvironment {
 		pres := []models.QAEnvironment{}
 		for _, e := range envs {
@@ -553,6 +559,16 @@ func (fdl *FakeDataLayer) Search(ctx context.Context, opts models.EnvSearchParam
 	if opts.Repo != "" {
 		envs = filter(envs, func(e models.QAEnvironment) bool { return e.Repo == opts.Repo })
 	}
+	if len(opts.Repos) > 0 {
+		envs = filter(envs, func(e models.QAEnvironment) bool {
+			for _, r := range opts.Repos {
+				if e.Repo == r {
+					return true
+				}
+			}
+			return false
+		})
+	}
 	if opts.SourceSHA != "" {
 		envs = filter(envs, func(e models.QAEnvironment) bool { return e.SourceSHA == opts.SourceSHA })
 	}
@@ -564,6 +580,19 @@ func (fdl *FakeDataLayer) Search(ctx context.Context, opts models.EnvSearchParam
 	}
 	if opts.Status != models.UnknownStatus {
 		envs = filter(envs, func(e models.QAEnvironment) bool { return e.Status == opts.Status })
+	}
+	if len(opts.Statuses) > 0 {
+		envs = filter(envs, func(e models.QAEnvironment) bool {
+			for _, s := range opts.Statuses {
+				if e.Status == s {
+					return true
+				}
+			}
+			return false
+		})
+	}
+	if opts.CreatedSince != 0 {
+		envs = filter(envs, func(e models.QAEnvironment) bool { return e.Created.After(time.Now().UTC().Add(-opts.CreatedSince)) })
 	}
 	if opts.TrackingRef != "" {
 		envs = filter(envs, func(e models.QAEnvironment) bool { return e.SourceRef == opts.TrackingRef })
@@ -732,11 +761,12 @@ func (fdl *FakeDataLayer) GetEventLogByID(id uuid.UUID) (*models.EventLog, error
 	fdl.data.RUnlock()
 	if !ok {
 		if fdl.CreateMissingEventLog {
-			sum := fdl.newStatus(id)
+			sum := fdl.newStatus(id, "", "", "", models.CreateEvent, true)
 			out := &models.EventLog{
-				ID:     id,
-				LogKey: uuid.Must(uuid.NewRandom()),
-				Status: *sum,
+				ID:      id,
+				Created: time.Now().UTC(),
+				LogKey:  uuid.Must(uuid.NewRandom()),
+				Status:  *sum,
 			}
 			fdl.data.Lock()
 			fdl.data.elogs[id] = out
@@ -772,6 +802,10 @@ func (fdl *FakeDataLayer) GetEventLogsByEnvName(name string) ([]models.EventLog,
 		}
 	}
 	return out, nil
+}
+
+func (fdl *FakeDataLayer) GetEventLogsWithStatusByEnvName(name string) ([]models.EventLog, error) {
+	return fdl.GetEventLogsByEnvName(name)
 }
 
 func (fdl *FakeDataLayer) GetEventLogsByRepoAndPR(repo string, pr uint) ([]models.EventLog, error) {
@@ -1014,7 +1048,7 @@ func (fdl *FakeDataLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSumma
 	if elog == nil {
 		if fdl.CreateMissingEventLog {
 			// if id not found, create a new one and begin an async update goroutine
-			return fdl.newStatus(id), nil
+			return fdl.newStatus(id, "", "", "", models.CreateEvent, true), nil
 		}
 		return nil, nil
 	}
@@ -1055,7 +1089,7 @@ func (fdl *FakeDataLayer) CreateUISession(targetRoute string, state []byte, clie
 	return id, nil
 }
 
-func (fdl *FakeDataLayer) UpdateUISession(id int, githubUser string, authenticated bool) error {
+func (fdl *FakeDataLayer) UpdateUISession(id int, githubUser string, encryptedtoken []byte, authenticated bool) error {
 	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
@@ -1065,6 +1099,7 @@ func (fdl *FakeDataLayer) UpdateUISession(id int, githubUser string, authenticat
 	}
 	uis.GitHubUser = githubUser
 	uis.Authenticated = authenticated
+	uis.EncryptedUserToken = encryptedtoken
 	return nil
 }
 

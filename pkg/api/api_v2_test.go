@@ -1,16 +1,23 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
-	"github.com/dollarshaveclub/acyl/pkg/config"
-	"github.com/dollarshaveclub/acyl/pkg/testhelper/testdatalayer"
+	"github.com/gorilla/mux"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
+
+	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/ghclient"
+	"github.com/dollarshaveclub/acyl/pkg/models"
+	"github.com/dollarshaveclub/acyl/pkg/testhelper/testdatalayer"
 )
 
 func TestAPIv2SearchByTrackingRef(t *testing.T) {
@@ -20,7 +27,7 @@ func TestAPIv2SearchByTrackingRef(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -50,7 +57,7 @@ func TestAPIv2EnvDetails(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -94,7 +101,7 @@ func TestAPIv2HealthCheck(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -138,7 +145,7 @@ func TestAPIv2EventLog(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -208,7 +215,7 @@ func TestAPIv2EventStatus(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -270,5 +277,103 @@ func TestAPIv2EventStatus(t *testing.T) {
 	}
 	if rsl := res.Config.RenderedStatus.LinkTargetURL; rsl != "https://foobar.com" {
 		t.Fatalf("bad rendered link url: %+v", rsl)
+	}
+}
+
+func TestAPIv2UserEnvs(t *testing.T) {
+	dl, tdl := testdatalayer.New(testlogger, t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
+	if err != nil {
+		t.Fatalf("error creating api: %v", err)
+	}
+
+	uis := models.UISession{
+		Authenticated: true,
+		GitHubUser:    "bobsmith",
+	}
+	req, _ := http.NewRequest("GET", "https://foo.com/v2/userenvs?history=48h", nil)
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc := httptest.NewRecorder()
+
+	apiv2.userEnvsHandler(rc, req)
+
+	res := rc.Result()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+
+	out := []V2UserEnv{}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatalf("error decoding response: %v", err)
+	}
+	res.Body.Close()
+
+	if len(out) != 1 {
+		t.Fatalf("expected 1, got %v", len(out))
+	}
+}
+
+func TestAPIv2UserEnvDetail(t *testing.T) {
+	dl, tdl := testdatalayer.New(testlogger, t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+
+	logger := log.New(os.Stdout, "", log.LstdFlags)
+
+	oauthcfg := OAuthConfig{
+		AppGHClientFactoryFunc: func(_ string) ghclient.GitHubAppInstallationClient {
+			return &ghclient.FakeRepoClient{
+				GetUserAppRepoPermissionsFunc: func(_ context.Context, _ int64) (map[string]ghclient.AppRepoPermissions, error) {
+					return map[string]ghclient.AppRepoPermissions{
+						"dollarshaveclub/foo-bar": ghclient.AppRepoPermissions{
+							Repo: "dollarshaveclub/foo-bar",
+							Pull: true,
+						},
+					}, nil
+				},
+			}
+		},
+	}
+	copy(oauthcfg.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger)
+	if err != nil {
+		t.Fatalf("error creating api: %v", err)
+	}
+
+	uis := models.UISession{
+		Authenticated: true,
+		GitHubUser:    "bobsmith",
+	}
+	uis.EncryptandSetUserToken([]byte("foo"), oauthcfg.UserTokenEncKey)
+	req, _ := http.NewRequest("GET", "https://foo.com/v2/userenv/foo-bar", nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "foo-bar"})
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc := httptest.NewRecorder()
+
+	apiv2.userEnvDetailHandler(rc, req)
+
+	res := rc.Result()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+
+	out := V2EnvDetail{}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatalf("error decoding response: %v", err)
+	}
+	res.Body.Close()
+	if out.EnvName != "foo-bar" {
+		t.Fatalf("bad name: %v", out.EnvName)
 	}
 }

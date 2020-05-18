@@ -756,20 +756,12 @@
   revision = "890f8679ad1c0470d7cd9f38a931720bd0411cfe"
 
 [[projects]]
-  digest = "1:20ed7daa9b3b38b6d1d39b48ab3fd31122be5419461470d0c28de3e121c93ecf"
-  name = "github.com/gorilla/context"
-  packages = ["."]
-  pruneopts = ""
-  revision = "1ea25387ff6f684839d82767c1733ff4d4d15d0a"
-  version = "v1.1"
-
-[[projects]]
-  digest = "1:783fde5796ef54ba05de240f2529b6c9fbabc541e70ea43585c53b3f1bbabb5b"
+  digest = "1:fbab76ba211c99fcd45a481a32530efc229f3510fd94889f361dcaf13ff05fe0"
   name = "github.com/gorilla/mux"
   packages = ["."]
   pruneopts = ""
-  revision = "bcd8bc72b08df0f70df986b97f95590779502d31"
-  version = "v1.4.0"
+  revision = "75dcda0896e109a2a22c9315bca3bb21b87b2ba5"
+  version = "v1.7.4"
 
 [[projects]]
   digest = "1:51a1d17ba9fe6648d9fdd5b822baa616d6ec7f28c8669c2091126d206796b5ae"
@@ -1473,6 +1465,7 @@
     "curve25519",
     "ed25519",
     "ed25519/internal/edwards25519",
+    "nacl/secretbox",
     "openpgp",
     "openpgp/armor",
     "openpgp/clearsign",
@@ -1481,6 +1474,8 @@
     "openpgp/packet",
     "openpgp/s2k",
     "pbkdf2",
+    "poly1305",
+    "salsa20/salsa",
     "scrypt",
     "sha3",
     "ssh",
@@ -2492,6 +2487,7 @@
     "github.com/spf13/afero",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
+    "golang.org/x/crypto/nacl/secretbox",
     "golang.org/x/crypto/sha3",
     "golang.org/x/net/context",
     "golang.org/x/oauth2",

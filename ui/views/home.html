@@ -1,0 +1,114 @@
+<html>
+    <head>
+        {{ template "header-head" . }}
+        <script type="text/javascript">
+            const apiBaseURL = "{{ .APIBaseURL }}";
+        </script>
+    </head>
+    <body class="acyl-ui">
+        {{ template "header-nav" . }}
+        <div class="container">
+            <div class="row">
+                <div class="col">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item active"><a href="#">Home</a></li>
+                        </ol>
+                    </nav>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <div class="accordion">
+                        <div class="card">
+                            <div class="card-header" id="envListHeading">
+                                <div class="row justify-content-start">
+                                    <div class="col-2">
+                                        <h2 class="mb-0">
+                                            <button
+                                                    class="btn btn-link text-dark btn-lg"
+                                                    type="button"
+                                                    data-toggle="collapse"
+                                                    data-target="#collapseEnvList"
+                                                    aria-expanded="true"
+                                                    aria-controls="collapseEnvList"
+                                            >
+                                                Environments
+                                            </button>
+                                        </h2>
+                                    </div>
+                                </div>
+                                <hr class="m-0" />
+                                <div class="row">
+                                    <div class="col-8">
+                                        <form class="pl-3 mt-3">
+                                            <div class="form-row">
+                                                <div class="col">
+                                                    <select id="envgroup" class="form-control form-control-sm">
+                                                        <option>{{ .GitHubUser }}</option>
+                                                        <option>All</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col">
+                                                    <select id="history" class="form-control form-control-sm">
+                                                        <option>7 days</option>
+                                                        <option>14 days</option>
+                                                        <option>30 days</option>
+                                                        <option>90 days</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col pr-0 pl-2">
+                                                    <div class="form-check form-control-sm">
+                                                        <input type="checkbox" class="form-check-input" id="destroyed">
+                                                        <label class="form-check-label pr-2" for="destroyed">Include Destroyed</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col pl-0">
+                                                    <button id="refreshbtn" type="submit" class="fas btn btn-sm btn-secondary">&#xf2f1;</button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                    id="collapseEnvList"
+                                    class="collapse show"
+                                    aria-labelledby="envListHeading"
+                            >
+                                <div class="card-body p-0">
+                                    <div class="row">
+                                        <div class="col">
+                                            <div class="container">
+                                                <table
+                                                        class="table table-sm table-hover m-0"
+                                                >
+                                                    <thead>
+                                                        <tr id="envlist-hrow">
+                                                            <th scope="col">Repo</th>
+                                                            <th scope="col">PR</th>
+                                                            <th scope="col">Name</th>
+                                                            <th scope="col">Last Event</th>
+                                                            <th scope="col">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="envlist-tbody">
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{ template "footer-scripts" . }}
+        <script
+                type="text/javascript"
+                src="{{ .APIBaseURL }}/ui/static/home.js"
+        ></script>
+    </body>
+</html>
