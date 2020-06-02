@@ -165,7 +165,12 @@ func generateLocalMetaGetter(dl persistence.DataLayer, scb ghclient.StatusCallba
 	if err != nil {
 		log.Fatalf("error getting repo info for current directory: %v", err)
 	}
-	el := &eventlogger.Logger{ExcludeID: true, ID: uuid.Must(uuid.NewRandom()), Sink: elsink, DL: dl}
+	el := &eventlogger.Logger{
+		ExcludeID: true,
+		ID:        uuid.Must(uuid.NewRandom()),
+		Sink:      elsink,
+		DL:        dl,
+	}
 	if err := el.Init([]byte{}, ri.GitHubRepoName, testEnvCfg.pullRequest); err != nil {
 		log.Fatalf("error initializing event: %v", err)
 	}

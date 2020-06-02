@@ -122,6 +122,7 @@ type testEnvConfig struct {
 }
 
 var testEnvCfg testEnvConfig
+var testMockUser = "john.doe"
 
 func init() {
 	configTestCmd.PersistentFlags().UintVar(&testEnvCfg.pullRequest, "pr", 999, "Pull request number for simulated create/update events")
@@ -421,11 +422,11 @@ func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Conte
 			BaseSHA:      "",
 			SourceBranch: ri.HeadBranch,
 			SourceSHA:    ri.HeadSHA,
-			User:         "john.doe",
+			User:         testMockUser,
 		}, nil
 }
 
-func runUI(dl persistence.DataLayer) (*http.Server, error) {
+func runUI(dl persistence.DataLayer, repo string) (*http.Server, error) {
 	if !testEnvCfg.enableUI {
 		return nil, nil
 	}
@@ -442,10 +443,22 @@ func runUI(dl persistence.DataLayer) (*http.Server, error) {
 		ServerConfig: serverConfig,
 		Logger:       uilogger,
 	}
+	setDummyGHConfig()
+	httpapi.AppGHClientFactoryFunc = func(_ string) ghclient.GitHubAppInstallationClient {
+		return &ghclient.FakeRepoClient{
+			GetUserAppRepoPermissionsFunc: func(_ context.Context, instID int64) (map[string]ghclient.AppRepoPermissions, error) {
+				return map[string]ghclient.AppRepoPermissions{
+					repo: ghclient.AppRepoPermissions{Repo: repo, Pull: true},
+				}, nil
+			},
+		}
+	}
 	if err := httpapi.RegisterVersions(deps,
+		api.WithGitHubConfig(githubConfig),
 		api.WithUIBaseURL(fmt.Sprintf("http://localhost:%v", testEnvCfg.uiPort)),
 		api.WithUIAssetsPath(testEnvCfg.uiAssets),
-		api.WithUIRoutePrefix("/ui")); err != nil {
+		api.WithUIRoutePrefix("/ui"),
+		api.WithUIDummySessionUser(testMockUser)); err != nil {
 		return nil, errors.Wrap(err, "error registering api versions")
 	}
 	go func() {
@@ -482,12 +495,12 @@ func configTestCreate(cmd *cobra.Command, args []string) {
 		perr(err)
 		return
 	}
-	uisrv, err := runUI(dl)
+	nitromgr, ctx, rrd, err := testConfigSetup(dl)
 	if err != nil {
 		perr(err)
 		return
 	}
-	nitromgr, ctx, rrd, err := testConfigSetup(dl)
+	uisrv, err := runUI(dl, rrd.Repo)
 	if err != nil {
 		perr(err)
 		return
@@ -526,12 +539,12 @@ func configTestUpdate(cmd *cobra.Command, args []string) {
 		perr(err)
 		return
 	}
-	uisrv, err := runUI(dl)
+	nitromgr, ctx, rrd, err := testConfigSetup(dl)
 	if err != nil {
 		perr(err)
 		return
 	}
-	nitromgr, ctx, rrd, err := testConfigSetup(dl)
+	uisrv, err := runUI(dl, rrd.Repo)
 	if err != nil {
 		perr(err)
 		return
@@ -580,12 +593,12 @@ func configTestDelete(cmd *cobra.Command, args []string) {
 		perr(err)
 		return
 	}
-	uisrv, err := runUI(dl)
+	nitromgr, ctx, rrd, err := testConfigSetup(dl)
 	if err != nil {
 		perr(err)
 		return
 	}
-	nitromgr, ctx, rrd, err := testConfigSetup(dl)
+	uisrv, err := runUI(dl, rrd.Repo)
 	if err != nil {
 		perr(err)
 		return

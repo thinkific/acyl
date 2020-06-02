@@ -833,6 +833,9 @@ func (fdl *FakeDataLayer) CreateEventLog(elog *models.EventLog) error {
 		}
 		elog.LogKey = lk
 	}
+	if elog.Created.IsZero() {
+		elog.Created = time.Now().UTC()
+	}
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
 	fdl.data.elogs[elog.ID] = elog
