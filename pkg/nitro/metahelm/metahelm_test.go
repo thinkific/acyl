@@ -535,12 +535,21 @@ func gentestobjs(charts []metahelm.Chart) []runtime.Object {
 	return append(objs, &rsl)
 }
 
+func tillerpod() *v1.Pod {
+	tpod := &v1.Pod{}
+	tpod.Namespace = "foo"
+	tpod.Labels = map[string]string{"app": "helm"}
+	tpod.Status.PodIP = "10.0.0.1"
+	return tpod
+}
+
 func TestMetahelmInstallCharts(t *testing.T) {
 	charts := []metahelm.Chart{
 		metahelm.Chart{Title: "foo", Location: "foo/bar", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "foo", DependencyList: []string{"bar"}},
 		metahelm.Chart{Title: "bar", Location: "bar/baz", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "bar"},
 	}
 	tobjs := gentestobjs(charts)
+	tobjs = append(tobjs, tillerpod())
 	fkc := fake.NewSimpleClientset(tobjs...)
 	ib := &images.FakeImageBuilder{BatchCompletedFunc: func(envname, repo string) (bool, error) { return true, nil }}
 	rc := &models.RepoConfig{
@@ -602,6 +611,7 @@ func TestMetahelmInstallAndUpgradeChartsBuildError(t *testing.T) {
 		metahelm.Chart{Title: "bar", Location: "bar/baz", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "bar"},
 	}
 	tobjs := gentestobjs(charts)
+	tobjs = append(tobjs, tillerpod())
 	fkc := fake.NewSimpleClientset(tobjs...)
 	berr := errors.New("build error")
 	ib := &images.FakeImageBuilder{

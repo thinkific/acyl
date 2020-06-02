@@ -69,7 +69,7 @@ type K8sClientFactoryFunc func(kubecfgpath, kubectx string) (*kubernetes.Clients
 
 // Defaults for Tiller configuration options, if not specified otherwise
 const (
-	DefaultTillerImage                   = "gcr.io/kubernetes-helm/tiller:v2.16.1"
+	DefaultTillerImage                   = "gcr.io/kubernetes-helm/tiller:v2.16.7"
 	DefaultTillerPort                    = 44134
 	DefaultTillerDeploymentName          = "tiller-deploy"
 	DefaultTillerServerConnectRetryDelay = 10 * time.Second
@@ -424,6 +424,11 @@ func (ci ChartInstaller) installOrUpgradeCharts(ctx context.Context, taddr, name
 		}
 		ci.dl.AddEvent(ctx, env.Env.Name, "image build still pending; waiting to "+actStr+" chart for "+c.Title)
 		return metahelm.Wait
+	}
+	// update tiller addr
+	taddr, err := ci.updateTillerAddr(ctx, namespace, env.Env.Name)
+	if err != nil {
+		return errors.Wrap(err, "error updating tiller addr")
 	}
 	hc, err := ci.hcf(namespace, taddr, ci.rcfg, ci.kc)
 	if err != nil {
@@ -939,6 +944,22 @@ func (ci ChartInstaller) installTiller(ctx context.Context, envname, ns string) 
 		time.Sleep(ci.tcfg.ServerConnectRetryDelay)
 	}
 	return "", errors.New("timed out waiting for Tiller to become available")
+}
+
+// updateTillerAddr fetches and updates tiller addr for kenv in the database and returns the current tiller pod IP, or error
+func (ci ChartInstaller) updateTillerAddr(ctx context.Context, ns, envname string) (string, error) {
+	pods, err := ci.getTillerPods(ns)
+	if err != nil {
+		return "", errors.Wrap(err, "error getting tiller pods")
+	}
+	if i := len(pods.Items); i != 1 {
+		return "", fmt.Errorf("unexpected number of tiller pods (wanted 1): %v", i)
+	}
+	addr := fmt.Sprintf("%v:%v", pods.Items[0].Status.PodIP, ci.tcfg.Port)
+	if err := ci.dl.UpdateK8sEnvTillerAddr(ctx, envname, addr); err != nil {
+		return "", errors.Wrap(err, "error updating tiller addr in db")
+	}
+	return addr, nil
 }
 
 func (ci ChartInstaller) checkTillerPods(ns string) (bool, error) {
