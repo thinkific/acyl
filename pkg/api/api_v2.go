@@ -290,6 +290,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/event/{id}/logs", middlewareChain(api.logsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs", middlewareChain(api.userEnvsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}", middlewareChain(api.userEnvDetailHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+	r.HandleFunc("/v2/userenvs/{name}/actions/rebuild", middlewareChain(api.userEnvActionsRebuildHandler, sessionAuthMiddleware.sessionAuth)).Methods("POST")
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
@@ -709,4 +710,61 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 		api.rlogger(r).Logf("error marshaling user env detail: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+func V2EnvActionRebuildQAEnv(fullRebuild bool, qae models.QAEnvironment, k8senv models.KubernetesEnvironment) error {
+	return nil
+}
+
+// userEnvDetailHandler gets environment detail for the UI
+func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("session missing from context")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	envname := mux.Vars(r)["name"]
+	if envname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	qae, err := api.dl.GetQAEnvironment(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting qa env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if qae == nil {
+		api.rlogger(r).Logf("qa env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user visible repos: %v: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !repoInRepos(repos, qae.Repo) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	k8senv, err := api.dl.GetK8sEnv(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if k8senv == nil {
+		// if there's no k8senv yet, we'll just use an empty one (this will result in an empty namespace in the UI)
+		k8senv = &models.KubernetesEnvironment{}
+	}
+	var fullRebuild bool
+	fullRebuildCheck, _ := r.URL.Query()["full"]
+	if len(fullRebuildCheck[0]) > 0 && fullRebuildCheck[0] == "true" {
+		fullRebuild = true
+	}
+
+	_ := V2EnvActionRebuildQAEnv(fullRebuild, *qae, *k8senv)
 }
