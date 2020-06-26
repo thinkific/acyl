@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -718,7 +718,7 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// userEnvDetailHandler gets environment detail for the UI
+// userEnvActionsRebuildHandler rebuilds the environment from the UI with a standard synchronize or full rebuild
 func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Request) {
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
@@ -763,8 +763,6 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	var fullRebuild bool
-	fullRebuild = r.URL.Query().Get("full") == "true"
 	rrd := models.RepoRevisionData{
 		User:         qae.User,
 		Repo:         qae.Repo,
@@ -774,23 +772,14 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		SourceBranch: qae.SourceBranch,
 		BaseBranch:   qae.BaseBranch,
 		SourceRef:    qae.SourceRef,
-		IsFork:       false, // TODO determine IsFork
-	}
-	messaging := "rebuild"
-	if fullRebuild {
-		k8senv.ConfigSignature = []byte{}
-		messaging = "full rebuild"
 	}
 
-	b, err := ioutil.ReadAll(r.Body)
+	// setup logger
+	var body []byte
+	id, err := uuid.NewRandom()
 	if err != nil {
-		api.badRequestError(w, err)
-		return
-	}
-	sig := r.Header.Get("X-Hub-Signature")
-	if sig == "" {
-		err = errors.New("X-Hub-Signature-Missing")
-		api.forbiddenError(w, err.Error())
+		api.rlogger(r).Logf("error getting random UUID: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	did, err := uuid.Parse(r.Header.Get("X-GitHub-Delivery"))
@@ -798,25 +787,48 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		// Ignore invalid or missing Delivery ID
 		did = uuid.Nil
 	}
-	out, err := api.ge.New(b, did, sig)
-	if err != nil {
-		_, bsok := err.(ghevent.BadSignature)
-		if bsok {
-			api.forbiddenError(w, "invalid hub signature")
-		} else {
-			api.badRequestError(w, err)
-		}
+	elogger := &eventlogger.Logger{
+		ID:         id,
+		DeliveryID: did,
+		DL:         api.dl,
+		Sink:       os.Stdout,
+	}
+	if err := elogger.Init(body, qae.Repo, qae.PullRequest); err != nil {
+		api.rlogger(r).Logf("error initializing event logger: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	ctx := eventlogger.NewEventLoggerContext(context.Background(), out.Logger)
+	if err := elogger.SetEnvName(qae.Name); err != nil {
+		api.rlogger(r).Logf("error setting event logger name: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// setup context
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), elogger)
 	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx))
 	span := tracer.StartSpan("actions_rebuilder")
 	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
 	setTagsForGithubWebhookHandler(span, rrd)
 	ctx = tracer.ContextWithSpan(ctx, span)
+	logger := eventlogger.GetLogger(ctx).Printf
 
-	log := eventlogger.GetLogger(ctx).Printf
-	log("starting async processing for %v rebuild update", messaging)
+	// check for full rebuild
+	var fullRebuild bool
+	messaging := "rebuild"
+	fullRebuild = r.URL.Query().Get("full") == "true"
+	if fullRebuild {
+		messaging = "full rebuild"
+		err = api.dl.UpdateK8sEnvConfSignature(ctx, qae.Name, [32]byte{})
+		if err != nil {
+			api.rlogger(r).Logf("error updating config signature: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// update environment
+	logger("starting async processing for %v rebuild update", messaging)
 	api.wg.Add(1)
 	go func() {
 		var err error
@@ -826,10 +838,10 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		defer cf() // guarantee that any goroutines created with the ctx are cancelled
 		name, err := api.es.Update(ctx, rrd)
 		if err != nil {
-			log("finished processing %v update with error: %v", messaging, err)
+			logger("finished processing %v update with error: %v", messaging, err)
 			return
 		}
-		log("success processing full %v update event (env: %q); done", messaging, name)
+		logger("success processing full %v update event (env: %q); done", messaging, name)
 	}()
 	w.WriteHeader(http.StatusCreated)
 }
