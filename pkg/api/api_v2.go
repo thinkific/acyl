@@ -763,44 +763,29 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	rrd := models.RepoRevisionData{
-		User:         qae.User,
-		Repo:         qae.Repo,
-		PullRequest:  qae.PullRequest,
-		SourceSHA:    qae.SourceSHA,
-		BaseSHA:      qae.BaseSHA,
-		SourceBranch: qae.SourceBranch,
-		BaseBranch:   qae.BaseBranch,
-		SourceRef:    qae.SourceRef,
-	}
+	rrd := qae.RepoRevisionDataFromQA()
 
 	// setup logger
-	var body []byte
 	id, err := uuid.NewRandom()
 	if err != nil {
 		api.rlogger(r).Logf("error getting random UUID: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	did, err := uuid.Parse(r.Header.Get("X-GitHub-Delivery"))
-	if err != nil {
-		// Ignore invalid or missing Delivery ID
-		did = uuid.Nil
-	}
 	elogger := &eventlogger.Logger{
 		ID:         id,
-		DeliveryID: did,
+		DeliveryID: uuid.Nil,
 		DL:         api.dl,
 		Sink:       os.Stdout,
 	}
-	if err := elogger.Init(body, qae.Repo, qae.PullRequest); err != nil {
+	if err := elogger.Init(nil, qae.Repo, qae.PullRequest); err != nil {
 		api.rlogger(r).Logf("error initializing event logger: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if err := elogger.SetEnvName(qae.Name); err != nil {
 		api.rlogger(r).Logf("error setting event logger name: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
