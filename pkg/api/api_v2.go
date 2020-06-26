@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
-	"github.com/dollarshaveclub/acyl/pkg/ghapp"
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	ncontext "github.com/dollarshaveclub/acyl/pkg/nitro/context"
@@ -300,79 +300,6 @@ func (api *v2api) register(r *muxtrace.Router) error {
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
-	return nil
-}
-
-func (api *v2api) processWebhookV2(ctx context.Context, action string, rrd models.RepoRevisionData) error {
-	span := tracer.StartSpan("webhook_processor_v2")
-	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
-	ctx2 := context.Background()
-	ctx2 = ghapp.CloneGitHubClientContext(ctx2, ctx)
-	ctx2 = eventlogger.NewEventLoggerContext(ctx2, eventlogger.GetLogger(ctx))
-	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx2))
-	log := eventlogger.GetLogger(ctx).Printf
-
-	setTagsForGithubWebhookHandler(span, rrd)
-	ctx = tracer.ContextWithSpan(ctx, span)
-
-	switch action {
-	case "reopened":
-		fallthrough
-	case "opened":
-		log("starting async processing for %v", action)
-		api.wg.Add(1)
-		go func() {
-			var err error
-			defer func() { span.Finish(tracer.WithError(err)) }()
-			defer api.wg.Done()
-			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
-			defer cf() // guarantee that any goroutines created with the ctx are cancelled
-			name, err := api.es.Create(ctx, rrd)
-			if err != nil {
-				log("finished processing create with error: %v", err)
-				return
-			}
-			log("success processing create event (env: %q); done", name)
-		}()
-	case "synchronize":
-		log("starting async processing for %v", action)
-		api.wg.Add(1)
-		go func() {
-			var err error
-			defer func() { span.Finish(tracer.WithError(err)) }()
-			defer api.wg.Done()
-			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
-			defer cf() // guarantee that any goroutines created with the ctx are cancelled
-			name, err := api.es.Update(ctx, rrd)
-			if err != nil {
-				log("finished processing update with error: %v", err)
-				return
-			}
-			log("success processing update event (env: %q); done", name)
-		}()
-	case "closed":
-		log("starting async processing for %v", action)
-		api.wg.Add(1)
-		go func() {
-			var err error
-			defer func() { span.Finish(tracer.WithError(err)) }()
-			defer api.wg.Done()
-			ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
-			defer cf() // guarantee that any goroutines created with the ctx are cancelled
-			err = api.es.Destroy(ctx, rrd, models.DestroyApiRequest)
-			if err != nil {
-				log("finished processing destroy with error: %v", err)
-				return
-			}
-			log("success processing destroy event; done")
-		}()
-	default:
-		log("unknown action type: %v", action)
-		err := fmt.Errorf("unknown action type: %v (event_log_id: %v)", action, eventlogger.GetLogger(ctx).ID.String())
-		span.Finish(tracer.WithError(err))
-		return err
-	}
-
 	return nil
 }
 
@@ -815,9 +742,9 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+	repos, err := userPermissionsClient(api.oauth).GetUserWritableRepos(r.Context(), uis)
 	if err != nil {
-		api.rlogger(r).Logf("error getting user visible repos: %v: %v", err)
+		api.rlogger(r).Logf("error getting user writable repos: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -832,13 +759,12 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if k8senv == nil {
-		// if there's no k8senv yet, we'll just use an empty one (this will result in an empty namespace in the UI)
-		k8senv = &models.KubernetesEnvironment{}
+		api.rlogger(r).Logf("k8s env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 	var fullRebuild bool
-	if fr := r.URL.Query().Get("full"); fr == "true" {
-		fullRebuild = true
-	}
+	fullRebuild = r.URL.Query().Get("full") == "true"
 	rrd := models.RepoRevisionData{
 		User:         qae.User,
 		Repo:         qae.Repo,
@@ -850,23 +776,60 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		SourceRef:    qae.SourceRef,
 		IsFork:       false, // TODO determine IsFork
 	}
-	if !fullRebuild {
-		err = api.processWebhookV2(r.Context(), "synchronize", rrd)
-		if err != nil {
-			api.rlogger(r).Logf("finished processing update with error: %v", err)
-			return
-		}
-	} else {
-		err = api.processWebhookV2(r.Context(), "closed", rrd)
-		if err != nil {
-			api.rlogger(r).Logf("finished processing full rebuild (closed) with error: %v", err)
-			return
-		}
-		// TODO: wait until environment is destroyed
-		err = api.processWebhookV2(r.Context(), "reopened", rrd)
-		if err != nil {
-			api.rlogger(r).Logf("finished processing full rebuild with (reopened) error: %v", err)
-			return
-		}
+	messaging := "rebuild"
+	if fullRebuild {
+		k8senv.ConfigSignature = []byte{}
+		messaging = "full rebuild"
 	}
+
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		api.badRequestError(w, err)
+		return
+	}
+	sig := r.Header.Get("X-Hub-Signature")
+	if sig == "" {
+		err = errors.New("X-Hub-Signature-Missing")
+		api.forbiddenError(w, err.Error())
+		return
+	}
+	did, err := uuid.Parse(r.Header.Get("X-GitHub-Delivery"))
+	if err != nil {
+		// Ignore invalid or missing Delivery ID
+		did = uuid.Nil
+	}
+	out, err := api.ge.New(b, did, sig)
+	if err != nil {
+		_, bsok := err.(ghevent.BadSignature)
+		if bsok {
+			api.forbiddenError(w, "invalid hub signature")
+		} else {
+			api.badRequestError(w, err)
+		}
+		return
+	}
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), out.Logger)
+	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx))
+	span := tracer.StartSpan("actions_rebuilder")
+	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
+	setTagsForGithubWebhookHandler(span, rrd)
+	ctx = tracer.ContextWithSpan(ctx, span)
+
+	log := eventlogger.GetLogger(ctx).Printf
+	log("starting async processing for %v rebuild update", messaging)
+	api.wg.Add(1)
+	go func() {
+		var err error
+		defer func() { span.Finish(tracer.WithError(err)) }()
+		defer api.wg.Done()
+		ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
+		defer cf() // guarantee that any goroutines created with the ctx are cancelled
+		name, err := api.es.Update(ctx, rrd)
+		if err != nil {
+			log("finished processing %v update with error: %v", messaging, err)
+			return
+		}
+		log("success processing full %v update event (env: %q); done", messaging, name)
+	}()
+	w.WriteHeader(http.StatusCreated)
 }
