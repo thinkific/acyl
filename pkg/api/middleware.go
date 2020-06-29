@@ -221,7 +221,7 @@ func (up *userPermissions) GetUserVisibleRepos(ctx context.Context, uis models.U
 }
 
 // GetUserWritableRepos returns the names of all repos (owner/repo) for which the authenticated user has "admin" or "push" permissions
-func (up *userPermissions) GetUserWritableRepos(ctx context.Context, uis models.UISession) ([]string, error) {
+func (up *userPermissions) GetUserWritableRepos(ctx context.Context, uis models.UISession) (map[string]ghclient.AppRepoPermissions, error) {
 	tkn, err := uis.GetUserToken(up.deckey)
 	if err != nil {
 		return nil, errors.Wrap(err, "error decrypting user token")
@@ -231,12 +231,12 @@ func (up *userPermissions) GetUserWritableRepos(ctx context.Context, uis models.
 
 	rps, err := ghc.GetUserAppRepoPermissions(ctx, up.instID)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting user writable repos")
+		return nil, errors.Wrap(err, "error getting user repos")
 	}
-	out := []string{}
+	out := map[string]ghclient.AppRepoPermissions{}
 	for _, r := range rps {
 		if r.Admin || r.Push {
-			out = append(out, r.Repo)
+			out[r.Repo] = r
 		}
 	}
 	return out, nil

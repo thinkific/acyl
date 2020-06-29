@@ -748,7 +748,7 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if !repoInRepos(repos, qae.Repo) {
+	if repos[qae.Repo].Repo == "" {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
