@@ -794,7 +794,7 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx))
 	span := tracer.StartSpan("actions_rebuilder")
 	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
-	setTagsForGithubWebhookHandler(span, rrd)
+	setTagsForGithubWebhookHandler(span, *rrd)
 	ctx = tracer.ContextWithSpan(ctx, span)
 	logger := eventlogger.GetLogger(ctx).Printf
 
@@ -821,7 +821,7 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		defer api.wg.Done()
 		ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
 		defer cf() // guarantee that any goroutines created with the ctx are cancelled
-		name, err := api.es.Update(ctx, rrd)
+		name, err := api.es.Update(ctx, *rrd)
 		if err != nil {
 			logger("finished processing %v update with error: %v", messaging, err)
 			return
