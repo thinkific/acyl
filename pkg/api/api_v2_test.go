@@ -10,8 +10,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/gorilla/mux"
+	"github.com/lib/pq"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
@@ -375,5 +378,67 @@ func TestAPIv2UserEnvDetail(t *testing.T) {
 	res.Body.Close()
 	if out.EnvName != "foo-bar" {
 		t.Fatalf("bad name: %v", out.EnvName)
+	}
+}
+
+func TestAPIv2UserEnvActionsRebuild(t *testing.T) {
+	dl, tdl := testdatalayer.New(testlogger, t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+
+	logger := log.New(os.Stdout, "", log.LstdFlags)
+	k8senv := &models.KubernetesEnvironment{
+		Created:         time.Now(),
+		Updated:         pq.NullTime{
+			Time: time.Now(),
+			Valid: true,
+		},
+		EnvName:         "foo-bar",
+		Namespace:       "nitro-1234-foo-bar",
+		ConfigSignature: []byte("0f0o0o0b0a0r00000000000000000000"),
+		TillerAddr:      "192.168.1.1:1234",
+	}
+	dl.CreateK8sEnv(context.Background(), k8senv)
+
+	oauthcfg := OAuthConfig{
+		AppGHClientFactoryFunc: func(_ string) ghclient.GitHubAppInstallationClient {
+			return &ghclient.FakeRepoClient{
+				GetUserAppRepoPermissionsFunc: func(_ context.Context, _ int64) (map[string]ghclient.AppRepoPermissions, error) {
+					return map[string]ghclient.AppRepoPermissions{
+						"dollarshaveclub/foo-bar": ghclient.AppRepoPermissions{
+							Repo: "dollarshaveclub/foo-bar",
+							Pull: true,
+							Push: true,
+						},
+					}, nil
+				},
+			}
+		},
+	}
+	copy(oauthcfg.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
+	uf := func(ctx context.Context, rd models.RepoRevisionData) (string, error) {
+		return "updated environment", nil
+	}
+	apiv2, err := newV2API(dl, nil, &spawner.FakeEnvironmentSpawner{UpdateFunc: uf}, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger)
+	if err != nil {
+		t.Fatalf("error creating api: %v", err)
+	}
+
+	uis := models.UISession{
+		Authenticated: true,
+		GitHubUser:    "bobsmith",
+	}
+	uis.EncryptandSetUserToken([]byte("foo"), oauthcfg.UserTokenEncKey)
+	req, _ := http.NewRequest("POST", "https://foo.com/v2/userenvs/foo-bar/actions/rebuild", nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "foo-bar", "full": "false"})
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc := httptest.NewRecorder()
+	apiv2.userEnvActionsRebuildHandler(rc, req)
+	res := rc.Result()
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("bad status code: %v", res.StatusCode)
 	}
 }

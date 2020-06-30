@@ -749,6 +749,7 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if repos[qae.Repo].Repo == "" {
+		api.rlogger(r).Logf("user writable repo not found")
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}

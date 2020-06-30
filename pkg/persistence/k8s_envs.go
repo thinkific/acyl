@@ -70,8 +70,9 @@ func (pg *PGLayer) UpdateK8sEnvConfSignature(ctx context.Context, name string, c
 	if isCancelled(ctx) {
 		return errors.Wrap(ctx.Err(), "error update k8s env config signature")
 	}
+	insConfSig := confSig[:]
 	q := `UPDATE kubernetes_environments SET config_signature = $1 WHERE env_name = $2;`
-	_, err := pg.db.ExecContext(ctx, q, confSig, name)
+	_, err := pg.db.ExecContext(ctx, q, insConfSig, name)
 	return errors.Wrap(err, "error updating k8s environment")
 }
 
