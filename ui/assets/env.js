@@ -166,3 +166,30 @@ document.addEventListener("DOMContentLoaded", function(){
     });
     update();
 });
+
+function rebuild(fullRebuild = false) {
+    let req = new XMLHttpRequest();
+
+    req.open('POST', `${apiBaseURL}/v2/userenvs/${envName}/actions/reload?full=${fullRebuild}`, true);
+    req.onload = function () {
+        if (req.status !== 201) {
+            console.log(`env reload request failed: ${req.status}: ${req.responseText}`);
+        }
+    };
+}
+
+function actionsDropdown() {
+    document.getElementById("dropdown").classList.toggle("actions");
+}
+
+window.onclick = function(event) {
+    if (!event.target.matches('.dropbtn')) {
+        let dropdowns = document.getElementsByClassName("dropdown-content");
+        for (let i = 0; i < dropdowns.length; i++) {
+            let openDropdown = dropdowns[i];
+            if (openDropdown.classList.contains('actions')) {
+                openDropdown.classList.remove('actions');
+            }
+        }
+    }
+}
