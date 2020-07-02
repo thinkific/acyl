@@ -249,6 +249,7 @@ func (api *uiapi) register(r *muxtrace.Router) error {
 	r.HandleFunc(urlPath("/event/status"), middlewareChain(api.statusHandler, api.authenticate)).Methods("GET")
 	r.HandleFunc(urlPath("/home"), middlewareChain(api.homeHandler, api.authenticate)).Methods("GET")
 	r.HandleFunc(urlPath("/env/{envname}"), middlewareChain(api.envHandler, api.authenticate)).Methods("GET")
+	r.HandleFunc(urlPath("/v2/userenvs/{envname}/actions/rebuild"), middlewareChain(api.envActionsRebuildHandler, api.authenticate)).Methods("POST")
 
 	// unauthenticated OAuth callback
 	r.HandleFunc(urlPath("/oauth/callback"), middlewareChain(api.authCallbackHandler)).Methods("GET")
@@ -723,6 +724,45 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !repoInRepos(repos, env.Repo) {
+		w.Header().Add("Location", api.apiBaseURL+api.routePrefix+baseDeniedRoute)
+		w.WriteHeader(http.StatusFound)
+		return
+	}
+	api.render(w, "env", &td)
+}
+
+func (api *uiapi) envActionsRebuildHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("error getting ui session: %v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	td := envTmplData{
+		BaseTemplateData: api.defaultBaseTemplateData(),
+		EnvName:          mux.Vars(r)["envname"],
+	}
+	if td.EnvName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	env, err := api.dl.GetQAEnvironment(r.Context(), td.EnvName)
+	if err != nil {
+		api.rlogger(r).Logf("error getting env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if env == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserWritableRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user writable repos: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if repos[env.Repo].Repo == "" {
 		w.Header().Add("Location", api.apiBaseURL+api.routePrefix+baseDeniedRoute)
 		w.WriteHeader(http.StatusFound)
 		return
