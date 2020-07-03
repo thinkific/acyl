@@ -249,7 +249,6 @@ func (api *uiapi) register(r *muxtrace.Router) error {
 	r.HandleFunc(urlPath("/event/status"), middlewareChain(api.statusHandler, api.authenticate)).Methods("GET")
 	r.HandleFunc(urlPath("/home"), middlewareChain(api.homeHandler, api.authenticate)).Methods("GET")
 	r.HandleFunc(urlPath("/env/{envname}"), middlewareChain(api.envHandler, api.authenticate)).Methods("GET")
-	r.HandleFunc(urlPath("/v2/userenvs/{envname}/actions/rebuild"), middlewareChain(api.envActionsRebuildHandler, api.authenticate)).Methods("POST")
 
 	// unauthenticated OAuth callback
 	r.HandleFunc(urlPath("/oauth/callback"), middlewareChain(api.authCallbackHandler)).Methods("GET")
@@ -731,7 +730,8 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 	api.render(w, "env", &td)
 }
 
-func (api *uiapi) envActionsRebuildHandler(w http.ResponseWriter, r *http.Request) {
+// likely not needed, to delete
+func (api *uiapi) envWriteHandler(w http.ResponseWriter, r *http.Request) {
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
 		api.rlogger(r).Logf("error getting ui session: %v", err)

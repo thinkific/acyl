@@ -168,6 +168,10 @@ document.addEventListener("DOMContentLoaded", function(){
 });
 
 function rebuild(fullRebuild = false) {
+    $('#rebuildModal').on('shown.bs.modal', function () {
+        $('#rebuildInput').trigger('focus')
+    })
+
     let req = new XMLHttpRequest();
 
     req.open('POST', `${apiBaseURL}/v2/userenvs/${envName}/actions/reload?full=${fullRebuild}`, true);
@@ -179,12 +183,18 @@ function rebuild(fullRebuild = false) {
 }
 
 document.addEventListener("DOMContentLoaded", function(){
-    document.getElementById("actions-rebuild").on('click', function(e){
+    document.getElementById("reloadbtn").addEventListener('click', function(e){
+        document.getElementById("actions-rebuild").on('click', function(e){
+            e.preventDefault();
+            rebuild();
+            update();
+        });
+        document.getElementById("actions-full-rebuild").on('click', function(e){
+            e.preventDefault();
+            rebuild(true);
+            update();
+        });
         e.preventDefault();
-        rebuild();
-    });
-    document.getElementById("actions-full-rebuild").on('click', function(e){
-        e.preventDefault();
-        rebuild(true);
+        update();
     });
 });
