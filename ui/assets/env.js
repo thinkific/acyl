@@ -168,33 +168,28 @@ document.addEventListener("DOMContentLoaded", function(){
 });
 
 function rebuild(fullRebuild = false) {
-    $('#rebuildModal').on('shown.bs.modal', function () {
-        $('#rebuildInput').trigger('focus')
-    })
-
     let req = new XMLHttpRequest();
+    let message = fullRebuild ? 'rebuild' : 'synchronize';
 
-    req.open('POST', `${apiBaseURL}/v2/userenvs/${envName}/actions/reload?full=${fullRebuild}`, true);
+    req.open('POST', `${apiBaseURL}/v2/userenvs/${envName}/actions/rebuild?full=${fullRebuild}`, true);
     req.onload = function () {
         if (req.status !== 201) {
-            console.log(`env reload request failed: ${req.status}: ${req.responseText}`);
+            console.log(`env ${message} request failed: ${req.status}: ${req.responseText}`);
         }
     };
+    req.onerror = function () {
+        console.error(`error rebuilding environment: ${req.statusText}`);
+    };
+    req.send(null);
 }
 
-document.addEventListener("DOMContentLoaded", function(){
-    document.getElementById("reloadbtn").addEventListener('click', function(e){
-        document.getElementById("actions-rebuild").on('click', function(e){
-            e.preventDefault();
+document.addEventListener("DOMContentLoaded", function() {
+    document.getElementById("actionsBtn").addEventListener('click', function () {
+        $('#synchronizeModalConfirm').on('click', function () {
             rebuild();
-            update();
         });
-        document.getElementById("actions-full-rebuild").on('click', function(e){
-            e.preventDefault();
+        $('#rebuildModalConfirm').on('click', function () {
             rebuild(true);
-            update();
         });
-        e.preventDefault();
-        update();
     });
 });

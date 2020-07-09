@@ -730,46 +730,6 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 	api.render(w, "env", &td)
 }
 
-// likely not needed, to delete
-func (api *uiapi) envWriteHandler(w http.ResponseWriter, r *http.Request) {
-	uis, err := getSessionFromContext(r.Context())
-	if err != nil {
-		api.rlogger(r).Logf("error getting ui session: %v", err)
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	td := envTmplData{
-		BaseTemplateData: api.defaultBaseTemplateData(),
-		EnvName:          mux.Vars(r)["envname"],
-	}
-	if td.EnvName == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	env, err := api.dl.GetQAEnvironment(r.Context(), td.EnvName)
-	if err != nil {
-		api.rlogger(r).Logf("error getting env from db: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if env == nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	repos, err := userPermissionsClient(api.oauth).GetUserWritableRepos(r.Context(), uis)
-	if err != nil {
-		api.rlogger(r).Logf("error getting user writable repos: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if repos[env.Repo].Repo == "" {
-		w.Header().Add("Location", api.apiBaseURL+api.routePrefix+baseDeniedRoute)
-		w.WriteHeader(http.StatusFound)
-		return
-	}
-	api.render(w, "env", &td)
-}
-
 func (api *uiapi) deniedHandler(w http.ResponseWriter, r *http.Request) {
 	api.render(w, "denied", api.defaultBaseTemplateData())
 }

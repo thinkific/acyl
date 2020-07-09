@@ -55,7 +55,7 @@ func addUIFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&githubConfig.OAuth.Enforce, "ui-enforce-oauth", false, "Enforce GitHub App OAuth authn/authz for UI routes")
 	cmd.PersistentFlags().StringVar(&mockDataFile, "mock-data", "testdata/data.json", "Path to mock data file")
 	cmd.PersistentFlags().StringVar(&mockUser, "mock-user", "bobsmith", "Mock username (for sessions)")
-	cmd.PersistentFlags().StringSliceVar(&mockRepos, "mock-repos", []string{"acme/microservice", "acme/widgets", "acme/customers"}, "Mock repo read permissions (for session user)")
+	cmd.PersistentFlags().StringSliceVar(&mockRepos, "mock-repos", []string{"acme/microservice", "acme/widgets", "acme/customers"}, "Mock repo read write permissions (for session user)")
 }
 
 func init() {
@@ -173,6 +173,7 @@ func mockui(cmd *cobra.Command, args []string) {
 					out[r] = ghclient.AppRepoPermissions{
 						Repo: r,
 						Pull: true,
+						Push: true,
 					}
 				}
 				return out, nil
