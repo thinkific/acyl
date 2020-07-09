@@ -65,8 +65,8 @@ func (pg *PGLayer) UpdateK8sEnvTillerAddr(ctx context.Context, envname, taddr st
 	return errors.Wrap(err, "error updating k8s environment")
 }
 
-// UpdateK8sEnvConfSignature updates an existing k8s environment config signature
-func (pg *PGLayer) UpdateK8sEnvConfSignature(ctx context.Context, name string, confSig [32]byte) error {
+// UpdateK8sEnvConfigSignature updates an existing k8s environment config signature
+func (pg *PGLayer) UpdateK8sEnvConfigSignature(ctx context.Context, name string, confSig [32]byte) error {
 	if isCancelled(ctx) {
 		return errors.Wrap(ctx.Err(), "error update k8s env config signature")
 	}

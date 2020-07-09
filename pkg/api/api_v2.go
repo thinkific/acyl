@@ -718,7 +718,7 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// userEnvActionsRebuildHandler rebuilds the environment from the UI with a standard synchronize or full rebuild
+// userEnvActionsRebuildHandler rebuilds the environment from the UI with a standard synchronize or (full) rebuild
 func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Request) {
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
@@ -748,7 +748,7 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if repos[qae.Repo].Repo == "" {
+	if _, ok := repos[qae.Repo]; !ok {
 		api.rlogger(r).Logf("user writable repo not found")
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -779,7 +779,7 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		DL:         api.dl,
 		Sink:       os.Stdout,
 	}
-	if err := elogger.Init(nil, qae.Repo, qae.PullRequest); err != nil {
+	if err := elogger.Init([]byte{}, qae.Repo, qae.PullRequest); err != nil {
 		api.rlogger(r).Logf("error initializing event logger: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -800,12 +800,10 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 	logger := eventlogger.GetLogger(ctx).Printf
 
 	// check for full rebuild
-	var fullRebuild bool
-	messaging := "rebuild"
-	fullRebuild = r.URL.Query().Get("full") == "true"
-	if fullRebuild {
-		messaging = "full rebuild"
-		err = api.dl.UpdateK8sEnvConfSignature(ctx, qae.Name, [32]byte{})
+	messaging := "synchronize"
+	if r.URL.Query().Get("full") == "true" {
+		messaging = "rebuild"
+		err = api.dl.UpdateK8sEnvConfigSignature(ctx, qae.Name, [32]byte{})
 		if err != nil {
 			api.rlogger(r).Logf("error updating config signature: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -827,7 +825,7 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 			logger("finished processing %v update with error: %v", messaging, err)
 			return
 		}
-		logger("success processing full %v update event (env: %q); done", messaging, name)
+		logger("success processing %v update event (env: %q); done", messaging, name)
 	}()
 	w.WriteHeader(http.StatusCreated)
 }

@@ -1123,7 +1123,7 @@ func TestFakeDataLayerUpdateK8sEnvConfSignature(t *testing.T) {
 	defer tdl.TearDown()
 	var confSig [32]byte
 	copy(confSig[:], []byte("f0o0o0b0a0r0n0e0w0s0i0g0n0a0t0u0"))
-	if err := dl.UpdateK8sEnvConfSignature(context.Background(), "foo-bar", confSig); err != nil {
+	if err := dl.UpdateK8sEnvConfigSignature(context.Background(), "foo-bar", confSig); err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
 	env, err := dl.GetK8sEnv(context.Background(), "foo-bar")

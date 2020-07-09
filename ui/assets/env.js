@@ -164,6 +164,14 @@ document.addEventListener("DOMContentLoaded", function(){
         e.preventDefault();
         update();
     });
+    document.getElementById("actionsBtn").addEventListener('click', function () {
+        $('#synchronizeModalConfirm').on('click', function () {
+            rebuild();
+        });
+        $('#rebuildModalConfirm').on('click', function () {
+            rebuild(true);
+        });
+    });
     update();
 });
 
@@ -182,14 +190,3 @@ function rebuild(fullRebuild = false) {
     };
     req.send(null);
 }
-
-document.addEventListener("DOMContentLoaded", function() {
-    document.getElementById("actionsBtn").addEventListener('click', function () {
-        $('#synchronizeModalConfirm').on('click', function () {
-            rebuild();
-        });
-        $('#rebuildModalConfirm').on('click', function () {
-            rebuild(true);
-        });
-    });
-});

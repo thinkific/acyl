@@ -233,7 +233,7 @@ func (up *userPermissions) GetUserWritableRepos(ctx context.Context, uis models.
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting user repos")
 	}
-	out := map[string]ghclient.AppRepoPermissions{}
+	out := make(map[string]ghclient.AppRepoPermissions, len(rps))
 	for _, r := range rps {
 		if r.Admin || r.Push {
 			out[r.Repo] = r

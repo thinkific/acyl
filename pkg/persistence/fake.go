@@ -754,17 +754,15 @@ func (fdl *FakeDataLayer) UpdateK8sEnvTillerAddr(ctx context.Context, envname, t
 	return nil
 }
 
-func (fdl *FakeDataLayer) UpdateK8sEnvConfSignature(ctx context.Context, name string, confSig [32]byte) error {
+func (fdl *FakeDataLayer) UpdateK8sEnvConfigSignature(ctx context.Context, name string, confSig [32]byte) error {
 	if isCancelled(ctx) {
 		return ctx.Err()
 	}
 	fdl.doDelay()
 	fdl.data.Lock()
 	defer fdl.data.Unlock()
-	env, ok := fdl.data.k8s[name]
-	if ok {
-		env.ConfigSignature = confSig[:]
-		fdl.data.k8s[name] = env
+	if _, ok := fdl.data.k8s[name]; ok {
+		fdl.data.k8s[name].ConfigSignature = confSig[:]
 	}
 	return nil
 }
