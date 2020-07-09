@@ -164,14 +164,16 @@ document.addEventListener("DOMContentLoaded", function(){
         e.preventDefault();
         update();
     });
-    document.getElementById("actionsBtn").addEventListener('click', function () {
-        $('#synchronizeModalConfirm').on('click', function () {
-            rebuild();
+    if (renderActions === "true") {
+        document.getElementById("actionsBtn").addEventListener('click', function () {
+            $('#synchronizeModalConfirm').on('click', function () {
+                rebuild();
+            });
+            $('#rebuildModalConfirm').on('click', function () {
+                rebuild(true);
+            });
         });
-        $('#rebuildModalConfirm').on('click', function () {
-            rebuild(true);
-        });
-    });
+    }
     update();
 });
 

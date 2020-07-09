@@ -289,6 +289,7 @@ type BaseTemplateData struct {
 	APIBaseURL      string
 	Branding        uiBranding
 	RenderEventLink bool
+	RenderActions   bool
 }
 
 func (api *uiapi) defaultBaseTemplateData() BaseTemplateData {
@@ -296,6 +297,7 @@ func (api *uiapi) defaultBaseTemplateData() BaseTemplateData {
 		APIBaseURL:      api.apiBaseURL,
 		Branding:        api.branding,
 		RenderEventLink: false,
+		RenderActions:   false,
 	}
 }
 
@@ -726,6 +728,15 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Location", api.apiBaseURL+api.routePrefix+baseDeniedRoute)
 		w.WriteHeader(http.StatusFound)
 		return
+	}
+	reposWritable, err := userPermissionsClient(api.oauth).GetUserWritableRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user writable repos: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if _, ok := reposWritable[env.Repo]; ok {
+		td.RenderActions = true
 	}
 	api.render(w, "env", &td)
 }
