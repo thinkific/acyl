@@ -165,12 +165,18 @@ document.addEventListener("DOMContentLoaded", function(){
         update();
     });
     if (renderActions === "true") {
-        document.getElementById("actionsBtn").addEventListener('click', function () {
-            $('#synchronizeModalConfirm').on('click', function () {
+        $("#synchronizeModal").on('shown.bs.modal', function () {
+            $('#synchronizeModalConfirm').on('click', function (e) {
+                e.preventDefault();
                 rebuild();
+                update();
             });
-            $('#rebuildModalConfirm').on('click', function () {
+        });
+        $("#rebuildModal").on('shown.bs.modal', function () {
+            $('#rebuildModalConfirm').on('click', function (e) {
+                e.preventDefault();
                 rebuild(true);
+                update();
             });
         });
     }
@@ -181,11 +187,13 @@ function rebuild(fullRebuild = false) {
     let req = new XMLHttpRequest();
     let message = fullRebuild ? 'rebuild' : 'synchronize';
 
-    req.open('POST', `${apiBaseURL}/v2/userenvs/${envName}/actions/rebuild?full=${fullRebuild}`, true);
+    req.open('POST', `${apiBaseURL}/v2/userenvs/${envName}/actions/rebuild?full=${fullRebuild}`, false);
     req.onload = function () {
         if (req.status !== 201) {
             console.log(`env ${message} request failed: ${req.status}: ${req.responseText}`);
         }
+        const data = JSON.parse(req.response);
+        renderEnvDetail(data);
     };
     req.onerror = function () {
         console.error(`error rebuilding environment: ${req.statusText}`);

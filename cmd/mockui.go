@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/google/uuid"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
@@ -152,10 +153,14 @@ func mockui(cmd *cobra.Command, args []string) {
 		dl = persistence.NewFakeDataLayer()
 	}
 	dl.CreateMissingEventLog = true
+	uf := func(ctx context.Context, rd models.RepoRevisionData) (string, error) {
+		return "updated environment", nil
+	}
 	deps := &api.Dependencies{
 		DataLayer:    dl,
 		ServerConfig: serverConfig,
 		Logger:       logger,
+		EnvironmentSpawner: &spawner.FakeEnvironmentSpawner{UpdateFunc: uf},
 	}
 
 	serverConfig.UIBaseURL = "http://" + listenAddr
