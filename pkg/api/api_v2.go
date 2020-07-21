@@ -1,16 +1,20 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
+	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/models"
+	ncontext "github.com/dollarshaveclub/acyl/pkg/nitro/context"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/google/uuid"
@@ -18,6 +22,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 // API output schema
@@ -290,6 +296,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/event/{id}/logs", middlewareChain(api.logsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs", middlewareChain(api.userEnvsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}", middlewareChain(api.userEnvDetailHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+	r.HandleFunc("/v2/userenvs/{name}/actions/rebuild", middlewareChain(api.userEnvActionsRebuildHandler, sessionAuthMiddleware.sessionAuth)).Methods("POST")
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
@@ -709,4 +716,116 @@ func (api *v2api) userEnvDetailHandler(w http.ResponseWriter, r *http.Request) {
 		api.rlogger(r).Logf("error marshaling user env detail: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+// userEnvActionsRebuildHandler rebuilds the environment from the UI with a standard synchronize or (full) rebuild
+func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("session missing from context")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	envname := mux.Vars(r)["name"]
+	if envname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	qae, err := api.dl.GetQAEnvironment(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting qa env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if qae == nil {
+		api.rlogger(r).Logf("qa env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserWritableRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user writable repos: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if _, ok := repos[qae.Repo]; !ok {
+		api.rlogger(r).Logf("user writable repo not found")
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	k8senv, err := api.dl.GetK8sEnv(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if k8senv == nil {
+		api.rlogger(r).Logf("k8s env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	rrd := qae.RepoRevisionDataFromQA()
+
+	// setup logger
+	id, err := uuid.NewRandom()
+	if err != nil {
+		api.rlogger(r).Logf("error getting random UUID: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	elogger := &eventlogger.Logger{
+		ID:         id,
+		DeliveryID: uuid.Nil,
+		DL:         api.dl,
+		Sink:       os.Stdout,
+	}
+	if err := elogger.Init([]byte{}, qae.Repo, qae.PullRequest); err != nil {
+		api.rlogger(r).Logf("error initializing event logger: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if err := elogger.SetEnvName(qae.Name); err != nil {
+		api.rlogger(r).Logf("error setting event logger name: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// setup context
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), elogger)
+	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx))
+	span := tracer.StartSpan("actions_rebuilder")
+	span.SetTag(ext.SamplingPriority, ext.PriorityUserKeep)
+	setTagsForGithubWebhookHandler(span, *rrd)
+	ctx = tracer.ContextWithSpan(ctx, span)
+	logger := eventlogger.GetLogger(ctx).Printf
+
+	// check for full rebuild
+	messaging := "synchronize"
+	if r.URL.Query().Get("full") == "true" {
+		messaging = "rebuild"
+		err = api.dl.UpdateK8sEnvConfigSignature(ctx, qae.Name, [32]byte{})
+		if err != nil {
+			api.rlogger(r).Logf("error updating config signature: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// update environment
+	logger("starting async processing for %v rebuild update", messaging)
+	api.wg.Add(1)
+	go func() {
+		var err error
+		defer func() { span.Finish(tracer.WithError(err)) }()
+		defer api.wg.Done()
+		ctx, cf := context.WithTimeout(ctx, MaxAsyncActionTimeout)
+		defer cf() // guarantee that any goroutines created with the ctx are cancelled
+		name, err := api.es.Update(ctx, *rrd)
+		if err != nil {
+			logger("finished processing %v update with error: %v", messaging, err)
+			return
+		}
+		logger("success processing %v update event (env: %q); done", messaging, name)
+	}()
+	w.WriteHeader(http.StatusCreated)
 }

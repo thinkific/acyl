@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/google/uuid"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
@@ -42,6 +43,7 @@ var mockuiCmd = &cobra.Command{
 
 var listenAddr, mockDataFile, mockUser string
 var mockRepos []string
+var readOnly bool
 
 func addUIFlags(cmd *cobra.Command) {
 	brj, err := json.Marshal(&config.DefaultUIBranding)
@@ -55,7 +57,8 @@ func addUIFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&githubConfig.OAuth.Enforce, "ui-enforce-oauth", false, "Enforce GitHub App OAuth authn/authz for UI routes")
 	cmd.PersistentFlags().StringVar(&mockDataFile, "mock-data", "testdata/data.json", "Path to mock data file")
 	cmd.PersistentFlags().StringVar(&mockUser, "mock-user", "bobsmith", "Mock username (for sessions)")
-	cmd.PersistentFlags().StringSliceVar(&mockRepos, "mock-repos", []string{"acme/microservice", "acme/widgets", "acme/customers"}, "Mock repo read permissions (for session user)")
+	cmd.PersistentFlags().StringSliceVar(&mockRepos, "mock-repos", []string{"acme/microservice", "acme/widgets", "acme/customers"}, "Mock repo read write permissions (for session user)")
+	cmd.PersistentFlags().BoolVar(&readOnly, "mock-read-only", false, "Mock repo override to read only permissions (for session user)")
 }
 
 func init() {
@@ -150,10 +153,14 @@ func mockui(cmd *cobra.Command, args []string) {
 		dl = persistence.NewFakeDataLayer()
 	}
 	dl.CreateMissingEventLog = true
+	uf := func(ctx context.Context, rd models.RepoRevisionData) (string, error) {
+		return "updated environment", nil
+	}
 	deps := &api.Dependencies{
 		DataLayer:    dl,
 		ServerConfig: serverConfig,
 		Logger:       logger,
+		EnvironmentSpawner: &spawner.FakeEnvironmentSpawner{UpdateFunc: uf},
 	}
 
 	serverConfig.UIBaseURL = "http://" + listenAddr
@@ -170,9 +177,17 @@ func mockui(cmd *cobra.Command, args []string) {
 			GetUserAppRepoPermissionsFunc: func(_ context.Context, instID int64) (map[string]ghclient.AppRepoPermissions, error) {
 				out := make(map[string]ghclient.AppRepoPermissions, len(mockRepos))
 				for _, r := range mockRepos {
-					out[r] = ghclient.AppRepoPermissions{
-						Repo: r,
-						Pull: true,
+					if readOnly {
+						out[r] = ghclient.AppRepoPermissions{
+							Repo: r,
+							Pull: true,
+						}
+					} else {
+						out[r] = ghclient.AppRepoPermissions{
+							Repo: r,
+							Pull: true,
+							Push: true,
+						}
 					}
 				}
 				return out, nil

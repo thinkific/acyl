@@ -65,6 +65,17 @@ func (pg *PGLayer) UpdateK8sEnvTillerAddr(ctx context.Context, envname, taddr st
 	return errors.Wrap(err, "error updating k8s environment")
 }
 
+// UpdateK8sEnvConfigSignature updates an existing k8s environment config signature
+func (pg *PGLayer) UpdateK8sEnvConfigSignature(ctx context.Context, name string, confSig [32]byte) error {
+	if isCancelled(ctx) {
+		return errors.Wrap(ctx.Err(), "error update k8s env config signature")
+	}
+	insConfSig := confSig[:]
+	q := `UPDATE kubernetes_environments SET config_signature = $1 WHERE env_name = $2;`
+	_, err := pg.db.ExecContext(ctx, q, insConfSig, name)
+	return errors.Wrap(err, "error updating k8s environment")
+}
+
 func collectK8sEnvRows(rows *sql.Rows, err error) ([]models.KubernetesEnvironment, error) {
 	var k8senvs []models.KubernetesEnvironment
 	if err != nil {

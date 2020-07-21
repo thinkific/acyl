@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -1111,6 +1112,26 @@ func TestDataLayerUpdateK8sEnvTillerAddr(t *testing.T) {
 	}
 	if env.TillerAddr != "192.168.1.1:1234" {
 		t.Fatalf("bad tiller addr: %v", env.TillerAddr)
+	}
+}
+
+func TestDataLayerUpdateK8sEnvConfSignature(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	var confSig [32]byte
+	copy(confSig[:], []byte("f0o0o0b0a0r0n0e0w0s0i0g0n0a0t0u0"))
+	if err := dl.UpdateK8sEnvConfigSignature(context.Background(), "foo-bar", confSig); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	env, err := dl.GetK8sEnv(context.Background(), "foo-bar")
+	if err != nil {
+		t.Fatalf("get env should have succeeded: %v", err)
+	}
+	if compResult := bytes.Compare(env.ConfigSignature, confSig[:]); compResult != 0 {
+		t.Fatalf("bad config signature: %v", env.ConfigSignature)
 	}
 }
 

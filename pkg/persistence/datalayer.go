@@ -60,6 +60,7 @@ type K8sEnvDataLayer interface {
 	CreateK8sEnv(ctx context.Context, env *models.KubernetesEnvironment) error
 	DeleteK8sEnv(ctx context.Context, name string) error
 	UpdateK8sEnvTillerAddr(ctx context.Context, envname, taddr string) error
+	UpdateK8sEnvConfigSignature(ctx context.Context, name string, confSig [32]byte) error
 }
 
 // EventLoggerDataLayer desribes an object that stores event log data
