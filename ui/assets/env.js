@@ -164,7 +164,7 @@ document.addEventListener("DOMContentLoaded", function(){
         e.preventDefault();
         update();
     });
-    if (renderActions === "true") {
+    if (document.getElementById("synchronizeModal") !== null) {
         $("#synchronizeModal").on('shown.bs.modal', function () {
             $('#synchronizeModalConfirm').on('click', function (e) {
                 e.preventDefault();
@@ -172,6 +172,8 @@ document.addEventListener("DOMContentLoaded", function(){
                 update();
             });
         });
+    }
+    if (document.getElementById("rebuildModal") !== null) {
         $("#rebuildModal").on('shown.bs.modal', function () {
             $('#rebuildModalConfirm').on('click', function (e) {
                 e.preventDefault();

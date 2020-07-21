@@ -1115,7 +1115,7 @@ func TestDataLayerUpdateK8sEnvTillerAddr(t *testing.T) {
 	}
 }
 
-func TestFakeDataLayerUpdateK8sEnvConfSignature(t *testing.T) {
+func TestDataLayerUpdateK8sEnvConfSignature(t *testing.T) {
 	dl, tdl := NewTestDataLayer(t)
 	if err := tdl.Setup(testDataPath); err != nil {
 		t.Fatalf("error setting up test database: %v", err)

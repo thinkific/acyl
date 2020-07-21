@@ -289,7 +289,6 @@ type BaseTemplateData struct {
 	APIBaseURL      string
 	Branding        uiBranding
 	RenderEventLink bool
-	RenderActions   bool
 }
 
 func (api *uiapi) defaultBaseTemplateData() BaseTemplateData {
@@ -297,7 +296,6 @@ func (api *uiapi) defaultBaseTemplateData() BaseTemplateData {
 		APIBaseURL:      api.apiBaseURL,
 		Branding:        api.branding,
 		RenderEventLink: false,
-		RenderActions:   false,
 	}
 }
 
@@ -681,7 +679,8 @@ func (api *uiapi) homeHandler(w http.ResponseWriter, r *http.Request) {
 
 type envTmplData struct {
 	BaseTemplateData
-	EnvName string
+	EnvName       string
+	RenderActions bool
 }
 
 func repoInRepos(repos []string, repo string) bool {
@@ -703,6 +702,7 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 	td := envTmplData{
 		BaseTemplateData: api.defaultBaseTemplateData(),
 		EnvName:          mux.Vars(r)["envname"],
+		RenderActions:    false,
 	}
 	if td.EnvName == "" {
 		w.WriteHeader(http.StatusBadRequest)
