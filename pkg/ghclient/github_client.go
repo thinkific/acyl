@@ -253,12 +253,12 @@ func (ghc *GitHubClient) GetDirectoryContents(ctx context.Context, repo, path, r
 	if len(rs) != 2 {
 		return nil, fmt.Errorf("malformed repo: %v", repo)
 	}
-	ctx, cf := context.WithTimeout(ctx, ghTimeout)
-	defer cf()
 	hc := http.Client{}
 	// recursively fetch all directories and files
 	var getDirContents func(dirpath string) (map[string]FileContents, error)
 	getDirContents = func(dirpath string) (map[string]FileContents, error) {
+		ctx, cf := context.WithTimeout(ctx, ghTimeout)
+		defer cf()
 		_, dc, _, err := ghc.getClient(ctx).Repositories.GetContents(ctx, rs[0], rs[1], dirpath, &github.RepositoryContentGetOptions{Ref: ref})
 		if err != nil {
 			return nil, errors.Wrap(err, "error getting GitHub repo contents")
@@ -302,7 +302,9 @@ func (ghc *GitHubClient) GetDirectoryContents(ctx context.Context, repo, path, r
 				}
 			case "symlink":
 				// if it's a symlink, we have to do another API call to get details
-				fc2, _, _, err := ghc.getClient(ctx).Repositories.GetContents(ctx, rs[0], rs[1], fc.GetPath(), &github.RepositoryContentGetOptions{Ref: ref})
+				ctx2, cf := context.WithTimeout(ctx, ghTimeout)
+				defer cf()
+				fc2, _, _, err := ghc.getClient(ctx2).Repositories.GetContents(ctx, rs[0], rs[1], fc.GetPath(), &github.RepositoryContentGetOptions{Ref: ref})
 				if err != nil {
 					return nil, errors.Wrap(err, "error getting symlink details")
 				}
