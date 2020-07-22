@@ -61,7 +61,7 @@ vault:
   role: acyl
   auth_path: "kubernetes"
   agent_injector:
-    enabled: true
+    enabled: false
     init_first: false
     log_level: info
   secrets_prefix: "secret/services/acyl/qa/"
