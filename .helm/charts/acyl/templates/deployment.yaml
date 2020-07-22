@@ -19,6 +19,15 @@ spec:
       labels:
         app: {{ template "fullname" . }}
         appsel: acyl
+      annotations:
+{{- if eq .Values.vault.agent_injector.enabled true }}
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-init-first: "{{ .Values.vault.agent_injector.init_first }}"
+        vault.hashicorp.com/log-level: "{{ .Values.vault.agent_injector.log_level }}"
+        vault.hashicorp.com/auth-path: "auth/{{ .Values.vault.auth_path }}"
+        vault.hashicorp.com/role: "{{ .Values.vault.role }}"
+{{ include "vault-agent-default-dsc-secrets-v1-template" . | indent 8 }}
+{{- end }}
     spec:
       serviceAccountName: {{ .Values.serviceaccount }}
       terminationGracePeriodSeconds: 1830 # 30min + 30s
