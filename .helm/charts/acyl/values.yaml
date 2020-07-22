@@ -60,6 +60,49 @@ vault:
   use_k8s_auth: true
   role: acyl
   auth_path: "kubernetes"
+  agent_injector:
+    enabled: true
+    init_first: false
+    log_level: info
+  secrets_prefix: "secret/services/acyl/qa/"
+  secrets:
+  - name: awsAccessKeyIDid
+    path: aws/access_key_id
+  - name: awsSecretAccessKeyid
+    path: aws/secret_access_key
+  - name: githubHookSecretid         
+    path: github/hook_secret
+  - name: githubTokenid
+    path: github/token
+  - name: githubAppID                
+    path: github/app/id
+  - name: githubAppPK                
+    path: github/app/private_key
+  - name: githubAppHookSecret        
+    path: github/app/hook_secret
+  - name: githubOAuthInstID          
+    path: github/app/oauth/installation_id
+  - name: githubOAuthClientID        
+    path: github/app/oauth/client/id
+  - name: githubOAuthClientSecret    
+    path: github/app/oauth/client/secret
+  - name: githubOAuthCookieEncKey    
+    path: github/app/oauth/cookie/encryption_key
+  - name: githubOAuthCookieAuthKey   
+    path: github/app/oauth/cookie/authentication_key
+  - name: githubOAuthUserTokenEncKey 
+    path: github/app/oauth/user_token/encryption_key
+  - name: apiKeysid                  
+    path: api_keys
+  - name: slackTokenid               
+    path: slack/token
+  - name: tlsCertid                  
+    path: tls/cert
+  - name: tlsKeyid                   
+    path: tls/key
+  - name: dbURIid                    
+    path: db/uri
+
 cronautoscaling:
   enabled: false
   jobs: []
@@ -87,3 +130,4 @@ resources:
   requests:
     cpu: 1
     memory: 256Mi
+
