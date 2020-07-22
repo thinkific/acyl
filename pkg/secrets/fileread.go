@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-    "io/ioutils"
+	"io/ioutils"
 	"github.com/dollarshaveclub/acyl/pkg/config"
 
 	"github.com/pkg/errors"
