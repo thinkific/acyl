@@ -64,7 +64,7 @@ func (iof *IOReaderSecretsFetcher) PopulateAllSecrets(aws *config.AWSCreds, gh *
 }
 
 // PopulatePG populates postgres secrets into pg
-func (psf *PVCSecretsFetcher) PopulatePG(pg *config.PGConfig) error {
+func (iof *IOReaderSecretsFetcher) PopulatePG(pg *config.PGConfig) error {
 	s, err := iof.r.ReadFile(vaultSecrets["rootPath"]+ vaultSecrets["dbURIid"])
 	if err != nil {
 		return errors.Wrap(err, "error getting DB URI")
@@ -74,7 +74,7 @@ func (psf *PVCSecretsFetcher) PopulatePG(pg *config.PGConfig) error {
 }
 
 // PopulateAWS populates AWS secrets into aws
-func (psf *PVCSecretsFetcher) PopulateAWS(aws *config.AWSCreds) error {
+func (iof *IOReaderSecretsFetcher) PopulateAWS(aws *config.AWSCreds) error {
 	s, err := iof.r.ReadFile(vaultSecrets["rootPath"]+ vaultSecrets["awsAccessKeyIDid"])
 	if err != nil {
 		return errors.Wrap(err, "error getting AWS access key ID")
@@ -89,7 +89,7 @@ func (psf *PVCSecretsFetcher) PopulateAWS(aws *config.AWSCreds) error {
 }
 
 // PopulateGithub populates Github secrets into gh
-func (psf *PVCSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
+func (iof *IOReaderSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
 	s, err := iof.r.ReadFile(vaultSecrets["rootPath"]+ vaultSecrets["githubHookSecretid"])
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub hook secret")
@@ -174,7 +174,7 @@ func (psf *PVCSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
 }
 
 // PopulateSlack populates Slack secrets into slack
-func (psf *PVCSecretsFetcher) PopulateSlack(slack *config.SlackConfig) error {
+func (iof *IOReaderSecretsFetcher) PopulateSlack(slack *config.SlackConfig) error {
 	s, err := iof.r.ReadFile(vaultSecrets["rootPath"]+ vaultSecrets["slackTokenid"])
 	if err != nil {
 		return errors.Wrap(err, "error getting Slack token")
@@ -184,7 +184,7 @@ func (psf *PVCSecretsFetcher) PopulateSlack(slack *config.SlackConfig) error {
 }
 
 // PopulateServer populates server secrets into srv
-func (psf *PVCSecretsFetcher) PopulateServer(srv *config.ServerConfig) error {
+func (iof *IOReaderSecretsFetcher) PopulateServer(srv *config.ServerConfig) error {
 	s, err := iof.r.ReadFile(vaultSecrets["rootPath"]+ vaultSecrets["apiKeysid"])
 	if err != nil {
 		return errors.Wrap(err, "error getting API keys")
