@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/mholt/archiver"
 	"github.com/pkg/errors"
 	billy "gopkg.in/src-d/go-billy.v4"
 	git "gopkg.in/src-d/go-git.v4"
@@ -387,6 +388,19 @@ func (lw *LocalWrapper) localGetDirectoryContents(repopath, repo, dirpath, ref s
 	return out, nil
 }
 
+func (lw *LocalWrapper) localGetRepoArchive(repopath, repo, ref string) (string, error) {
+	f, err := ioutil.TempFile("", "acyl-localwrapper-repo-archive-*.tar.gz")
+	if err != nil {
+		return "", errors.Wrap(err, "error creating temp file")
+	}
+	f.Close()
+	err = archiver.Archive([]string{repopath}, f.Name())
+	if err != nil {
+		return "", errors.Wrap(err, "error archiving repo contents")
+	}
+	return f.Name(), nil
+}
+
 func (lw *LocalWrapper) GetBranch(ctx context.Context, repo, branch string) (BranchInfo, error) {
 	lw.repoPathMapLock.RLock()
 	p, ok := lw.RepoPathMap[repo]
@@ -435,6 +449,16 @@ func (lw *LocalWrapper) GetDirectoryContents(ctx context.Context, repo, path, re
 		return lw.localGetDirectoryContents(p, repo, path, ref)
 	}
 	return lw.Backend.GetDirectoryContents(ctx, repo, path, ref)
+}
+
+func (lw *LocalWrapper) GetRepoArchive(ctx context.Context, repo, ref string) (string, error) {
+	lw.repoPathMapLock.RLock()
+	p, ok := lw.RepoPathMap[repo]
+	lw.repoPathMapLock.RUnlock()
+	if ok {
+		return lw.localGetRepoArchive(p, repo, ref)
+	}
+	return lw.Backend.GetRepoArchive(ctx, repo, ref)
 }
 
 func (lw *LocalWrapper) SetStatus(ctx context.Context, repo string, sha string, status *CommitStatus) error {
