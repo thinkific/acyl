@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -394,7 +395,21 @@ func (lw *LocalWrapper) localGetRepoArchive(repopath, repo, ref string) (string,
 		return "", errors.Wrap(err, "error creating temp file")
 	}
 	f.Close()
-	err = archiver.Archive([]string{repopath}, f.Name())
+	tgz := archiver.NewTarGz()
+	tgz.OverwriteExisting = true
+	tgz.ContinueOnError = true
+	tgz.ImplicitTopLevelFolder = true
+	if repopath == "." {
+		// if repopath is the current directory, we need to force
+		// archive to create a top-level directory in the tarball
+		// so we use ../<current dir name>
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", errors.Wrap(err, "error getting current directory")
+		}
+		repopath = filepath.Join("..", filepath.Base(wd))
+	}
+	err = tgz.Archive([]string{repopath}, f.Name())
 	if err != nil {
 		return "", errors.Wrap(err, "error archiving repo contents")
 	}

@@ -99,7 +99,7 @@ func (dbb *DockerBuilderBackend) BuildImage(ctx context.Context, envName, github
 	}
 	files := make([]string, len(fi))
 	for i := range fi {
-		files[i] = filepath.Join(tdir, fi[i].Name())
+		files[i] = filepath.Join(f.Name(), fi[i].Name())
 	}
 	dbb.log(ctx, "building context tar for %v", githubRepo)
 	bcontents, err := ioutil.TempFile("", "acyl-docker-builder-context-*.tar")
@@ -109,6 +109,7 @@ func (dbb *DockerBuilderBackend) BuildImage(ctx context.Context, envName, github
 	bcontents.Close()
 	tar := archiver.NewTar()
 	tar.ContinueOnError = true // ignore things like broken symlinks
+	tar.OverwriteExisting = true
 	if err := tar.Archive(files, bcontents.Name()); err != nil {
 		return errors.Wrap(err, "error writing tar file")
 	}
