@@ -124,6 +124,21 @@ func (mr *MockRepoClientMockRecorder) GetPRStatus(arg0, arg1, arg2 interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRStatus", reflect.TypeOf((*MockRepoClient)(nil).GetPRStatus), arg0, arg1, arg2)
 }
 
+// GetRepoArchive mocks base method
+func (m *MockRepoClient) GetRepoArchive(arg0 context.Context, arg1, arg2 string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRepoArchive", arg0, arg1, arg2)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRepoArchive indicates an expected call of GetRepoArchive
+func (mr *MockRepoClientMockRecorder) GetRepoArchive(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRepoArchive", reflect.TypeOf((*MockRepoClient)(nil).GetRepoArchive), arg0, arg1, arg2)
+}
+
 // GetTags mocks base method
 func (m *MockRepoClient) GetTags(arg0 context.Context, arg1 string) ([]ghclient.BranchInfo, error) {
 	m.ctrl.T.Helper()

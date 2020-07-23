@@ -5,11 +5,13 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
+	"os"
 	"testing"
+
+	"github.com/pkg/errors"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
-	"github.com/pkg/errors"
 
 	"github.com/docker/docker/api/types"
 )
@@ -33,22 +35,26 @@ func (fdc *fakeDockerClient) ImagePush(ctx context.Context, image string, option
 }
 
 func TestDockerBackendBuild(t *testing.T) {
+	var tname string
+	createtf := func() {
+		tf, err := ioutil.TempFile("", "*.tar.gz")
+		if err != nil {
+			t.Fatalf("error creating temp file: %v", err)
+		}
+		defer tf.Close()
+		f, err := os.Open("testdata/contents.tar.gz")
+		if err != nil {
+			t.Fatalf("error opening contents tar: %v", err)
+		}
+		defer f.Close()
+		if _, err := io.Copy(tf, f); err != nil {
+			t.Fatalf("error copying contents tar: %v", err)
+		}
+		tname = tf.Name()
+	}
 	rc := &ghclient.FakeRepoClient{
-		GetDirectoryContentsFunc: func(ctx context.Context, repo, path, ref string) (map[string]ghclient.FileContents, error) {
-			return map[string]ghclient.FileContents{
-				"foo/bar.txt": ghclient.FileContents{
-					Path:     "foo/bar.txt",
-					Contents: []byte("asdf"),
-				},
-				"foo/123.txt": ghclient.FileContents{
-					Path:     "foo/123.txt",
-					Contents: []byte("asdf123"),
-				},
-				"biz/123/zxcv/1.txt": ghclient.FileContents{
-					Path:     "biz/123/zxcv/1.txt",
-					Contents: []byte("asdf"),
-				},
-			}, nil
+		GetRepoArchiveFunc: func(ctx context.Context, repo, ref string) (string, error) {
+			return tname, nil
 		},
 	}
 	var builderr, pusherr bool
@@ -77,6 +83,8 @@ func TestDockerBackendBuild(t *testing.T) {
 		},
 		Push: false,
 	}
+	createtf()
+	defer os.Remove(tname)
 	err := dbb.BuildImage(context.Background(), "some-name", "acme/widgets", "quay.io/acme/widgets", "asdf", BuildOptions{})
 	if err != nil {
 		t.Fatalf("build should have succeeded: %v", err)
@@ -87,11 +95,15 @@ func TestDockerBackendBuild(t *testing.T) {
 	if pushed {
 		t.Fatalf("ImagePush shouldn't have been called")
 	}
+	createtf()
+	defer os.Remove(tname)
 	builderr = true
 	err = dbb.BuildImage(context.Background(), "some-name", "acme/widgets", "quay.io/acme/widgets", "asdf", BuildOptions{})
 	if err == nil {
 		t.Fatalf("build should have failed")
 	}
+	createtf()
+	defer os.Remove(tname)
 	built = false
 	builderr = false
 	dbb.Push = true
@@ -105,11 +117,15 @@ func TestDockerBackendBuild(t *testing.T) {
 	if !pushed {
 		t.Fatalf("ImagePush should have have been called")
 	}
+	createtf()
+	defer os.Remove(tname)
 	pusherr = true
 	err = dbb.BuildImage(context.Background(), "some-name", "acme/widgets", "quay.io/acme/widgets", "asdf", BuildOptions{})
 	if err == nil {
 		t.Fatalf("build should have failed")
 	}
+	createtf()
+	defer os.Remove(tname)
 	err = dbb.BuildImage(context.Background(), "some-name", "acme/widgets", "privateregistry.io/acme/widgets", "asdf", BuildOptions{})
 	if err == nil {
 		t.Fatalf("build should have failed with missing auth")

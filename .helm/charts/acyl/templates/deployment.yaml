@@ -178,8 +178,54 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: dummy-acyl-secrets
-                key: image_pull_secret                
-          {{ else }}
+                key: image_pull_secret
+          # ------- GitHub App Secrets ----------
+          - name: ACYL_GITHUB_APP_ID
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_id
+          - name: ACYL_GITHUB_APP_PRIVATE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_private_key
+          - name: ACYL_GITHUB_APP_HOOK_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_hook_secret
+          - name: ACYL_GITHUB_APP_OAUTH_INSTALLATION_ID
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_oauth_installation_id
+          - name: ACYL_GITHUB_APP_OAUTH_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_oauth_client_id
+          - name: ACYL_GITHUB_APP_OAUTH_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_oauth_client_secret
+          - name: ACYL_GITHUB_APP_OAUTH_COOKIE_ENCRYPTION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_oauth_cookie_encryption_key
+          - name: ACYL_GITHUB_APP_OAUTH_COOKIE_AUTHENTICATION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_oauth_cookie_authentication_key
+          - name: ACYL_GITHUB_APP_OAUTH_USER_TOKEN_ENCRYPTION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dummy-acyl-secrets
+                key: github_app_oauth_user_token_encryption_key
+      {{ else }}
           - name: VAULT_ADDR
             value: {{ .Values.vault.addr }}
           {{ end }}

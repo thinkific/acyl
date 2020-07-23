@@ -16,6 +16,7 @@ type FakeRepoClient struct {
 	GetUserAppReposFunc           func(ctx context.Context, instID int64) ([]string, error)
 	GetUserFunc                   func(ctx context.Context) (string, error)
 	GetUserAppRepoPermissionsFunc func(ctx context.Context, instID int64) (map[string]AppRepoPermissions, error)
+	GetRepoArchiveFunc            func(ctx context.Context, repo, ref string) (string, error)
 }
 
 var _ RepoClient = &FakeRepoClient{}
@@ -96,4 +97,11 @@ func (frc *FakeRepoClient) GetUserAppRepoPermissions(ctx context.Context, instID
 		return frc.GetUserAppRepoPermissionsFunc(ctx, instID)
 	}
 	return map[string]AppRepoPermissions{}, nil
+}
+
+func (frc *FakeRepoClient) GetRepoArchive(ctx context.Context, repo, ref string) (string, error) {
+	if frc.GetRepoArchiveFunc != nil {
+		return frc.GetRepoArchiveFunc(ctx, repo, ref)
+	}
+	return "foo.tar.gz", nil
 }

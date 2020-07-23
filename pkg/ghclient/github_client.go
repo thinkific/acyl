@@ -3,8 +3,10 @@ package ghclient
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -43,11 +45,13 @@ type RepoClient interface {
 	GetCommitMessage(context.Context, string, string) (string, error)
 	GetFileContents(ctx context.Context, repo string, path string, ref string) ([]byte, error)
 	GetDirectoryContents(ctx context.Context, repo, path, ref string) (map[string]FileContents, error)
+	GetRepoArchive(ctx context.Context, repo, ref string) (string, error)
 }
 
 // GitHubClient is an object that interacts with the GitHub API
 type GitHubClient struct {
-	c *github.Client
+	c  *github.Client
+	hc http.Client
 }
 
 // NewGitHubClient returns a GitHubClient instance that authenticates using
@@ -253,12 +257,12 @@ func (ghc *GitHubClient) GetDirectoryContents(ctx context.Context, repo, path, r
 	if len(rs) != 2 {
 		return nil, fmt.Errorf("malformed repo: %v", repo)
 	}
-	ctx, cf := context.WithTimeout(ctx, ghTimeout)
-	defer cf()
 	hc := http.Client{}
 	// recursively fetch all directories and files
 	var getDirContents func(dirpath string) (map[string]FileContents, error)
 	getDirContents = func(dirpath string) (map[string]FileContents, error) {
+		ctx, cf := context.WithTimeout(ctx, ghTimeout)
+		defer cf()
 		_, dc, _, err := ghc.getClient(ctx).Repositories.GetContents(ctx, rs[0], rs[1], dirpath, &github.RepositoryContentGetOptions{Ref: ref})
 		if err != nil {
 			return nil, errors.Wrap(err, "error getting GitHub repo contents")
@@ -302,7 +306,9 @@ func (ghc *GitHubClient) GetDirectoryContents(ctx context.Context, repo, path, r
 				}
 			case "symlink":
 				// if it's a symlink, we have to do another API call to get details
-				fc2, _, _, err := ghc.getClient(ctx).Repositories.GetContents(ctx, rs[0], rs[1], fc.GetPath(), &github.RepositoryContentGetOptions{Ref: ref})
+				ctx2, cf := context.WithTimeout(ctx, ghTimeout)
+				defer cf()
+				fc2, _, _, err := ghc.getClient(ctx2).Repositories.GetContents(ctx, rs[0], rs[1], fc.GetPath(), &github.RepositoryContentGetOptions{Ref: ref})
 				if err != nil {
 					return nil, errors.Wrap(err, "error getting symlink details")
 				}
@@ -325,4 +331,51 @@ func (ghc *GitHubClient) GetDirectoryContents(ctx context.Context, repo, path, r
 		return output, nil
 	}
 	return getDirContents(path)
+}
+
+// GetRepoArchive fetches repo at ref as a gzip-compressed tar archive and returns the local filesystem path, or error
+// It is the caller's responsibility to clean up the file when finished
+func (ghc *GitHubClient) GetRepoArchive(ctx context.Context, repo, ref string) (string, error) {
+	rs := strings.SplitN(repo, "/", 2)
+	opt := &github.RepositoryContentGetOptions{
+		Ref: ref,
+	}
+	aurl, resp, err := ghc.c.Repositories.GetArchiveLink(ctx, rs[0], rs[1], github.Tarball, opt, false)
+	if err != nil {
+		return "", fmt.Errorf("error getting archive link: %v", err)
+	}
+	if resp.StatusCode > 399 {
+		return "", fmt.Errorf("error status when getting archive link: %v", resp.Status)
+	}
+	if aurl == nil {
+		return "", fmt.Errorf("url is nil")
+	}
+	hr, err := http.NewRequest("GET", aurl.String(), nil)
+	if err != nil {
+		return "", fmt.Errorf("error creating http request: %v", err)
+	}
+	f, err := ioutil.TempFile("", "github-getrepoarchive-*.tar.gz")
+	if err != nil {
+		return "", fmt.Errorf("error creating temp file: %w", err)
+	}
+	defer func() {
+		f.Close()
+		if err != nil {
+			os.Remove(f.Name())
+		}
+	}()
+	resp2, err := ghc.hc.Do(hr)
+	if err != nil {
+		return f.Name(), fmt.Errorf("error performing archive http request: %v", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode > 299 {
+		err = fmt.Errorf("archive http request failed: %v", resp.StatusCode)
+		return f.Name(), err
+	}
+	_, err = io.Copy(f, resp2.Body)
+	if err != nil {
+		return "", fmt.Errorf("error writing to temp file: %w", err)
+	}
+	return f.Name(), nil
 }

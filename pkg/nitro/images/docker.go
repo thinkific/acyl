@@ -61,52 +61,60 @@ func (dbb *DockerBuilderBackend) BuildImage(ctx context.Context, envName, github
 		return errors.Wrap(err, "error getting temp dir")
 	}
 	defer os.RemoveAll(tdir)
-	dbb.log(ctx, "building context tar for %v", githubRepo)
-	contents, err := dbb.RC.GetDirectoryContents(ctx, githubRepo, "", ref)
+	dbb.log(ctx, "getting repo contents for %v", githubRepo)
+	tgz, err := dbb.RC.GetRepoArchive(ctx, githubRepo, ref)
 	if err != nil {
-		return errors.Wrap(err, "error getting repo directory contents")
+		return errors.Wrap(err, "error getting repo archive")
 	}
-	for file, content := range contents {
-		dir := filepath.Join(tdir, filepath.Dir(file))
-		if err := os.MkdirAll(dir, os.ModeDir|os.ModePerm); err != nil {
-			return errors.Wrap(err, "error creating file directory")
-		}
-		fp := filepath.Join(tdir, file)
-		if content.Symlink {
-			if err := os.Symlink(content.SymlinkTarget, fp); err != nil {
-				return errors.Wrap(err, "error creating symlink")
-			}
-			continue
-		}
-		if err := ioutil.WriteFile(fp, content.Contents, os.ModePerm); err != nil {
-			return errors.Wrap(err, "error writing file")
-		}
+	defer os.Remove(tgz)
+	dbb.log(ctx, "unarchiving repo contents: %v", githubRepo)
+	if err := archiver.Unarchive(tgz, tdir); err != nil {
+		return errors.Wrap(err, "error unarchiving repo contents")
 	}
-	bctx, err := ioutil.TempFile("", "acyl-docker-builder-context-*.tar")
-	if err != nil {
-		return errors.Wrap(err, "error creating tar temp file")
-	}
-	bctx.Close()
-	os.Remove(bctx.Name())
+	// verify that there's exactly one subdirectory in the unarchived contents
 	f, err := os.Open(tdir)
 	if err != nil {
 		return errors.Wrap(err, "error opening temp dir")
 	}
-	entries, err := f.Readdir(0)
+	fi, err := f.Readdir(-1)
+	f.Close()
 	if err != nil {
-		return errors.Wrap(err, "error reading temp dir names")
+		return errors.Wrap(err, "error reading temp dir")
 	}
-	files := make([]string, len(entries))
-	for i := range entries {
-		files[i] = filepath.Join(tdir, entries[i].Name())
+	if len(fi) != 1 {
+		return fmt.Errorf("expected one path in repo archive but got %v", len(fi))
 	}
+	if !fi[0].IsDir() {
+		return fmt.Errorf("top-level directory in repo not found in unarchived repo archive: %v", fi[0].Name())
+	}
+	// get all files within the top-level directory
+	f, err = os.Open(filepath.Join(tdir, fi[0].Name()))
+	if err != nil {
+		return errors.Wrap(err, "error opening top-level repo archive dir")
+	}
+	fi, err = f.Readdir(-1)
+	f.Close()
+	if err != nil {
+		return errors.Wrap(err, "error reading top-level repo archive dir")
+	}
+	files := make([]string, len(fi))
+	for i := range fi {
+		files[i] = filepath.Join(f.Name(), fi[i].Name())
+	}
+	dbb.log(ctx, "building context tar for %v", githubRepo)
+	bcontents, err := ioutil.TempFile("", "acyl-docker-builder-context-*.tar")
+	if err != nil {
+		return errors.Wrap(err, "error creating tar temp file")
+	}
+	bcontents.Close()
 	tar := archiver.NewTar()
 	tar.ContinueOnError = true // ignore things like broken symlinks
-	if err := tar.Archive(files, bctx.Name()); err != nil {
+	tar.OverwriteExisting = true
+	if err := tar.Archive(files, bcontents.Name()); err != nil {
 		return errors.Wrap(err, "error writing tar file")
 	}
-	defer os.Remove(bctx.Name())
-	f, err = os.Open(bctx.Name())
+	defer os.Remove(bcontents.Name())
+	f, err = os.Open(bcontents.Name())
 	if err != nil {
 		return errors.Wrap(err, "error opening tar")
 	}
