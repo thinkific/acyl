@@ -368,10 +368,7 @@ func (ghc *GitHubClient) GetRepoArchive(ctx context.Context, repo, ref string) (
 	if err != nil {
 		return f.Name(), fmt.Errorf("error performing archive http request: %v", err)
 	}
-	if resp2 == nil {
-		err = fmt.Errorf("error getting archive: response is nil") // clean up f
-		return f.Name(), err
-	}
+	defer resp2.Body.Close()
 	if resp2.StatusCode > 299 {
 		err = fmt.Errorf("archive http request failed: %v", resp.StatusCode)
 		return f.Name(), err
