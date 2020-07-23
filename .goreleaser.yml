@@ -79,7 +79,7 @@ brews:
   - name: acyl
 
     # Repository to push the tap to.
-    github:
+    tap:
       owner: dollarshaveclub
       name: homebrew-public
 
