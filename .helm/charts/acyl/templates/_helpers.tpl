@@ -18,7 +18,7 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 Create .Data.value template for Vault Agent Injector
 Note the newline \n and spaces to maintain indentation
 */}}
-{{- define "vault-agent-default-dsc-secrets-v1-template" -}}
+{{- define "vault-agent-default-secrets-v1-template" -}}
 {{- $secrets_prefix := .Values.vault.secrets_prefix -}}
 {{- range .Values.vault.secrets }}
 

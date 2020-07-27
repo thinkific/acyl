@@ -2,14 +2,14 @@
 version: 2
 
 target_branches:
-  - master
+  - vault-agent-inject-poc-fileread-code
 
 application:
   chart_path: '.helm/charts/acyl'
-  chart_vars_repo_path: 'dollarshaveclub/helm-charts@master:releases/kube.shave.io/acyl/dqa.yml'
-  image: quay.io/dollarshaveclub/acyl
+  chart_vars_repo_path: 'dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:releases/minikube/acyl/minikube-w-vault-agent.yml'
+  image: acyl
   value_overrides:
-    - "app.ui.enforce_oauth=true"
+    - "app.ui.enforce_oauth=false"
     - "ingress.traefik.enabled=false"
 # uncomment to use in-environment Furan
 #    - "app.furan_addr=furan:4001"
@@ -25,6 +25,11 @@ application:
 #    - "cronautoscaling.enabled=false"
 
 dependencies:
+  environment:
+    - name: vault
+      default_branch: vault-agent-inject-poc-fileread-code
+      chart_repo_path: dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:charts/vault-agent-injector'
+      chart_vars_repo_path: dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code: dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:releases/minikube/vault/vars.yaml
   direct:
     - repo: dollarshaveclub/furan
       name: furan

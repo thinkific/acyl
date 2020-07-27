@@ -26,7 +26,7 @@ spec:
         vault.hashicorp.com/log-level: "{{ .Values.vault.agent_injector.log_level }}"
         vault.hashicorp.com/auth-path: "auth/{{ .Values.vault.auth_path }}"
         vault.hashicorp.com/role: "{{ .Values.vault.role }}"
-{{ include "vault-agent-default-dsc-secrets-v1-template" . | indent 8 }}
+{{ include "vault-agent-default-secrets-v1-template" . | indent 8 }}
 {{- end }}
     spec:
       serviceAccountName: {{ .Values.serviceaccount }}
