@@ -29,7 +29,7 @@ dependencies:
     - name: vault
       default_branch: vault-agent-inject-poc-fileread-code
       chart_repo_path: dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:charts/vault-agent-injector'
-      chart_vars_repo_path: dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code: dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:releases/minikube/vault/vars.yaml
+      chart_vars_repo_path: dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code: dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:releases/minikube/vault/acyl-development.yaml
   direct:
     - repo: dollarshaveclub/furan
       name: furan
