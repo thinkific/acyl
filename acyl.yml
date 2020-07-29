@@ -6,7 +6,7 @@ target_branches:
 
 application:
   chart_path: '.helm/charts/acyl'
-  chart_vars_repo_path: 'dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:releases/minikube/acyl/minikube-w-vault-agent.yml'
+  chart_vars_repo_path: 'dollarshaveclub/helm-charts@master:releases/minikube/acyl/minikube-w-vault-agent.yaml'
   image: acyl
   value_overrides:
     - "app.ui.enforce_oauth=false"
@@ -25,18 +25,16 @@ application:
 #    - "cronautoscaling.enabled=false"
 
 dependencies:
-  environment:
-    - name: vault-development-configmap
-      default_branch: vault-agent-inject-poc-fileread-code
-      chart_repo_path: 'dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:charts/vault-development-configmap'
-      chart_vars_repo_path: 'dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:releases/minikube/vault-development-configmap/acyl-development.yaml'
-    - name: vault
-      default_branch: vault-agent-inject-poc-fileread-code
-      chart_repo_path: 'dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:charts/vault-1.4.3'
-      chart_vars_repo_path: 'dollarshaveclub/helm-charts@vault-agent-inject-poc-fileread-code:releases/minikube/vault/acyl-development.yaml'
-      requires:
-        - vault-development-configmap
   direct:
+    - name: 'vault-development-configmap'
+      chart_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:charts/vault-development-configmap'
+      chart_vars_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:releases/minikube/vault-development-configmap/acyl-development.yaml'
+    - name: vault
+      chart_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:charts/vault-1.4.3'
+      chart_vars_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:releases/minikube/vault/acyl-development.yaml'
+      requires:
+        - 'vault-development-configmap'
+
     - repo: dollarshaveclub/furan
       name: furan
       default_branch: master
