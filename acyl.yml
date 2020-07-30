@@ -13,7 +13,7 @@ application:
     - "ingress.traefik.enabled=false"
 # uncomment to use in-environment Furan
 #    - "app.furan_addr=furan:4001"
-# local:
+# uncomment for local development
     - "app.dogstatsd_addr=1.2.3.4:8125"
     - "app.secrets_backend=env"
     - "app.secrets_mapping=ACYL_{{ .ID }}"
@@ -26,14 +26,6 @@ application:
 
 dependencies:
   direct:
-    - name: 'vault-development-configmap'
-      chart_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:charts/vault-development-configmap'
-      chart_vars_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:releases/minikube/vault-development-configmap/acyl-development.yaml'
-    - name: vault
-      chart_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:charts/vault-1.4.3'
-      chart_vars_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:releases/minikube/vault/acyl-development.yaml'
-      requires:
-        - 'vault-development-configmap'
 
     - repo: dollarshaveclub/furan
       name: furan
