@@ -61,6 +61,11 @@ type Installer interface {
 	DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error
 }
 
+// KubernetesReporter describes an object that returns k8s environment data
+type KubernetesReporter interface {
+	GetK8sEnvPodList(ctx context.Context, ns string) (pl *corev1.PodList, err error)
+}
+
 // metrics prefix
 var mpfx = "metahelm."
 
@@ -582,6 +587,18 @@ func (ci ChartInstaller) writeReleaseNames(ctx context.Context, rm metahelm.Rele
 		releases = append(releases, r)
 	}
 	return ci.dl.CreateHelmReleasesForEnv(ctx, releases)
+}
+
+// GetK8sEnvPodList returns a kubernetes environment per the name requested
+func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (pl *corev1.PodList, err error) {
+	pl, err = ci.kc.CoreV1().Pods(ns).List(meta.ListOptions{})
+	if err != nil {
+		return &corev1.PodList{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
+	}
+	if len(pl.Items) == 0 {
+		return &corev1.PodList{}, errors.Wrapf(err, "error no pods found for namespace %v", ns)
+	}
+	return pl, nil
 }
 
 // GenerateCharts processes the fetched charts, adds and merges overrides and returns metahelm Charts ready to be installed/upgraded

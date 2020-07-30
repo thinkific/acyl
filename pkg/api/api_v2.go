@@ -15,6 +15,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	ncontext "github.com/dollarshaveclub/acyl/pkg/nitro/context"
+	"github.com/dollarshaveclub/acyl/pkg/nitro/metahelm"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/google/uuid"
@@ -297,6 +298,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/userenvs", middlewareChain(api.userEnvsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}", middlewareChain(api.userEnvDetailHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}/actions/rebuild", middlewareChain(api.userEnvActionsRebuildHandler, sessionAuthMiddleware.sessionAuth)).Methods("POST")
+	r.HandleFunc("/v2/userenvs/{env name}/namespace/pods", middlewareChain(api.userEnvNameHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
@@ -828,4 +830,76 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		logger("success processing %v update event (env: %q); done", messaging, name)
 	}()
 	w.WriteHeader(http.StatusCreated)
+}
+
+// userEnvNameHandler gets k8s pod details by the environment name for the UI
+func (api *v2api) userEnvNameHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("session missing from context")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	envname := mux.Vars(r)["name"]
+	if envname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	qae, err := api.dl.GetQAEnvironment(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting qa env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if qae == nil {
+		api.rlogger(r).Logf("qa env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user visible repos: %v: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !repoInRepos(repos, qae.Repo) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	k8senv, err := api.dl.GetK8sEnv(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if k8senv == nil {
+		// if there's no k8senv yet, we'll just use an empty one (this will result in an empty namespace in the UI)
+		k8senv = &models.KubernetesEnvironment{}
+	}
+	// TODO: determine how to retrieve
+	k8sConfig := config.K8sConfig{
+		GroupBindings: map[string]string{},
+		PrivilegedRepoWhitelist: repos,
+		SecretInjections: map[string]config.K8sSecret{},
+	}
+	k8sClientConfig := config.K8sClientConfig{
+		JWTPath: "",
+	}
+	ci, err := metahelm.NewChartInstaller(nil, api.dl, nil, nil, k8sConfig.GroupBindings, k8sConfig.PrivilegedRepoWhitelist, k8sConfig.SecretInjections, metahelm.TillerConfig{}, k8sClientConfig.JWTPath, true)
+	if err != nil {
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	pl, err := ci.GetK8sEnvPodList(context.Background(), k8senv.Namespace)
+	if err != nil {
+		api.rlogger(r).Logf("error getting pod list for k8s env: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(&pl); err != nil {
+		api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
