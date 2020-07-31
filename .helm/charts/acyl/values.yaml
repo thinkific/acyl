@@ -66,9 +66,9 @@ vault:
     log_level: info
   secrets_prefix: "secret/services/acyl/qa/"
   secrets:
-  - name: awsAccessKeyIDid
+  - name: awsAccessKeyID
     path: aws/access_key_id
-  - name: awsSecretAccessKeyid
+  - name: awsSecretAccessKey
     path: aws/secret_access_key
   - name: githubHookSecretid         
     path: github/hook_secret
