@@ -3,6 +3,8 @@ package secrets
 import (
 	"crypto/tls"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"strconv"
 	"strings"
 
@@ -35,12 +37,24 @@ const (
 )
 
 type SecretFetcher interface {
-	PopulateAllSecrets(aws *config.AWSCreds, gh *config.GithubConfig, slack *config.SlackConfig, srv *config.ServerConfig, pg *config.PGConfig)
+	PopulateAllSecrets(aws *config.AWSCreds, gh *config.GithubConfig, slack *config.SlackConfig, srv *config.ServerConfig, pg *config.PGConfig) error
 	PopulatePG(pg *config.PGConfig) error
 	PopulateAWS(aws *config.AWSCreds) error
 	PopulateGithub(gh *config.GithubConfig) error
 	PopulateSlack(slack *config.SlackConfig) error
 	PopulateServer(srv *config.ServerConfig) error
+}
+
+func PopulatePG(secretsBackend string, secretsConfig *config.SecretsConfig, vaultConfig *config.VaultConfig, pgConfig *config.PGConfig) error {
+	sf, err := newSecretFetcher(secretsBackend, secretsConfig, vaultConfig)
+	if err != nil {
+		return errors.Wrapf(err, "secrets.PopulatePG error creating new secret fetcher")
+	}
+	err = sf.PopulatePG(pgConfig)
+	if err != nil {
+		return errors.Wrapf(err, "secrets.PopulatePG error setting pgConfig")
+	}
+	return nil
 }
 
 type PVCSecretsFetcher struct {
@@ -218,4 +232,80 @@ func (psf *PVCSecretsFetcher) PopulateServer(srv *config.ServerConfig) error {
 		srv.TLSCert = cert
 	}
 	return nil
+}
+
+func newSecretFetcher(secretsBackend string, secretsConfig *config.SecretsConfig, vaultConfig *config.VaultConfig) (SecretFetcher, error) {
+	if vaultConfig.UseAgent {
+		sf := NewReadFileSecretsFetcher(vaultConfig)
+		return sf, nil
+	}
+	ops := []pvc.SecretsClientOption{}
+	switch secretsBackend {
+	case "vault":
+		secretsConfig.Backend = pvc.WithVaultBackend()
+		switch {
+		case vaultConfig.TokenAuth:
+			log.Printf("secrets: using vault token auth")
+			ops = []pvc.SecretsClientOption{
+				pvc.WithVaultAuthentication(pvc.Token),
+				pvc.WithVaultToken(vaultConfig.Token),
+			}
+		case vaultConfig.K8sAuth:
+			log.Printf("secrets: using vault k8s auth")
+			jwt, err := ioutil.ReadFile(vaultConfig.K8sJWTPath)
+			if err != nil {
+				errors.Wrapf(err, "error reading k8s jwt path: %v", err)
+			}
+			log.Printf("secrets: role: %v; auth path: %v", vaultConfig.K8sRole, vaultConfig.K8sAuthPath)
+			ops = []pvc.SecretsClientOption{
+				pvc.WithVaultAuthentication(pvc.K8s),
+				pvc.WithVaultK8sAuth(string(jwt), vaultConfig.K8sRole),
+				pvc.WithVaultK8sAuthPath(vaultConfig.K8sAuthPath),
+			}
+		case vaultConfig.AppID != "" && vaultConfig.UserIDPath != "":
+			log.Printf("secrets: using vault AppID auth")
+			ops = []pvc.SecretsClientOption{
+				pvc.WithVaultAuthentication(pvc.AppID),
+				pvc.WithVaultAppID(vaultConfig.AppID),
+				pvc.WithVaultUserIDPath(vaultConfig.UserIDPath),
+			}
+		default:
+			errors.New("no Vault authentication methods were supplied")
+		}
+		ops = append(ops, pvc.WithVaultHost(vaultConfig.Addr))
+	case "env":
+		secretsConfig.Backend = pvc.WithEnvVarBackend()
+	default:
+		errors.New(fmt.Sprintf("invalid secrets backend: %v", secretsBackend))
+	}
+	if secretsConfig.Mapping == "" {
+		errors.New("secrets mapping is required")
+	}
+	ops = append(ops, pvc.WithMapping(secretsConfig.Mapping), secretsConfig.Backend)
+	sc, err := pvc.NewSecretsClient(ops...)
+	if err != nil {
+		return nil, errors.Wrapf(err, "secrets.getSecretsClient error creating new PVC Secrets Client")
+	}
+	sf := NewPVCSecretsFetcher(sc)
+	return sf, nil
+}
+
+func getSecrets() error {
+	if vaultConfig.UseAgent {
+		sf := NewReadFileSecretsFetcher(&vaultConfig)
+		err := sf.PopulateAllSecrets(&awsCreds, &githubConfig, &slackConfig, &serverConfig, &pgConfig)
+		if err != nil {
+			return errors.Wrapf("secrets.getSecrets error populating secrets using Vault Agent Injector : %v", err)
+		}
+		return nil
+	}
+	sc, err := getSecretClient()
+	if err != nil {
+		errors.Wrapf(err, "error getting secrets client: %v", err)
+	}
+	sf := secrets.NewPVCSecretsFetcher(sc)
+	err = sf.PopulateAllSecrets(&awsCreds, &githubConfig, &slackConfig, &serverConfig, &pgConfig)
+	if err != nil {
+		errors.Wrapf(err, "error getting secrets: %v", err)
+	}
 }
