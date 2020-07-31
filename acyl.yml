@@ -7,7 +7,7 @@ target_branches:
 application:
   chart_path: '.helm/charts/acyl'
   chart_vars_repo_path: 'dollarshaveclub/helm-charts@minikube-vault-values:releases/kube.shave.io/acyl/dqa-w-vault-agent.yaml'
-  image: acyl
+  image: quay.io/dollarshaveclub/acyl
   value_overrides:
     - "app.ui.enforce_oauth=false"
     - "ingress.traefik.enabled=false"
