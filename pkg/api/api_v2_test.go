@@ -30,7 +30,7 @@ func TestAPIv2SearchByTrackingRef(t *testing.T) {
 	}
 	defer tdl.TearDown()
 	rc := httptest.NewRecorder()
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger, nil)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestAPIv2EnvDetails(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger, nil)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestAPIv2HealthCheck(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger, nil)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestAPIv2EventLog(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger, nil)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestAPIv2EventStatus(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger, nil)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestAPIv2UserEnvs(t *testing.T) {
 	}
 	defer tdl.TearDown()
 
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, OAuthConfig{}, testlogger, nil)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestAPIv2UserEnvDetail(t *testing.T) {
 		},
 	}
 	copy(oauthcfg.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
-	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger)
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger, nil)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}
@@ -421,7 +421,7 @@ func TestAPIv2UserEnvActionsRebuild(t *testing.T) {
 	uf := func(ctx context.Context, rd models.RepoRevisionData) (string, error) {
 		return "updated environment", nil
 	}
-	apiv2, err := newV2API(dl, nil, &spawner.FakeEnvironmentSpawner{UpdateFunc: uf}, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger)
+	apiv2, err := newV2API(dl, nil, &spawner.FakeEnvironmentSpawner{UpdateFunc: uf}, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger, nil)
 	if err != nil {
 		t.Fatalf("error creating api: %v", err)
 	}

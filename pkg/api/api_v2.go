@@ -266,9 +266,10 @@ type v2api struct {
 	es    spawner.EnvironmentSpawner
 	sc    config.ServerConfig
 	oauth OAuthConfig
+	kr    metahelm.KubernetesReporter
 }
 
-func newV2API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, sc config.ServerConfig, oauth OAuthConfig, logger *log.Logger) (*v2api, error) {
+func newV2API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, sc config.ServerConfig, oauth OAuthConfig, logger *log.Logger, kr metahelm.KubernetesReporter) (*v2api, error) {
 	return &v2api{
 		apiBase: apiBase{
 			logger: logger,
@@ -278,6 +279,7 @@ func newV2API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawn
 		es:    es,
 		sc:    sc,
 		oauth: oauth,
+		kr:    kr,
 	}, nil
 }
 
@@ -876,22 +878,7 @@ func (api *v2api) userEnvNameHandler(w http.ResponseWriter, r *http.Request) {
 		// if there's no k8senv yet, we'll just use an empty one (this will result in an empty namespace in the UI)
 		k8senv = &models.KubernetesEnvironment{}
 	}
-	// TODO: determine how to retrieve
-	k8sConfig := config.K8sConfig{
-		GroupBindings: map[string]string{},
-		PrivilegedRepoWhitelist: repos,
-		SecretInjections: map[string]config.K8sSecret{},
-	}
-	k8sClientConfig := config.K8sClientConfig{
-		JWTPath: "",
-	}
-	ci, err := metahelm.NewChartInstaller(nil, api.dl, nil, nil, k8sConfig.GroupBindings, k8sConfig.PrivilegedRepoWhitelist, k8sConfig.SecretInjections, metahelm.TillerConfig{}, k8sClientConfig.JWTPath, true)
-	if err != nil {
-		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	pl, err := ci.GetK8sEnvPodList(context.Background(), k8senv.Namespace)
+	pl, err := api.kr.GetK8sEnvPodList(context.Background(), k8senv.Namespace)
 	if err != nil {
 		api.rlogger(r).Logf("error getting pod list for k8s env: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)

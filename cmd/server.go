@@ -295,6 +295,7 @@ func server(cmd *cobra.Command, args []string) {
 		ServerConfig:       serverConfig,
 		Logger:             logger,
 		DatadogServiceName: apiServiceName,
+		KubernetesReporter: ci,
 	}
 	regops := []api.RegisterOption{
 		api.WithAPIKeys(serverConfig.APIKeys),
