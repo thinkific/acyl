@@ -47,11 +47,11 @@ type SecretFetcher interface {
 func PopulatePG(secretsBackend string, secretsConfig *config.SecretsConfig, vaultConfig *config.VaultConfig, pgConfig *config.PGConfig) error {
 	sf, err := newSecretFetcher(secretsBackend, secretsConfig, vaultConfig)
 	if err != nil {
-		return errors.Wrapf(err, "secrets.PopulatePG error creating new secret fetcher")
+		return errors.Wrap(err, "secrets.PopulatePG error creating new secret fetcher")
 	}
 	err = sf.PopulatePG(pgConfig)
 	if err != nil {
-		return errors.Wrapf(err, "secrets.PopulatePG error setting pgConfig")
+		return errors.Wrap(err, "secrets.PopulatePG error setting pgConfig")
 	}
 	return nil
 }
@@ -72,11 +72,11 @@ type PopulateAllSecretsConfigurations struct {
 func PopulateAllSecrets(allConfigs *PopulateAllSecretsConfigurations) error {
 	sf, err := newSecretFetcher(allConfigs.Backend, allConfigs.SecretsConfig, allConfigs.VaultConfig)
 	if err != nil {
-		return errors.Wrapf(err, "secrets.PopulatePG error creating new secret fetcher")
+		return errors.Wrap(err, "secrets.PopulatePG error creating new secret fetcher")
 	}
 	err = sf.PopulateAllSecrets(allConfigs.AWSCreds, allConfigs.GithubConfig, allConfigs.SlackConfig, allConfigs.ServerConfig, allConfigs.PGConfig)
 	if err != nil {
-		return errors.Wrapf(err, "secrets.PopulateAllSecrets error populating a configuration")
+		return errors.Wrap(err, "secrets.PopulateAllSecrets error populating a configuration")
 	}
 	return nil
 }
@@ -101,7 +101,7 @@ func newSecretFetcher(secretsBackend string, secretsConfig *config.SecretsConfig
 			log.Printf("secrets: using vault k8s auth")
 			jwt, err := ioutil.ReadFile(vaultConfig.K8sJWTPath)
 			if err != nil {
-				errors.Wrapf(err, "error reading k8s jwt path: %v", err)
+				errors.Wrap(err, "error reading k8s jwt path")
 			}
 			log.Printf("secrets: role: %v; auth path: %v", vaultConfig.K8sRole, vaultConfig.K8sAuthPath)
 			ops = []pvc.SecretsClientOption{
@@ -131,7 +131,7 @@ func newSecretFetcher(secretsBackend string, secretsConfig *config.SecretsConfig
 	ops = append(ops, pvc.WithMapping(secretsConfig.Mapping), secretsConfig.Backend)
 	sc, err := pvc.NewSecretsClient(ops...)
 	if err != nil {
-		return nil, errors.Wrapf(err, "secrets.getSecretsClient error creating new PVC Secrets Client")
+		return nil, errors.Wrap(err, "secrets.getSecretsClient error creating new PVC Secrets Client")
 	}
 	sf := NewPVCSecretsFetcher(sc)
 	return sf, nil
