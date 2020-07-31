@@ -552,6 +552,12 @@ function updateLogs(logs) {
     objDiv.scrollTop = objDiv.scrollHeight;
 }
 
+function updatePodData(data) {
+    document.getElementById("k8sNamespacePodsContainer").innerHTML = data;
+    let objDiv = document.getElementById("k8sNamespacePodsContainer");
+    objDiv.scrollTop = objDiv.scrollHeight;
+}
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -624,16 +630,27 @@ async function update() {
         console.error(`error getting event log endpoint: ${req2.statusText}`);
     };
 
-    req3.open('GET', k8sNamespacePods, true);
-    req3.onload = function () {
+    req3.open('GET', namespacePodsEndpoint, true);
+    req3.onload = function (e) {
         if (req3.status !== 200) {
-            console.log(`env ${message} request failed: ${req3.status}: ${req3.responseText}`);
+            failures++;
+            console.log(`namespace pods request failed (${failures}): ${req3.status}: ${req3.responseText}`);
+            if (failures >= 10) {
+                console.log(`API failures exceed limit: ${failures}: aborting update`);
+                clearInterval(updateInterval);
+            }
+            return;
         }
-        const podData = JSON.parse(req.response);
-        document.getElementById("k8sNamespacePodsContainer").innerHTML = podData;
+
+        const podData = JSON.parse(req3.response);
+
+        if (podData !== null) {
+            updatePodData(podData);
+        }
+
     };
-    req3.onerror = function () {
-        console.error(`error getting kubernetes pod data for ${envName}: ${req.statusText}`);
+    req3.onerror = function (e) {
+        console.error(`error getting namespace pod endpoint for ${envName}: ${req3.statusText}`);
     };
 
     // add some jitter to make the display seem smoother
