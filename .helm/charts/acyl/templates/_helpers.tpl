@@ -21,9 +21,9 @@ Note the newline \n and spaces to maintain indentation
 {{- define "vault-agent-default-secrets-v1-template" -}}
 {{- $secrets_prefix := .Values.vault.secrets_prefix -}}
 {{- range .Values.vault.secrets }}
-vault.hashicorp.com/agent-inject-secret-{{ .name }}: {{- printf " \"%v/%v\"\n" $secrets_prefix .path -}}
-vault.hashicorp.com/agent-inject-template-{{- printf "%v: |\n" .name  -}}
-{{- printf "\n  {{- with secret \"%v/%v\" -}}\n" $secrets_prefix .path  -}}
+vault.hashicorp.com/agent-inject-secret-{{ .path }}: {{- printf " \"%v%v\"\n" $secrets_prefix .path -}}
+vault.hashicorp.com/agent-inject-template-{{- printf "%v: |\n" .path  -}}
+{{- printf "\n  {{- with secret \"%v%v\" -}}\n" $secrets_prefix .path  -}}
 {{- printf "  {{ .Data.value }}\n" -}}  
 {{- println "  {{- end }}" -}}
 {{- end -}}

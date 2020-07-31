@@ -53,8 +53,9 @@ spec:
           - "--vault-k8s-auth-path"
           - "{{ .Values.vault.auth_path }}"
         {{ end }}
+        {{ if eq .Values.vault.agent_injector.enabled true }}
           - "--vault-agent"
-          - "{{ .Values.vault.agent_injector.enabled }}"
+        {{ end }}
           - "pg-migrate"
           - "--postgres-migrations-dir"
           - "/opt/migrations"

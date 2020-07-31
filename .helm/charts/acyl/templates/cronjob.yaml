@@ -49,8 +49,9 @@ spec:
               - "--vault-k8s-auth-path"
               - "{{ .Values.vault.auth_path }}"
             {{ end }}
+            {{ if eq .Values.vault.agent_injector.enabled true }}
               - "--vault-agent"
-              - "{{ .Values.vault.agent_injector.enabled }}"
+            {{ end }}
               - "cleanup"
               - "--k8s-objs-max-age"
               - "{{ .Values.app.cleanup.k8s_max_age }}"
