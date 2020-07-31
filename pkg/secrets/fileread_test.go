@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -8,15 +9,20 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/config"
 )
 
-func setupTestSecretsFile(t *testing.T, secretPath, value string) (*os.File, func(), error) {
+const secretsRootPath = "./testdata/"
+
+func setupTestSecretsFile(t *testing.T, secretPath, secretFile, value string) (*os.File, func(), error) {
 	teardown := func() {}
-	f, err := ioutil.TempFile(os.TempDir(), secretPath)
+	err := os.MkdirAll(secretPath, 0755)
 	if err != nil {
-		f.WriteString(value)
-		return f, teardown, err
+		t.Fatal("Error creating secrets file directory: ", err)
+	}
+	err = ioutil.WriteFile(fmt.Sprintf("%v/%v", secretPath, secretFile), []byte(value), 0644)
+	if err != nil {
+		t.Error("setup: WriteFile:", err)
 	}
 	teardown = func() {
-		err := f.Close()
+		err := os.Remove(fmt.Sprintf("%v/%v", secretPath, secretFile))
 		if err != nil {
 			t.Error("setup: Close:", err)
 		}
@@ -25,23 +31,23 @@ func setupTestSecretsFile(t *testing.T, secretPath, value string) (*os.File, fun
 }
 
 func TestReadFileSecretsFetcher(t *testing.T) {
-	_, awsAccessKeyIDTeardown, err := setupTestSecretsFile(t, "aws/access_key_id", "fakeAwsKeyID")
+	_, awsAccessKeyIDTeardown, err := setupTestSecretsFile(t, "./testdata/aws", "access_key_id", "fakeAwsKeyID")
 	defer awsAccessKeyIDTeardown()
 	if err != nil {
 		t.Error("setup:", err)
 	}
-	_, awsSecretAccessKeyIDTeardown, err := setupTestSecretsFile(t, "aws/secret_access_key", "fakeAwsAccessKeyID")
+	_, awsSecretAccessKeyIDTeardown, err := setupTestSecretsFile(t, "./testdata/aws", "secret_access_key", "fakeAwsAccessKeyID")
 	defer awsSecretAccessKeyIDTeardown()
 	vaultConfig := &config.VaultConfig{
-		SecretsRootPath: os.TempDir(),
+		SecretsRootPath: secretsRootPath,
 		UseAgent:        true,
 	}
 	awsCreds := &config.AWSCreds{}
 	sf := NewReadFileSecretsFetcher(vaultConfig)
 	sf.PopulateAWS(awsCreds)
-
+	fmt.Println(awsCreds)
 	if awsCreds.AccessKeyID != "fakeAwsKeyID" {
-		t.Error("awsCreds.AccessKeyId not set correctly")
+		t.Errorf("awsCreds.AccessKeyId not set correctly -  expected %v, got %v", "fakeAwsKeyID", awsCreds.AccessKeyID)
 	}
 
 	if awsCreds.SecretAccessKey != "fakeAwsAccessKeyID" {

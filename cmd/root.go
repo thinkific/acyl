@@ -105,8 +105,8 @@ func getSecretClient() (*pvc.SecretsClient, error) {
 
 func getSecrets() {
 	if vaultConfig.UseAgent {
-    	sf := secrets.NewReadFileSecretsFetcher(vaultConfig)
-	  	err = sf.PopulateAllSecrets(&awsCreds, &githubConfig, &slackConfig, &serverConfig, &pgConfig)
+		sf := secrets.NewReadFileSecretsFetcher(&vaultConfig)
+		err := sf.PopulateAllSecrets(&awsCreds, &githubConfig, &slackConfig, &serverConfig, &pgConfig)
 		if err != nil {
 			clierr("vaultConfig.UseAgent: error getting secrets: %v", err)
 		}
