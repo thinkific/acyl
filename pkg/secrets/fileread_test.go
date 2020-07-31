@@ -45,7 +45,7 @@ func TestReadFileSecretsFetcher(t *testing.T) {
 	awsCreds := &config.AWSCreds{}
 	sf := NewReadFileSecretsFetcher(vaultConfig)
 	sf.PopulateAWS(awsCreds)
-	fmt.Println(awsCreds)
+
 	if awsCreds.AccessKeyID != "fakeAwsKeyID" {
 		t.Errorf("awsCreds.AccessKeyId not set correctly -  expected %v, got %v", "fakeAwsKeyID", awsCreds.AccessKeyID)
 	}
