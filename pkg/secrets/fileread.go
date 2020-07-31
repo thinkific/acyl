@@ -3,16 +3,26 @@ package secrets
 import (
 	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 	"strings"
-	"io/ioutil"
+
 	"github.com/dollarshaveclub/acyl/pkg/config"
 
 	"github.com/pkg/errors"
 )
-var vaultSecretsRootPath = "/vault/secrets/"
 
-type ReadFileSecretsFetcher struct {}
+// ReadFileSecretsFetcher will fetch secrets from filepaths using VaultConfig.SecretsRootPath as the base path
+type ReadFileSecretsFetcher struct {
+	vc *config.VaultConfig
+}
+
+// NewReadFileSecretsFetcher will create a new ReadFileSecretsFetcher
+func NewReadFileSecretsFetcher(vc *config.VaultConfig) *ReadFileSecretsFetcher {
+	return &ReadFileSecretsFetcher{
+		vc: vc,
+	}
+}
 
 // PopulateAllSecrets populates all secrets into the respective config structs
 func (rf *ReadFileSecretsFetcher) PopulateAllSecrets(aws *config.AWSCreds, gh *config.GithubConfig, slack *config.SlackConfig, srv *config.ServerConfig, pg *config.PGConfig) error {
@@ -36,7 +46,7 @@ func (rf *ReadFileSecretsFetcher) PopulateAllSecrets(aws *config.AWSCreds, gh *c
 
 // PopulatePG populates postgres secrets into pg
 func (rf *ReadFileSecretsFetcher) PopulatePG(pg *config.PGConfig) error {
-	s, err := ioutil.ReadFile(vaultSecretsRootPath + dbURIid)
+	s, err := ioutil.ReadFile(rf.vc.SecretsRootPath + dbURIid)
 	if err != nil {
 		return errors.Wrap(err, "error getting DB URI")
 	}
@@ -46,12 +56,12 @@ func (rf *ReadFileSecretsFetcher) PopulatePG(pg *config.PGConfig) error {
 
 // PopulateAWS populates AWS secrets into aws
 func (rf *ReadFileSecretsFetcher) PopulateAWS(aws *config.AWSCreds) error {
-	s, err := ioutil.ReadFile(vaultSecretsRootPath + awsAccessKeyIDid)
+	s, err := ioutil.ReadFile(rf.vc.SecretsRootPath + awsAccessKeyIDid)
 	if err != nil {
 		return errors.Wrap(err, "error getting AWS access key ID")
 	}
 	aws.AccessKeyID = string(s)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + awsSecretAccessKeyid)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + awsSecretAccessKeyid)
 	if err != nil {
 		return errors.Wrap(err, "error getting AWS secret access key")
 	}
@@ -61,17 +71,17 @@ func (rf *ReadFileSecretsFetcher) PopulateAWS(aws *config.AWSCreds) error {
 
 // PopulateGithub populates Github secrets into gh
 func (rf *ReadFileSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error {
-	s, err := ioutil.ReadFile(vaultSecretsRootPath + githubHookSecretid)
+	s, err := ioutil.ReadFile(rf.vc.SecretsRootPath + githubHookSecretid)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub hook secret")
 	}
 	gh.HookSecret = string(s)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubTokenid)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubTokenid)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub token")
 	}
 	gh.Token = string(s)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubAppID)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubAppID)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App ID")
 	}
@@ -84,18 +94,18 @@ func (rf *ReadFileSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error 
 		return fmt.Errorf("app id must be >= 1: %v", appid)
 	}
 	gh.AppID = uint(appid)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubAppPK)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubAppPK)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App private key")
 	}
 	gh.PrivateKeyPEM = s
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubAppHookSecret)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubAppHookSecret)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App hook secret")
 	}
 	gh.AppHookSecret = string(s)
 	// GitHub App OAuth
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubOAuthInstID)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubOAuthInstID)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App installation id")
 	}
@@ -107,17 +117,17 @@ func (rf *ReadFileSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error 
 		return fmt.Errorf("invalid installation id: %v", iid)
 	}
 	gh.OAuth.AppInstallationID = uint(iid)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubOAuthClientID)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubOAuthClientID)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App client id")
 	}
 	gh.OAuth.ClientID = string(s)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubOAuthClientSecret)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubOAuthClientSecret)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App client secret")
 	}
 	gh.OAuth.ClientSecret = string(s)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubOAuthCookieAuthKey)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubOAuthCookieAuthKey)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App cookie auth key")
 	}
@@ -125,7 +135,7 @@ func (rf *ReadFileSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error 
 		return fmt.Errorf("bad cookie auth key: length must be exactly 32 bytes, value size: %v", len(s))
 	}
 	copy(gh.OAuth.CookieAuthKey[:], s)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubOAuthCookieEncKey)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubOAuthCookieEncKey)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App cookie enc key")
 	}
@@ -133,7 +143,7 @@ func (rf *ReadFileSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error 
 		return fmt.Errorf("bad cookie enc key: length must be exactly 32 bytes, value size: %v", len(s))
 	}
 	copy(gh.OAuth.CookieEncKey[:], s)
-	s, err = ioutil.ReadFile(vaultSecretsRootPath + githubOAuthUserTokenEncKey)
+	s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + githubOAuthUserTokenEncKey)
 	if err != nil {
 		return errors.Wrap(err, "error getting GitHub App user token enc key")
 	}
@@ -146,7 +156,7 @@ func (rf *ReadFileSecretsFetcher) PopulateGithub(gh *config.GithubConfig) error 
 
 // PopulateSlack populates Slack secrets into slack
 func (rf *ReadFileSecretsFetcher) PopulateSlack(slack *config.SlackConfig) error {
-	s, err := ioutil.ReadFile(vaultSecretsRootPath + slackTokenid)
+	s, err := ioutil.ReadFile(rf.vc.SecretsRootPath + slackTokenid)
 	if err != nil {
 		return errors.Wrap(err, "error getting Slack token")
 	}
@@ -156,18 +166,18 @@ func (rf *ReadFileSecretsFetcher) PopulateSlack(slack *config.SlackConfig) error
 
 // PopulateServer populates server secrets into srv
 func (rf *ReadFileSecretsFetcher) PopulateServer(srv *config.ServerConfig) error {
-	s, err := ioutil.ReadFile(vaultSecretsRootPath + apiKeysid)
+	s, err := ioutil.ReadFile(rf.vc.SecretsRootPath + apiKeysid)
 	if err != nil {
 		return errors.Wrap(err, "error getting API keys")
 	}
 	srv.APIKeys = strings.Split(string(s), ",")
 	if !srv.DisableTLS {
-		s, err = ioutil.ReadFile(vaultSecretsRootPath + tlsCertid)
+		s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + tlsCertid)
 		if err != nil {
 			return errors.Wrap(err, "error getting TLS certificate")
 		}
 		c := s
-		s, err = ioutil.ReadFile(vaultSecretsRootPath + tlsKeyid)
+		s, err = ioutil.ReadFile(rf.vc.SecretsRootPath + tlsKeyid)
 		if err != nil {
 			return errors.Wrap(err, "error getting TLS key")
 		}

@@ -34,6 +34,8 @@ var RootCmd = &cobra.Command{
 //shorthands here: abcdefg n jkl p q
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&vaultConfig.Addr, "vault-addr", "a", os.Getenv("VAULT_ADDR"), "Vault URL (if using Vault secret backend)")
+	RootCmd.PersistentFlags().BoolVar(&vaultConfig.UseAgent, "vault-agent", false, "Use Vault Agent Injector")
+	RootCmd.PersistentFlags().StringVar(&vaultConfig.SecretsRootPath, "vault-secrets-root-path", "/vault/secrets/", "Path where Vault Agent Injector is expected to write secrets ( if vault.UseAgent true )")
 	RootCmd.PersistentFlags().StringVarP(&vaultConfig.Token, "vault-token", "b", os.Getenv("VAULT_TOKEN"), "Vault token (if using token auth & Vault secret backend)")
 	RootCmd.PersistentFlags().BoolVarP(&vaultConfig.TokenAuth, "vault-token-auth", "c", false, "Use Vault token-based auth (if using Vault secret backend)")
 	RootCmd.PersistentFlags().BoolVar(&vaultConfig.K8sAuth, "vault-k8s-auth", false, "Use Vault k8s auth (if using Vault secret backend)")
@@ -102,6 +104,14 @@ func getSecretClient() (*pvc.SecretsClient, error) {
 }
 
 func getSecrets() {
+	if vaultConfig.UseAgent {
+    	sf := secrets.NewReadFileSecretsFetcher(vaultConfig)
+	  	err = sf.PopulateAllSecrets(&awsCreds, &githubConfig, &slackConfig, &serverConfig, &pgConfig)
+		if err != nil {
+			clierr("vaultConfig.UseAgent: error getting secrets: %v", err)
+		}
+		return
+	}
 	sc, err := getSecretClient()
 	if err != nil {
 		clierr("error getting secrets client: %v", err)
