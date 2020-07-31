@@ -46,15 +46,6 @@ func pgMigrate(cmd *cobra.Command, args []string) {
 		if err != nil {
 			logger.Fatalf("error populating Postgres Migrations Config: %v", err)
 		}
-
-		// sc, err := getSecretClient()
-		// if err != nil {
-		// 	logger.Fatalf("error getting secrets client: %v", err)
-		// }
-		// sf := secrets.NewPVCSecretsFetcher(sc)
-		// if err := sf.PopulatePG(&migrationsPGConfig); err != nil {
-		// 	logger.Fatalf("error fetching postgres secrets: %v", err)
-		// }
 	}
 
 	db, err := sql.Open("postgres", migrationsPGConfig.PostgresURI)

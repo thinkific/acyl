@@ -30,7 +30,7 @@ func setupTestSecretsFile(t *testing.T, secretPath, secretFile, value string) (*
 	return nil, teardown, nil
 }
 
-func TestReadFileSecretsFetcher(t *testing.T) {
+func TestReadFileSecretsFetcherPopulateAWS(t *testing.T) {
 	_, awsAccessKeyIDTeardown, err := setupTestSecretsFile(t, "./testdata/aws", "access_key_id", "fakeAwsKeyID")
 	defer awsAccessKeyIDTeardown()
 	if err != nil {
