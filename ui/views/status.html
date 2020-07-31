@@ -13,6 +13,7 @@
       const logKey = "{{ .LogKey }}";
       const statusEndpoint = `${apiBaseURL}/v2/event/${event_id}/status`;
       const logsEndpoint = `${apiBaseURL}/v2/event/${event_id}/logs`;
+      const k8sNamespacePodsEndpoint = `${apiBaseURL}/v2/userenvs/${envName}/namespace/pods`
     </script>
   </head>
   <body class="acyl-ui">
@@ -60,6 +61,35 @@
                       id="envtree"
                     ></div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header" id="k8sNamespacePodsHeading">
+                <h2 class="mb-0">
+                  <button
+                          class="btn btn-link text-dark btn-lg"
+                          type="button"
+                          data-toggle="collapse"
+                          data-target="#collapseK8sNamespacePods"
+                          aria-expanded="true"
+                          aria-controls="collapseK8sNamespacePods"
+                  >
+                    Kubernetes Namespace Pods
+                  </button>
+                </h2>
+              </div>
+              <div
+                      id="collapseK8sNamespacePods"
+                      class="collapse"
+                      aria-labelledby="k8sNamespacePodsHeading"
+              >
+                <div class="card-body p-0">
+                  <div
+                          class="overflow-auto p-4"
+                          id="k8sNamespacePodsContainer"
+                  ></div>
                 </div>
               </div>
             </div>

@@ -605,7 +605,7 @@ func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (pods 
 		return []uiPod{}, errors.Wrapf(err, "error no pods found for namespace %v", ns)
 	}
 	for _, p := range pl.Items {
-		age := time.Now().UTC().Sub(p.Status.StartTime.Time) // TODO: Format Time #d#h#s
+		age := time.Since(p.CreationTimestamp.Time)
 		nContainers := len(p.Spec.Containers)-1
 		var nReady int
 		if string(p.Status.Phase) != "Running" {

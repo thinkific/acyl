@@ -562,7 +562,7 @@ function randomIntFromInterval(min, max) { // min and max included
 }
 
 async function update() {
-    let req = new XMLHttpRequest(), req2 = new XMLHttpRequest();
+    let req = new XMLHttpRequest(), req2 = new XMLHttpRequest(), req3 = new XMLHttpRequest();
 
     req.open('GET', statusEndpoint, true);
     req.onload = function(e) {
@@ -624,11 +624,24 @@ async function update() {
         console.error(`error getting event log endpoint: ${req2.statusText}`);
     };
 
+    req3.open('GET', k8sNamespacePods, true);
+    req3.onload = function () {
+        if (req3.status !== 200) {
+            console.log(`env ${message} request failed: ${req3.status}: ${req3.responseText}`);
+        }
+        const podData = JSON.parse(req.response);
+        document.getElementById("k8sNamespacePodsContainer").innerHTML = podData;
+    };
+    req3.onerror = function () {
+        console.error(`error getting kubernetes pod data for ${envName}: ${req.statusText}`);
+    };
+
     // add some jitter to make the display seem smoother
     await sleep(randomIntFromInterval(1, 500));
 
     req.send(null);
     req2.send(null);
+    req3.send(null);
 }
 
 document.addEventListener("DOMContentLoaded", function(){
