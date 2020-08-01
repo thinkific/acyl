@@ -12,6 +12,7 @@ const pollingIntervalMilliseconds = 750;
 let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
+let env_name = "";
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
 function millisToMinutesAndSeconds(millis) {
@@ -144,7 +145,7 @@ function createTree() {
     const {
         width,
         height,
-    } = treeDimensions()
+    } = treeDimensions();
 
     tree = d3.layout.tree()
         .nodeSize([4,4])
@@ -553,9 +554,8 @@ function updateLogs(logs) {
 }
 
 function updatePodData(data) {
+    console.log(`updatePodData: ${data}`)
     document.getElementById("k8sNamespacePodsContainer").innerHTML = data;
-    let objDiv = document.getElementById("k8sNamespacePodsContainer");
-    objDiv.scrollTop = objDiv.scrollHeight;
 }
 
 function sleep(ms) {
@@ -585,6 +585,10 @@ async function update() {
         const data = JSON.parse(req.response);
 
         if (data.hasOwnProperty('config')) {
+            if (env_name === "") {
+                env_name = data.config.env_name;
+                console.log(`environment name: ${env_name}`);
+            }
             updateConfig(data.config);
         } else {
             console.log("event status missing config element");
@@ -630,7 +634,7 @@ async function update() {
         console.error(`error getting event log endpoint: ${req2.statusText}`);
     };
 
-    req3.open('GET', namespacePodsEndpoint, true);
+    req3.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pods`, true);
     req3.onload = function (e) {
         if (req3.status !== 200) {
             failures++;
@@ -650,7 +654,7 @@ async function update() {
 
     };
     req3.onerror = function (e) {
-        console.error(`error getting namespace pod endpoint for ${envName}: ${req3.statusText}`);
+        console.error(`error getting namespace pod endpoint for ${env_name}: ${req3.statusText}`);
     };
 
     // add some jitter to make the display seem smoother
@@ -658,7 +662,9 @@ async function update() {
 
     req.send(null);
     req2.send(null);
-    req3.send(null);
+    if (env_name !== "") {
+        req3.send(null);
+    }
 }
 
 document.addEventListener("DOMContentLoaded", function(){

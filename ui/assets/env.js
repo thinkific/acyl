@@ -76,7 +76,7 @@ function eventrow(event) {
     } else {
         tdduration.innerHTML = event.duration;
     }
-    tr.appendChild(tdduration)
+    tr.appendChild(tdduration);
     let tdtype = document.createElement("td");
     tdtype.className = "text-left";
     switch (event.type) {
@@ -116,7 +116,7 @@ function eventrow(event) {
     }
     let tddetails = document.createElement("td");
     tddetails.className = "text-center";
-    tddetails.innerHTML = `<a href="${apiBaseURL}/ui/event/status?id=${event.event_id}"><button type="button" class="fas btn btn-sm btn-outline-secondary">&#xf05a;</button></a>`
+    tddetails.innerHTML = `<a href="${apiBaseURL}/ui/event/status?id=${event.event_id}"><button type="button" class="fas btn btn-sm btn-outline-secondary">&#xf05a;</button></a>`;
     tr.appendChild(tddetails);
     return tr;
 }
