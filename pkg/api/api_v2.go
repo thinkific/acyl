@@ -300,7 +300,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/userenvs", middlewareChain(api.userEnvsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}", middlewareChain(api.userEnvDetailHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}/actions/rebuild", middlewareChain(api.userEnvActionsRebuildHandler, sessionAuthMiddleware.sessionAuth)).Methods("POST")
-	r.HandleFunc("/v2/userenvs/{env name}/namespace/pods", middlewareChain(api.userEnvNameHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+	r.HandleFunc("/v2/userenvs/{name}/namespace/pods", middlewareChain(api.userEnvNameHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
