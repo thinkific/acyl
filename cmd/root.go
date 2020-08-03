@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"os"
 
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/secrets"
-	"github.com/dollarshaveclub/pvc"
 	"github.com/spf13/cobra"
 )
 
@@ -54,60 +51,17 @@ func clierr(msg string, params ...interface{}) {
 	os.Exit(1)
 }
 
-func getSecretClient() (*pvc.SecretsClient, error) {
-	ops := []pvc.SecretsClientOption{}
-	switch secretsbackend {
-	case "vault":
-		secretsConfig.Backend = pvc.WithVaultBackend()
-		switch {
-		case vaultConfig.TokenAuth:
-			log.Printf("secrets: using vault token auth")
-			ops = []pvc.SecretsClientOption{
-				pvc.WithVaultAuthentication(pvc.Token),
-				pvc.WithVaultToken(vaultConfig.Token),
-			}
-		case vaultConfig.K8sAuth:
-			log.Printf("secrets: using vault k8s auth")
-			jwt, err := ioutil.ReadFile(vaultConfig.K8sJWTPath)
-			if err != nil {
-				clierr("error reading k8s jwt path: %v", err)
-			}
-			log.Printf("secrets: role: %v; auth path: %v", vaultConfig.K8sRole, vaultConfig.K8sAuthPath)
-			ops = []pvc.SecretsClientOption{
-				pvc.WithVaultAuthentication(pvc.K8s),
-				pvc.WithVaultK8sAuth(string(jwt), vaultConfig.K8sRole),
-				pvc.WithVaultK8sAuthPath(vaultConfig.K8sAuthPath),
-			}
-		case vaultConfig.AppID != "" && vaultConfig.UserIDPath != "":
-			log.Printf("secrets: using vault AppID auth")
-			ops = []pvc.SecretsClientOption{
-				pvc.WithVaultAuthentication(pvc.AppID),
-				pvc.WithVaultAppID(vaultConfig.AppID),
-				pvc.WithVaultUserIDPath(vaultConfig.UserIDPath),
-			}
-		default:
-			clierr("no Vault authentication methods were supplied")
-		}
-		ops = append(ops, pvc.WithVaultHost(vaultConfig.Addr))
-	case "env":
-		secretsConfig.Backend = pvc.WithEnvVarBackend()
-	default:
-		clierr("invalid secrets backend: %v", secretsbackend)
-	}
-	if secretsConfig.Mapping == "" {
-		clierr("secrets mapping is required")
-	}
-	ops = append(ops, pvc.WithMapping(secretsConfig.Mapping), secretsConfig.Backend)
-	return pvc.NewSecretsClient(ops...)
-}
-
 func getSecrets() {
-	sc, err := getSecretClient()
-	if err != nil {
-		clierr("error getting secrets client: %v", err)
-	}
-	sf := secrets.NewPVCSecretsFetcher(sc)
-	err = sf.PopulateAllSecrets(&awsCreds, &githubConfig, &slackConfig, &serverConfig, &pgConfig)
+	err := secrets.PopulateAllSecrets(&secrets.PopulateAllSecretsConfigurations{
+		Backend:       secretsBackend,
+		SecretsConfig: &secretsConfig,
+		VaultConfig:   &vaultConfig,
+		AWSCreds:      &awsCreds,
+		GithubConfig:  &githubConfig,
+		SlackConfig:   &slackConfig,
+		ServerConfig:  &serverConfig,
+		PGConfig:      &pgConfig,
+	})
 	if err != nil {
 		clierr("error getting secrets: %v", err)
 	}

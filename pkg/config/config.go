@@ -156,15 +156,17 @@ type S3Config struct {
 }
 
 type VaultConfig struct {
-	Addr        string
-	Token       string
-	TokenAuth   bool
-	K8sAuth     bool
-	K8sJWTPath  string
-	K8sAuthPath string
-	K8sRole     string
-	AppID       string
-	UserIDPath  string
+	Addr            string
+	Token           string
+	TokenAuth       bool
+	K8sAuth         bool
+	K8sJWTPath      string
+	K8sAuthPath     string
+	K8sRole         string
+	AppID           string
+	UserIDPath      string
+	UseAgent        bool
+	SecretsRootPath string
 }
 
 type GithubOAuthConfig struct {

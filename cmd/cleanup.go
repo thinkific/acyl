@@ -21,12 +21,7 @@ var cleanupCmd = &cobra.Command{
 	Long:  `Run various database cleanup operations, intended to be executed periodically as a cronjob`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		logger = log.New(os.Stderr, "", log.LstdFlags)
-		sc, err := getSecretClient()
-		if err != nil {
-			clierr("error getting secrets client: %v", err)
-		}
-		sf := secrets.NewPVCSecretsFetcher(sc)
-		err = sf.PopulatePG(&pgConfig)
+		err := secrets.PopulatePG(secretsBackend, &secretsConfig, &vaultConfig, &pgConfig)
 		pgConfig.EnableTracing = true
 		if err != nil {
 			clierr("error getting db secrets: %v", err)
