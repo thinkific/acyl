@@ -589,49 +589,6 @@ func (ci ChartInstaller) writeReleaseNames(ctx context.Context, rm metahelm.Rele
 	return ci.dl.CreateHelmReleasesForEnv(ctx, releases)
 }
 
-type uiPod struct {
-	Name, Ready, Status string
-	Restarts            int32
-	Age                 time.Duration // TODO: change to string, formatted time
-}
-
-// GetK8sEnvPodList returns a kubernetes environment per the name requested
-func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (pods []uiPod, err error) {
-	pl, err := ci.kc.CoreV1().Pods(ns).List(meta.ListOptions{})
-	if err != nil {
-		return []uiPod{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
-	}
-	if len(pl.Items) == 0 {
-		return []uiPod{}, errors.Wrapf(err, "error no pods found for namespace %v", ns)
-	}
-	for _, p := range pl.Items {
-		age := time.Since(p.CreationTimestamp.Time)
-		nContainers := len(p.Spec.Containers)-1
-		var nReady int
-		if string(p.Status.Phase) != "Running" {
-			if p.Kind == "Pod" {
-				for _, c := range p.Status.ContainerStatuses {
-					if c.Ready {
-						nReady += 1
-					}
-				}
-			}
-		} else {
-			if p.Kind == "Pod" {
-				nReady = nContainers
-			}
-		}
-		pods = append(pods, uiPod{
-			Name:     p.Name,
-			Ready:    string(nReady) + "/" + string(nContainers),
-			Status:   string(p.Status.Phase),
-			Restarts: p.Status.ContainerStatuses[0].RestartCount,
-			Age:      age,
-		})
-	}
-	return pods, nil
-}
-
 // GenerateCharts processes the fetched charts, adds and merges overrides and returns metahelm Charts ready to be installed/upgraded
 func (ci ChartInstaller) GenerateCharts(ctx context.Context, ns string, newenv *EnvInfo, cloc ChartLocations) (out []metahelm.Chart, err error) {
 	defer ci.mc.Timing(mpfx+"generate_metahelm_charts", "triggering_repo:"+newenv.Env.Repo)()
@@ -1151,4 +1108,52 @@ func (ci ChartInstaller) removeOrphanedCRBs(ctx context.Context, maxAge time.Dur
 		}
 	}
 	return nil
+}
+
+type uiPod struct {
+	Name, Ready, Status string
+	Restarts            int32
+	Age                 time.Duration // TODO: change to string, formatted time
+}
+
+func (ci ChartInstaller) getPodList(ctx context.Context, ns string) (*corev1.PodList, error) {
+	pl, err := ci.kc.CoreV1().Pods(ns).List(meta.ListOptions{})
+	if err != nil {
+		return &corev1.PodList{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
+	}
+	return pl, nil
+}
+
+// GetK8sEnvPodList returns a kubernetes environment per the name requested
+func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (pods []uiPod, err error) {
+	pl, err := ci.getPodList(ctx, ns)
+	if len(pl.Items) == 0 {
+		return []uiPod{}, errors.Wrapf(err, "error no pods found for namespace %v", ns)
+	}
+	for _, p := range pl.Items {
+		age := time.Since(p.CreationTimestamp.Time)
+		var nReady int
+		nContainers := len(p.Spec.Containers)
+		if string(p.Status.Phase) != "Running" {
+			if p.Kind == "Pod" {
+				for _, c := range p.Status.ContainerStatuses {
+					if c.Ready {
+						nReady += 1
+					}
+				}
+			}
+		} else {
+			if p.Kind == "Pod" {
+				nReady = nContainers
+			}
+		}
+		pods = append(pods, uiPod{
+			Name:     p.Name,
+			Ready:    fmt.Sprintf("%v/%v", nReady, nContainers),
+			Status:   string(p.Status.Phase),
+			Restarts: p.Status.ContainerStatuses[0].RestartCount,
+			Age:      age,
+		})
+	}
+	return pods, nil
 }

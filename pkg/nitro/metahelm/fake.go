@@ -2,6 +2,8 @@ package metahelm
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
@@ -82,4 +84,45 @@ func (fi FakeInstaller) DeleteNamespace(ctx context.Context, k8senv *models.Kube
 		return fi.DL.DeleteK8sEnv(ctx, k8senv.EnvName)
 	}
 	return nil
+}
+
+// FakeKubernetesReporter satisfies the kubernetes reporter interface but does nothing
+type FakeKubernetesReporter struct {
+	KC kubernetes.Interface
+}
+
+var _ KubernetesReporter = &FakeKubernetesReporter{}
+
+func (fkr FakeKubernetesReporter) GetK8sEnvPodList(ctx context.Context, ns string) (pods []uiPod, err error) {
+	ci := ChartInstaller{kc: fkr.KC}
+	pl, err := ci.getPodList(ctx, ns)
+	if len(pl.Items) == 0 {
+		return []uiPod{}, errors.Wrapf(err, "error no pods found for namespace %v", ns)
+	}
+	for _, p := range pl.Items {
+		age := time.Since(p.CreationTimestamp.Time)
+		var nReady int
+		nContainers := len(p.Spec.Containers)
+		if string(p.Status.Phase) != "Running" {
+			if p.Kind == "Pod" {
+				for _, c := range p.Status.ContainerStatuses {
+					if c.Ready {
+						nReady += 1
+					}
+				}
+			}
+		} else {
+			if p.Kind == "Pod" {
+				nReady = nContainers
+			}
+		}
+		pods = append(pods, uiPod{
+			Name:     p.Name,
+			Ready:    fmt.Sprintf("%v/%v", nReady, nContainers),
+			Status:   string(p.Status.Phase),
+			Restarts: p.Status.ContainerStatuses[0].RestartCount,
+			Age:      age,
+		})
+	}
+	return pods, nil
 }

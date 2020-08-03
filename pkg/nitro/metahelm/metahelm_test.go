@@ -1283,3 +1283,89 @@ func TestTruncateLongDQAName(t *testing.T) {
 		}
 	}
 }
+
+func TestMetahelmGetPodList(t *testing.T) {
+	charts := []metahelm.Chart{
+		metahelm.Chart{Title: "foo", Location: "foo/bar", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "foo", DependencyList: []string{"bar"}},
+		metahelm.Chart{Title: "bar", Location: "bar/baz", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "bar"},
+	}
+	containerStatus := v1.ContainerStatus{}
+	containerStatus.Name = "foo-app"
+	containerStatus.RestartCount = 0
+	containerStatus.Ready = true
+	pod := &v1.Pod{}
+	pod.Kind = "Pod"
+	pod.Name = "foo-app-abc123"
+	pod.Namespace = "foo"
+	pod.Spec.Containers = []v1.Container{{Name: containerStatus.Name}}
+	pod.Labels = map[string]string{"app": "foo-app"}
+	pod.Status.Phase = "Running"
+	pod.CreationTimestamp.Time = time.Now().UTC()
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+	pod.Status.PodIP = "10.0.0.1"
+	tobjs := gentestobjs(charts)
+	tobjs = append(tobjs, pod)
+	fkc := fake.NewSimpleClientset(tobjs...)
+	ci := ChartInstaller{kc: fkc}
+	pl, err := ci.getPodList(context.Background(), "foo")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if pl.Items[0].Namespace != "foo" {
+		t.Fatalf("should have returned list of pods for foo")
+	}
+	pl, err = ci.getPodList(context.Background(), "bar")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if pl.Items != nil {
+		t.Fatalf("should have returned empty list of pods")
+	}
+}
+
+func TestMetahelmGetK8sEnvPodList(t *testing.T) {
+	charts := []metahelm.Chart{
+		metahelm.Chart{Title: "foo", Location: "foo/bar", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "foo", DependencyList: []string{"bar"}},
+		metahelm.Chart{Title: "bar", Location: "bar/baz", DeploymentHealthIndication: metahelm.AtLeastOnePodHealthy, WaitUntilDeployment: "bar"},
+	}
+	containerStatus := v1.ContainerStatus{}
+	containerStatus.Name = "foo-app"
+	containerStatus.RestartCount = 0
+	containerStatus.Ready = true
+	pod := &v1.Pod{}
+	pod.Kind = "Pod"
+	pod.Name = "foo-app-abc123"
+	pod.Namespace = "foo"
+	pod.Spec.Containers = []v1.Container{{Name: containerStatus.Name}}
+	pod.Labels = map[string]string{"app": containerStatus.Name}
+	pod.Status.Phase = "Running"
+	pod.CreationTimestamp.Time = time.Now().UTC()
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+	pod.Status.PodIP = "10.0.0.1"
+	tobjs := gentestobjs(charts)
+	tobjs = append(tobjs, pod)
+	fkc := fake.NewSimpleClientset(tobjs...)
+	ci := ChartInstaller{kc: fkc}
+	pl, err := ci.GetK8sEnvPodList(context.Background(), "foo")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	for _, p := range pl {
+		if p.Name != pod.Name {
+			t.Fatalf("should have returned list of pods for foo")
+		}
+		if p.Ready != "1/1" {
+			t.Fatalf("should have returned list of pods for foo")
+		}
+		if p.Status != "Running" {
+			t.Fatalf("should have returned list of pods for foo")
+		}
+		if p.Restarts != 0 {
+			t.Fatalf("should have returned list of pods for foo")
+		}
+	}
+	pl, err = ci.GetK8sEnvPodList(context.Background(), "bar")
+	if err != nil {
+		t.Fatalf("should have failed: %v", err)
+	}
+}
