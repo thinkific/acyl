@@ -300,7 +300,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/userenvs", middlewareChain(api.userEnvsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}", middlewareChain(api.userEnvDetailHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}/actions/rebuild", middlewareChain(api.userEnvActionsRebuildHandler, sessionAuthMiddleware.sessionAuth)).Methods("POST")
-	r.HandleFunc("/v2/userenvs/{name}/namespace/pods", middlewareChain(api.userEnvNameHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+	r.HandleFunc("/v2/userenvs/{name}/namespace/pods", middlewareChain(api.userEnvNamePodsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
@@ -834,8 +834,17 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusCreated)
 }
 
-// userEnvNameHandler gets k8s pod details by the environment name for the UI
-func (api *v2api) userEnvNameHandler(w http.ResponseWriter, r *http.Request) {
+type V2EnvNamePods struct {
+	Name     string `json:"name"`
+	Ready    string `json:"ready"`
+	Status   string `json:"status"`
+	Restarts string `json:"restarts"`
+	Age      string `json:"age"`
+}
+
+// userEnvNamePodsHandler returns curated kubernetes pod data by the environment name
+func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request) {
+	v2enp := []V2EnvNamePods{}
 	uis, err := getSessionFromContext(r.Context())
 	if err != nil {
 		api.rlogger(r).Logf("session missing from context")
@@ -874,18 +883,38 @@ func (api *v2api) userEnvNameHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	// Return empty k8senv if not found
 	if k8senv == nil {
-		// if there's no k8senv yet, we'll just use an empty one (this will result in an empty namespace in the UI)
-		k8senv = &models.KubernetesEnvironment{}
+		w.Header().Add("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
+			api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}
+	// Returns error if no pod(s) found for namespace
 	pl, err := api.kr.GetK8sEnvPodList(context.Background(), k8senv.Namespace)
 	if err != nil {
 		api.rlogger(r).Logf("error getting pod list for k8s env: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	for _, p := range pl {
+
+		if err != nil {
+			api.rlogger(r).Logf("error parsing pod age: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		v2enp = append(v2enp, V2EnvNamePods{
+			Name: p.Name,
+			Ready: p.Ready,
+			Status: p.Status,
+			Restarts: fmt.Sprintf("%v", p.Restarts),
+			Age: p.Age.String(),
+		})
+	}
 	w.Header().Add("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(&pl); err != nil {
+	if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
 		api.rlogger(r).Logf("error marshaling user env detail: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}

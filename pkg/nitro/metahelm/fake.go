@@ -9,6 +9,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -93,30 +94,24 @@ type FakeKubernetesReporter struct {
 
 var _ KubernetesReporter = &FakeKubernetesReporter{}
 
-func (fkr FakeKubernetesReporter) GetK8sEnvPodList(ctx context.Context, ns string) (pods []uiPod, err error) {
-	ci := ChartInstaller{kc: fkr.KC}
-	pl, err := ci.getPodList(ctx, ns)
-	if len(pl.Items) == 0 {
-		return []uiPod{}, errors.Wrapf(err, "error no pods found for namespace %v", ns)
-	}
+func (fkr FakeKubernetesReporter) GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error) {
+	pl := stubPodData(ns)
 	for _, p := range pl.Items {
 		age := time.Since(p.CreationTimestamp.Time)
 		var nReady int
 		nContainers := len(p.Spec.Containers)
-		if string(p.Status.Phase) != "Running" {
-			if p.Kind == "Pod" {
+		if string(p.Status.Phase) != "Completed" {
+			if string(p.Status.Phase) != "Running" {
 				for _, c := range p.Status.ContainerStatuses {
 					if c.Ready {
 						nReady += 1
 					}
 				}
-			}
-		} else {
-			if p.Kind == "Pod" {
+			} else {
 				nReady = nContainers
 			}
 		}
-		pods = append(pods, uiPod{
+		out = append(out, K8sPod{
 			Name:     p.Name,
 			Ready:    fmt.Sprintf("%v/%v", nReady, nContainers),
 			Status:   string(p.Status.Phase),
@@ -124,5 +119,57 @@ func (fkr FakeKubernetesReporter) GetK8sEnvPodList(ctx context.Context, ns strin
 			Age:      age,
 		})
 	}
-	return pods, nil
+	return out, nil
+}
+
+func stubPodData(ns string) *v1.PodList {
+	podContainerStatus := v1.ContainerStatus{
+		Name:         "foo-app",
+		RestartCount: 0,
+		Ready:        true,
+	}
+	pod := v1.Pod{
+		Status: v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{podContainerStatus},
+			Phase: "Running",
+			PodIP: "10.0.0.1",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{{Name: podContainerStatus.Name}},
+		},
+	}
+	pod.Kind = "Pod"
+	pod.Name = "foo-app-abc123"
+	pod.Namespace = ns
+	pod.Labels = map[string]string{"app": "foo-app"}
+	pod.Status.Phase = "Running"
+	pod.CreationTimestamp.Time = time.Now().UTC()
+
+	jobContainerStatus := v1.ContainerStatus{
+		Name: "foo-app-job",
+		RestartCount: 0,
+		Ready: true,
+	}
+	job := v1.Pod{
+		Status: v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{jobContainerStatus},
+			Phase: "Completed",
+			PodIP: "10.0.0.2",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{{Name: jobContainerStatus.Name}},
+		},
+	}
+	job.Kind = "Job"
+	job.Name = "foo-app-job-abc123"
+	job.Namespace = ns
+	job.Labels = map[string]string{"app": "foo-app-job"}
+	job.CreationTimestamp.Time = time.Now().UTC()
+
+	return &v1.PodList{
+		Items: []v1.Pod{
+			pod,
+			job,
+		},
+	}
 }

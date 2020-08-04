@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/nitro/metahelm"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/gorilla/mux"
 	"github.com/lib/pq"
@@ -390,9 +391,9 @@ func TestAPIv2UserEnvActionsRebuild(t *testing.T) {
 
 	logger := log.New(os.Stdout, "", log.LstdFlags)
 	k8senv := &models.KubernetesEnvironment{
-		Created:         time.Now(),
-		Updated:         pq.NullTime{
-			Time: time.Now(),
+		Created: time.Now(),
+		Updated: pq.NullTime{
+			Time:  time.Now(),
 			Valid: true,
 		},
 		EnvName:         "foo-bar",
@@ -440,5 +441,79 @@ func TestAPIv2UserEnvActionsRebuild(t *testing.T) {
 	res := rc.Result()
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+}
+
+func TestAPIv2UserEnvNamePods(t *testing.T) {
+	dl, tdl := testdatalayer.New(testlogger, t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+
+	logger := log.New(os.Stdout, "", log.LstdFlags)
+	k8senv := &models.KubernetesEnvironment{
+		Created: time.Now(),
+		Updated: pq.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		EnvName:         "foo-bar",
+		Namespace:       "nitro-1234-foo-bar",
+		ConfigSignature: []byte("0f0o0o0b0a0r00000000000000000000"),
+		TillerAddr:      "192.168.1.1:1234",
+	}
+	dl.CreateK8sEnv(context.Background(), k8senv)
+	oauthcfg := OAuthConfig{
+		AppGHClientFactoryFunc: func(_ string) ghclient.GitHubAppInstallationClient {
+			return &ghclient.FakeRepoClient{
+				GetUserAppRepoPermissionsFunc: func(_ context.Context, _ int64) (map[string]ghclient.AppRepoPermissions, error) {
+					return map[string]ghclient.AppRepoPermissions{
+						"dollarshaveclub/foo-bar": ghclient.AppRepoPermissions{
+							Repo: "dollarshaveclub/foo-bar",
+							Pull: true,
+						},
+					}, nil
+				},
+			}
+		},
+	}
+	copy(oauthcfg.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger, metahelm.FakeKubernetesReporter{})
+	if err != nil {
+		t.Fatalf("error creating api: %v", err)
+	}
+
+	uis := models.UISession{
+		Authenticated: true,
+		GitHubUser:    "bobsmith",
+	}
+	uis.EncryptandSetUserToken([]byte("foo"), oauthcfg.UserTokenEncKey)
+	req, _ := http.NewRequest("GET", "https://foo.com/v2/userenvs/foo-bar/namespace/pods", nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "foo-bar"})
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc := httptest.NewRecorder()
+	apiv2.userEnvNamePodsHandler(rc, req)
+	res := rc.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+	out := []V2EnvNamePods{}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatalf("error decoding response: %v", err)
+	}
+	res.Body.Close()
+
+	if len(out) != 2 {
+		t.Fatalf("expected 2, got %v", len(out))
+	}
+	// Kind: Pod, first test pod
+	if out[0].Ready != "1/1" && out[0].Status != "Running" {
+		t.Fatalf("expected Ready: 1/1 & Status: Running, got %v, %v", out[0].Ready, out[0].Status)
+	}
+	// Kind: Job, second test pod
+	if out[1].Ready != "0/1" && out[1].Status != "Completed" {
+		t.Fatalf("expected Ready: 0/1 & Status: Completed, got %v, %v", out[1].Ready, out[1].Status)
 	}
 }

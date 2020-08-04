@@ -63,7 +63,7 @@ type Installer interface {
 
 // KubernetesReporter describes an object that returns k8s environment data
 type KubernetesReporter interface {
-	GetK8sEnvPodList(ctx context.Context, ns string) (pods []uiPod, err error)
+	GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error)
 }
 
 // metrics prefix
@@ -1110,44 +1110,39 @@ func (ci ChartInstaller) removeOrphanedCRBs(ctx context.Context, maxAge time.Dur
 	return nil
 }
 
-type uiPod struct {
+// K8sPod models the returned pod details
+type K8sPod struct {
 	Name, Ready, Status string
 	Restarts            int32
-	Age                 time.Duration // TODO: change to string, formatted time
+	Age                 time.Duration
 }
 
-func (ci ChartInstaller) getPodList(ctx context.Context, ns string) (*corev1.PodList, error) {
+// GetK8sEnvPodList returns a kubernetes environment pod list for the namespace provided
+func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error) {
 	pl, err := ci.kc.CoreV1().Pods(ns).List(meta.ListOptions{})
 	if err != nil {
-		return &corev1.PodList{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
+		return []K8sPod{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
 	}
-	return pl, nil
-}
-
-// GetK8sEnvPodList returns a kubernetes environment per the name requested
-func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (pods []uiPod, err error) {
-	pl, err := ci.getPodList(ctx, ns)
 	if len(pl.Items) == 0 {
-		return []uiPod{}, errors.Wrapf(err, "error no pods found for namespace %v", ns)
+		return []K8sPod{}, errors.Errorf("error no pods found for namespace %v", ns)
 	}
 	for _, p := range pl.Items {
 		age := time.Since(p.CreationTimestamp.Time)
 		var nReady int
 		nContainers := len(p.Spec.Containers)
-		if string(p.Status.Phase) != "Running" {
-			if p.Kind == "Pod" {
+		// Skip `Kind: Jobs`, as they display `0/1 Completed`
+		if string(p.Status.Phase) != "Completed" {
+			if string(p.Status.Phase) != "Running" {
 				for _, c := range p.Status.ContainerStatuses {
 					if c.Ready {
 						nReady += 1
 					}
 				}
-			}
-		} else {
-			if p.Kind == "Pod" {
+			} else {
 				nReady = nContainers
 			}
 		}
-		pods = append(pods, uiPod{
+		out = append(out, K8sPod{
 			Name:     p.Name,
 			Ready:    fmt.Sprintf("%v/%v", nReady, nContainers),
 			Status:   string(p.Status.Phase),
@@ -1155,5 +1150,5 @@ func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (pods 
 			Age:      age,
 		})
 	}
-	return pods, nil
+	return out, nil
 }
