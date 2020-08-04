@@ -554,8 +554,31 @@ function updateLogs(logs) {
 }
 
 function updatePodData(data) {
-    console.log(`updatePodData: ${data}`)
-    document.getElementById("k8sNamespacePodsContainer").innerHTML = data;
+    for (i = 0; i < data.length; i++) {
+        podTableBody = document.getElementById("k8sNamespacePodTableBody");
+        for (let [name, ready, status, restarts, age] of Object.values(data[i])) {
+            let tr = document.createElement("tr");
+            let td = document.createElement("td");
+            tr.id = `table-row-pod-data-${name}`;
+            td.id = "pod-name";
+            td.innerHTML = name
+            tr.appendChild(td);
+            td.id = "pod-ready";
+            td.innerHTML = ready
+            tr.appendChild(td);
+            td.id = "pod-status";
+            td.innerHTML = status
+            tr.appendChild(td);
+            td.id = "pod-restarts";
+            td.innerHTML = restarts
+            tr.appendChild(td);
+            td.id = "pod-age";
+            td.innerHTML = age
+            tr.appendChild(td);
+            console.log(td);
+            podTableBody.append(tr);
+        }
+    }
 }
 
 function sleep(ms) {
@@ -587,7 +610,7 @@ async function update() {
         if (data.hasOwnProperty('config')) {
             if (env_name === "") {
                 env_name = data.config.env_name;
-                console.log(`environment name: ${env_name}`);
+                console.debug(`environment name: ${env_name}`);
             }
             updateConfig(data.config);
         } else {

@@ -88,3 +88,9 @@
         transform: rotate(360deg);
     }
 }
+
+.k8sNamespacePodTable {
+    background-color: #000000;
+    text-align: left;
+    color: #cccccc;
+}
