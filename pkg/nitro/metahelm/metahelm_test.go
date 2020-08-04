@@ -1293,12 +1293,9 @@ func TestMetahelmGetK8sEnvPodList(t *testing.T) {
 	if len(pl) != 2 {
 		t.Fatalf("expected 2, got %v", len(pl))
 	}
-	// Kind: Pod, first test pod
-	if pl[0].Ready != "1/1" && pl[0].Status != "Running" {
-		t.Fatalf("expected Ready: 1/1 & Status: Running, got %v, %v", pl[0].Ready, pl[0].Status)
-	}
-	// Kind: Job, second test pod
-	if pl[1].Ready != "0/1" && pl[1].Status != "Completed" {
-		t.Fatalf("expected Ready: 0/1 & Status: Completed, got %v, %v", pl[1].Ready, pl[1].Status)
+	for _, p := range pl {
+		if p.Ready != "1/1" && p.Status != "Running" {
+			t.Fatalf("expected Ready: 1/1 & Status: Running, got %v, %v", p.Ready, p.Status)
+		}
 	}
 }

@@ -100,16 +100,14 @@ func (fkr FakeKubernetesReporter) GetK8sEnvPodList(ctx context.Context, ns strin
 		age := time.Since(p.CreationTimestamp.Time)
 		var nReady int
 		nContainers := len(p.Spec.Containers)
-		if string(p.Status.Phase) != "Completed" {
-			if string(p.Status.Phase) != "Running" {
-				for _, c := range p.Status.ContainerStatuses {
-					if c.Ready {
-						nReady += 1
-					}
+		if string(p.Status.Phase) != "Running" {
+			for _, c := range p.Status.ContainerStatuses {
+				if c.Ready {
+					nReady += 1
 				}
-			} else {
-				nReady = nContainers
 			}
+		} else {
+			nReady = nContainers
 		}
 		out = append(out, K8sPod{
 			Name:     p.Name,
@@ -145,31 +143,27 @@ func stubPodData(ns string) *v1.PodList {
 	pod.Status.Phase = "Running"
 	pod.CreationTimestamp.Time = time.Now().UTC()
 
-	jobContainerStatus := v1.ContainerStatus{
-		Name: "foo-app-job",
-		RestartCount: 0,
-		Ready: true,
-	}
-	job := v1.Pod{
+	podContainerStatus.Name = "bar-app"
+	pod2 := v1.Pod{
 		Status: v1.PodStatus{
-			ContainerStatuses: []v1.ContainerStatus{jobContainerStatus},
+			ContainerStatuses: []v1.ContainerStatus{podContainerStatus},
 			Phase: "Completed",
 			PodIP: "10.0.0.2",
 		},
 		Spec: v1.PodSpec{
-			Containers: []v1.Container{{Name: jobContainerStatus.Name}},
+			Containers: []v1.Container{{Name: podContainerStatus.Name}},
 		},
 	}
-	job.Kind = "Job"
-	job.Name = "foo-app-job-abc123"
-	job.Namespace = ns
-	job.Labels = map[string]string{"app": "foo-app-job"}
-	job.CreationTimestamp.Time = time.Now().UTC()
+	pod2.Kind = "Pod"
+	pod2.Name = "bar-app-abc123"
+	pod2.Namespace = ns
+	pod2.Labels = map[string]string{"app": "bar-app"}
+	pod2.CreationTimestamp.Time = time.Now().UTC()
 
 	return &v1.PodList{
 		Items: []v1.Pod{
 			pod,
-			job,
+			pod2,
 		},
 	}
 }
