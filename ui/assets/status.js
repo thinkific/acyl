@@ -563,10 +563,11 @@ function updatePodData(data) {
         for (let i = 0; i < podHeadings.length; i++) {
             let th = document.createElement("th");
             th.id = `heading-${podHeadings[i].toLowerCase()}`;
-            th.innerHTML = podHeadings[i]
+            th.innerHTML = podHeadings[i];
             trHeading.appendChild(th);
-            podTableBody.appendChild(trHeading);
         }
+        console.log(`Append Child, trHeading: ${trHeading.id}`)
+        podTableBody.appendChild(trHeading);
     }
     for (let i = 0; i < data.length; i++) {
         let trPod = document.createElement("tr");
@@ -575,17 +576,21 @@ function updatePodData(data) {
         for (let k = 0; k < podValues.length; k++) {
             let td = document.createElement("td");
             td.id = `pod-${podHeadings[k].toLowerCase()}`;
-            td.innerHTML = podValues[k]
+            td.innerHTML = podValues[k];
             if (document.getElementById(td.id) == null) {
+                console.log(`Append Child, td: ${td.id}`)
                 trPod.appendChild(td);
             } else {
+                console.log(`Replace Child, td: ${td.id}`)
                 trPod.replaceChild(td, document.getElementById(td.id));
             }
 
         }
         if (document.getElementById(trPod.id) == null) {
+            console.log(`Append Child, trPod: ${trPod.id}`)
             podTableBody.appendChild(trPod);
         } else {
+            console.log(`Replace Child, trPod: ${trPod.id}`)
             podTableBody.replaceChild(trPod, document.getElementById(trPod.id));
         }
     }
