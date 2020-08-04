@@ -554,29 +554,39 @@ function updateLogs(logs) {
 }
 
 function updatePodData(data) {
-    for (i = 0; i < data.length; i++) {
-        podTableBody = document.getElementById("k8sNamespacePodTableBody");
-        for (let [name, ready, status, restarts, age] of Object.values(data[i])) {
-            let tr = document.createElement("tr");
+    podTableBody = document.getElementById("k8sNamespacePodTableBody");
+    const trHeadingId = "namespace-pods-table-row-headings"
+    const podHeadings = ["Name", "Ready", "Status", "Restarts", "Age"]
+    if (document.getElementById(trHeadingId) == null) {
+        let trHeading = document.createElement("tr");
+        trHeading.id = trHeadingId;
+        for (let i = 0; i < podHeadings.length; i++) {
+            let th = document.createElement("th");
+            th.id = `heading-${podHeadings[i].toLowerCase()}`;
+            th.innerHTML = podHeadings[i]
+            trHeading.appendChild(th);
+            podTableBody.appendChild(trHeading);
+        }
+    }
+    for (let i = 0; i < data.length; i++) {
+        let trPod = document.createElement("tr");
+        let podValues = Object.values(data[i])
+        trPod.id = `pod-row-${podValues[0]}`;
+        for (let k = 0; k < podValues.length; k++) {
             let td = document.createElement("td");
-            tr.id = `table-row-pod-data-${name}`;
-            td.id = "pod-name";
-            td.innerHTML = name
-            tr.appendChild(td);
-            td.id = "pod-ready";
-            td.innerHTML = ready
-            tr.appendChild(td);
-            td.id = "pod-status";
-            td.innerHTML = status
-            tr.appendChild(td);
-            td.id = "pod-restarts";
-            td.innerHTML = restarts
-            tr.appendChild(td);
-            td.id = "pod-age";
-            td.innerHTML = age
-            tr.appendChild(td);
-            console.log(td);
-            podTableBody.append(tr);
+            td.id = `pod-${podHeadings[k].toLowerCase()}`;
+            td.innerHTML = podValues[k]
+            if (document.getElementById(td.id) == null) {
+                trPod.appendChild(td);
+            } else {
+                trPod.replaceChild(td, document.getElementById(td.id));
+            }
+
+        }
+        if (document.getElementById(trPod.id) == null) {
+            podTableBody.appendChild(trPod);
+        } else {
+            podTableBody.replaceChild(trPod, document.getElementById(trPod.id));
         }
     }
 }
