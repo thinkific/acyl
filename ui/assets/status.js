@@ -13,7 +13,6 @@ let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
 let env_name = "";
-let k8sNamespaceSet = false;
 let podsReady = false;
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
@@ -556,6 +555,10 @@ function updateLogs(logs) {
 }
 
 function updatePodData(data) {
+    if (env_name === "") {
+        return;
+    }
+    console.log(`env_name: ${env_name}`)
     let podTableBody = document.getElementById("k8sNamespacePodTableBody");
     const trHeadingId = "namespace-pods-table-row-headings";
     const podHeadings = ["Name", "Ready", "Status", "Restarts", "Age"];
@@ -568,32 +571,29 @@ function updatePodData(data) {
             th.innerHTML = podHeadings[i];
             trHeading.appendChild(th);
         }
-        console.log(`Append Child, trHeading: ${trHeading.id}`);
         podTableBody.appendChild(trHeading);
     }
     let podsReadyCheck = []
-    for (let i = 0; i < data.length; i++) {
-        let trPod = document.createElement("tr");
-        let podValues = Object.values(data[i]);
-        podsReadyCheck.push(podValues[1])
-        trPod.id = `table-row-pod-${podValues[0]}`;
-        for (let k = 0; k < podValues.length; k++) {
-            let td = document.createElement("td");
-            td.id = `table-data-pod-${podValues[0]}-${podHeadings[k].toLowerCase()}`;
-            td.innerHTML = podValues[k];
-            console.log(`Append Child, td: ${td.id}`);
-            trPod.appendChild(td);
+    if (!podsReady) {
+        for (let i = 0; i < data.length; i++) {
+            let trPod = document.createElement("tr");
+            let podValues = Object.values(data[i]);
+            podsReadyCheck.push(podValues[1])
+            trPod.id = `table-row-pod-${podValues[0]}`;
+            for (let k = 0; k < podValues.length; k++) {
+                let td = document.createElement("td");
+                td.id = `table-data-pod-${podValues[0]}-${podHeadings[k].toLowerCase()}`;
+                td.innerHTML = podValues[k];
+                trPod.appendChild(td);
+            }
+            if (document.getElementById(trPod.id) == null) {
+                podTableBody.appendChild(trPod.cloneNode(true));
+            } else {
+                podTableBody.replaceChild(trPod.cloneNode(true), document.getElementById(trPod.id));
+            }
+            podTableBody = document.getElementById("k8sNamespacePodTableBody");
         }
-        if (document.getElementById(trPod.id) == null) {
-            console.log(`Append Child, trPod.id: ${trPod.id}`);
-            podTableBody.appendChild(trPod.cloneNode(true));
-        } else {
-            console.log(`Replace Child, trPod.id: ${trPod.id}`);
-            podTableBody.replaceChild(trPod.cloneNode(true), document.getElementById(trPod.id));
-        }
-        podTableBody = document.getElementById("k8sNamespacePodTableBody");
     }
-    document.getElementById("k8sNamespacePodTable").replaceChild(podTableBody.cloneNode(true), document.getElementById(podTableBody.id));
     podsReady = parseK8sPodsReady(podsReadyCheck)
 }
 
@@ -698,7 +698,7 @@ async function update() {
 
         const podData = JSON.parse(req3.response);
 
-        if (!podsReady && podData !== null) {
+        if (podData !== null) {
             updatePodData(podData);
         }
 
@@ -712,13 +712,7 @@ async function update() {
 
     req.send(null);
     req2.send(null);
-    if (env_name !== "") {
-        if (!k8sNamespaceSet) {
-            document.getElementById("k8sNamespaceButton").innerHTML = `Kubernetes Namespace: ${document.getElementById("k8s-ns").innerHTML}`;
-            k8sNamespaceSet = true;
-        }
-        req3.send(null);
-    }
+    req3.send(null);
 }
 
 document.addEventListener("DOMContentLoaded", function(){

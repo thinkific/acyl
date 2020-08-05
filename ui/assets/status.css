@@ -88,21 +88,3 @@
         transform: rotate(360deg);
     }
 }
-
-.k8sNamespacePodTable {
-    background-color: #262626;
-    text-align: left;
-    color: #cccccc;
-    padding: 8px;
-    font-size: 12px;
-    border-radius: 8px;
-}
-
-.k8sNamespacePodTable tr {
-    background-color: #ff8000;
-    text-align: left;
-    color: #cccccc;
-    padding: 8px;
-    font-size: 12px;
-    border-radius: 8px;
-}
