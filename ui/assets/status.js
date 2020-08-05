@@ -553,6 +553,18 @@ function updateLogs(logs) {
     objDiv.scrollTop = objDiv.scrollHeight;
 }
 
+function setFormValues() {
+    localStorage.setItem("podsTableBody", document.getElementById("k8sNamespacePodTableBody").selectedIndex);
+}
+
+function getFormValues() {
+    let ptb = localStorage.getItem("podsTableBody");
+    if (ptb === null) {
+        ptb = "0";
+    }
+    document.getElementById("k8sNamespacePodTableBody").selectedIndex = ptb;
+}
+
 function updatePodData(pods) {
     let podTableBody = document.getElementById("k8sNamespacePodTableBody");
     const trHeadingId = "namespace-pods-table-row-headings";
@@ -691,6 +703,7 @@ async function update() {
         }
 
         let data3 = JSON.parse(req3.response);
+        setFormValues();
         updatePodData(data3);
 
     };
@@ -709,6 +722,7 @@ async function update() {
 }
 
 document.addEventListener("DOMContentLoaded", function(){
+    getFormValues();
     createTree();
     update();
 });
