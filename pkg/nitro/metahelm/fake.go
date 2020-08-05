@@ -88,9 +88,7 @@ func (fi FakeInstaller) DeleteNamespace(ctx context.Context, k8senv *models.Kube
 }
 
 // FakeKubernetesReporter satisfies the kubernetes reporter interface but does nothing
-type FakeKubernetesReporter struct {
-	KC kubernetes.Interface
-}
+type FakeKubernetesReporter struct {}
 
 var _ KubernetesReporter = &FakeKubernetesReporter{}
 
@@ -143,7 +141,7 @@ func stubPodData(ns string) *v1.PodList {
 	pod2 := v1.Pod{
 		Status: v1.PodStatus{
 			ContainerStatuses: []v1.ContainerStatus{podContainerStatus},
-			Phase: "Completed",
+			Phase: "Running",
 			PodIP: "10.0.0.2",
 		},
 		Spec: v1.PodSpec{

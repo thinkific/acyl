@@ -626,9 +626,10 @@ async function update() {
         const data = JSON.parse(req.response);
 
         if (data.hasOwnProperty('config')) {
-            if (env_name === null) {
+            if (data.config.env_name !== null) {
                 env_name = data.config.env_name;
-                console.debug(`environment name: ${env_name}`);
+                // req3 (namespace/pods) requires env_name
+                req3.send(null);
             }
             updateConfig(data.config);
         } else {
@@ -674,36 +675,36 @@ async function update() {
     req2.onerror = function(e) {
         console.error(`error getting event log endpoint: ${req2.statusText}`);
     };
-
-    req3.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pods`, true);
-    req3.onload = function (e) {
-        if (req3.status !== 200) {
-            failures++;
-            console.log(`namespace pods request failed (${failures}): ${req3.status}: ${req3.responseText}`);
-            if (failures >= 10) {
-                console.log(`API failures exceed limit: ${failures}: aborting update`);
-                clearInterval(updateInterval);
+    
+    if (env_name !== null) {
+        req3.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pods`, true);
+        req3.onload = function (e) {
+            if (req3.status !== 200) {
+                failures++;
+                console.log(`namespace pods request failed (${failures}): ${req3.status}: ${req3.responseText}`);
+                if (failures >= 10) {
+                    console.log(`API failures exceed limit: ${failures}: aborting update`);
+                    clearInterval(updateInterval);
+                }
+                return;
             }
-            return;
-        }
 
-        let data3 = JSON.parse(req3.response);
-        if (data3 !== null) {
-            renderPodList(data3);
-        }
-    };
-    req3.onerror = function (e) {
-        console.error(`error getting namespace pod endpoint for ${env_name}: ${req3.statusText}`);
-    };
+            let data3 = JSON.parse(req3.response);
+            console.log(data3);
+            if (data3 !== null) {
+                renderPodList(data3);
+            }
+        };
+        req3.onerror = function (e) {
+            console.error(`error getting namespace pod endpoint for ${env_name}: ${req3.statusText}`);
+        };
+    }
 
     // add some jitter to make the display seem smoother
     await sleep(randomIntFromInterval(1, 500));
 
     req.send(null);
     req2.send(null);
-    if (env_name !== null) {
-        req3.send(null);
-    }
 }
 
 document.addEventListener("DOMContentLoaded", function(){
