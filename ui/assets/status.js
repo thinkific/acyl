@@ -13,6 +13,8 @@ let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
 let env_name = "";
+let k8sNamespaceSet = false;
+let podsReady = false;
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
 function millisToMinutesAndSeconds(millis) {
@@ -569,9 +571,11 @@ function updatePodData(data) {
         console.log(`Append Child, trHeading: ${trHeading.id}`);
         podTableBody.appendChild(trHeading);
     }
+    let podsReadyCheck = []
     for (let i = 0; i < data.length; i++) {
         let trPod = document.createElement("tr");
         let podValues = Object.values(data[i]);
+        podsReadyCheck.push(podValues[1])
         trPod.id = `table-row-pod-${podValues[0]}`;
         for (let k = 0; k < podValues.length; k++) {
             let td = document.createElement("td");
@@ -589,6 +593,19 @@ function updatePodData(data) {
         }
         podTableBody = document.getElementById("k8sNamespacePodTableBody");
     }
+    document.getElementById("k8sNamespacePodTable").replaceChild(podTableBody.cloneNode(true), document.getElementById(podTableBody.id));
+    podsReady = parseK8sPodsReady(podsReadyCheck)
+}
+
+function parseK8sPodsReady(podsReadyCheck) {
+    let ready = [];
+    for (let i = 0; i < ready.length; i++) {
+        let values = podsReadyCheck[i].split('/');
+        if (parseInt(values[0]) === parseInt(values[1])) {
+            ready.push(true);
+        }
+    }
+    return ready.length === podsReadyCheck.length;
 }
 
 function sleep(ms) {
@@ -681,7 +698,7 @@ async function update() {
 
         const podData = JSON.parse(req3.response);
 
-        if (podData !== null) {
+        if (!podsReady && podData !== null) {
             updatePodData(podData);
         }
 
@@ -696,6 +713,10 @@ async function update() {
     req.send(null);
     req2.send(null);
     if (env_name !== "") {
+        if (!k8sNamespaceSet) {
+            document.getElementById("k8sNamespaceButton").innerHTML = `Kubernetes Namespace: ${document.getElementById("k8s-ns").innerHTML}`;
+            k8sNamespaceSet = true;
+        }
         req3.send(null);
     }
 }
