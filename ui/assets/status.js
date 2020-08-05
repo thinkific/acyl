@@ -12,7 +12,7 @@ const pollingIntervalMilliseconds = 750;
 let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
-let env_name = "";
+let env_name = null;
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
 function millisToMinutesAndSeconds(millis) {
@@ -554,9 +554,6 @@ function updateLogs(logs) {
 }
 
 function updatePodData(pods) {
-    if (env_name === "") {
-        return;
-    }
     let podTableBody = document.getElementById("k8sNamespacePodTableBody");
     const trHeadingId = "namespace-pods-table-row-headings";
     const podHeadings = ["Name", "Ready", "Status", "Restarts", "Age"];
@@ -571,12 +568,12 @@ function updatePodData(pods) {
         }
         podTableBody.appendChild(trHeading);
     }
-    let podsReadyCheck = []
-    if (!parseK8sPodsReady(podsReadyCheck)) {
+    // let podsReadyCheck = [];
+    if (pods !== null) {
         for (let i = 0; i < pods.length; i++) {
             let trPod = document.createElement("tr");
-            let podValues = Object.values(data[i]);
-            podsReadyCheck.push(podValues[1])
+            let podValues = Object.values(pods[i]);
+            // podsReadyCheck.push(podValues[1]);
             trPod.id = `table-row-pod-${podValues[0]}`;
             for (let k = 0; k < podValues.length; k++) {
                 let td = document.createElement("td");
@@ -594,16 +591,16 @@ function updatePodData(pods) {
     }
 }
 
-function parseK8sPodsReady(podsReadyCheck) {
-    for (let i = 0; i < podsReadyCheck.length; i++) {
-        let values = podsReadyCheck[i].split('/');
-        console.log(`podsReadyCheck values: ${values}`)
-        if (parseInt(values[0]) !== parseInt(values[1])) {
-            return false;
-        }
-    }
-    return true;
-}
+// function parseK8sPodsReady(podsReadyCheck) {
+//     for (let i = 0; i < podsReadyCheck.length; i++) {
+//         let values = podsReadyCheck[i].split('/');
+//         console.log(`podsReadyCheck values: ${values}`);
+//         if (parseInt(values[0]) !== parseInt(values[1])) {
+//             return false;
+//         }
+//     }
+//     return true;
+// }
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -632,7 +629,7 @@ async function update() {
         const data = JSON.parse(req.response);
 
         if (data.hasOwnProperty('config')) {
-            if (env_name === "") {
+            if (env_name === null) {
                 env_name = data.config.env_name;
                 console.debug(`environment name: ${env_name}`);
             }
@@ -694,10 +691,7 @@ async function update() {
         }
 
         let data3 = JSON.parse(req3.response);
-        if (data3 !== null) {
-            console.log(data3)
-            updatePodData(data3);
-        }
+        updatePodData(data3);
 
     };
     req3.onerror = function (e) {
@@ -709,7 +703,9 @@ async function update() {
 
     req.send(null);
     req2.send(null);
-    req3.send(null);
+    if (env_name !== null) {
+        req3.send(null);
+    }
 }
 
 document.addEventListener("DOMContentLoaded", function(){
