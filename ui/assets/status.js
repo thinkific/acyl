@@ -13,7 +13,6 @@ let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
 let env_name = "";
-let podsReady = false;
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
 function millisToMinutesAndSeconds(millis) {
@@ -554,11 +553,10 @@ function updateLogs(logs) {
     objDiv.scrollTop = objDiv.scrollHeight;
 }
 
-function updatePodData(data) {
+function updatePodData(pods) {
     if (env_name === "") {
         return;
     }
-    console.log(`env_name: ${env_name}`)
     let podTableBody = document.getElementById("k8sNamespacePodTableBody");
     const trHeadingId = "namespace-pods-table-row-headings";
     const podHeadings = ["Name", "Ready", "Status", "Restarts", "Age"];
@@ -574,8 +572,8 @@ function updatePodData(data) {
         podTableBody.appendChild(trHeading);
     }
     let podsReadyCheck = []
-    if (!podsReady) {
-        for (let i = 0; i < data.length; i++) {
+    if (!parseK8sPodsReady(podsReadyCheck)) {
+        for (let i = 0; i < pods.length; i++) {
             let trPod = document.createElement("tr");
             let podValues = Object.values(data[i]);
             podsReadyCheck.push(podValues[1])
@@ -594,18 +592,17 @@ function updatePodData(data) {
             podTableBody = document.getElementById("k8sNamespacePodTableBody");
         }
     }
-    podsReady = parseK8sPodsReady(podsReadyCheck)
 }
 
 function parseK8sPodsReady(podsReadyCheck) {
-    let ready = [];
-    for (let i = 0; i < ready.length; i++) {
+    for (let i = 0; i < podsReadyCheck.length; i++) {
         let values = podsReadyCheck[i].split('/');
-        if (parseInt(values[0]) === parseInt(values[1])) {
-            ready.push(true);
+        console.log(`podsReadyCheck values: ${values}`)
+        if (parseInt(values[0]) !== parseInt(values[1])) {
+            return false;
         }
     }
-    return ready.length === podsReadyCheck.length;
+    return true;
 }
 
 function sleep(ms) {
@@ -696,10 +693,10 @@ async function update() {
             return;
         }
 
-        const podData = JSON.parse(req3.response);
-
-        if (podData !== null) {
-            updatePodData(podData);
+        let data3 = JSON.parse(req3.response);
+        if (data3 !== null) {
+            console.log(data3)
+            updatePodData(data3);
         }
 
     };
