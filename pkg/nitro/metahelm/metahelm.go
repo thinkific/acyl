@@ -1130,14 +1130,10 @@ func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (out [
 		age := time.Since(p.CreationTimestamp.Time)
 		var nReady int
 		nContainers := len(p.Spec.Containers)
-		if string(p.Status.Phase) != "Running" {
-			for _, c := range p.Status.ContainerStatuses {
-				if c.Ready {
-					nReady += 1
-				}
+		for _, c := range p.Status.ContainerStatuses {
+			if c.Ready {
+				nReady += 1
 			}
-		} else {
-			nReady = nContainers
 		}
 		out = append(out, K8sPod{
 			Name:     p.Name,

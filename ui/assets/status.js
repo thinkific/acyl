@@ -581,14 +581,13 @@ function updatePodData(data) {
             trPod.appendChild(td);
         }
         if (document.getElementById(trPod.id) == null) {
-            console.log(`Append Child, trPod: ${trPod.id}`);
-            podTableBody.appendChild(trPod);
+            console.log(`Append Child, trPod.id: ${trPod.id}`);
+            podTableBody.appendChild(trPod.cloneNode(true));
         } else {
-            console.log(`document.getElementById(${podTableBody.id}).childNodes[${i}+1]: ${document.getElementById(podTableBody.id).childNodes[i+1]}`);
-            let trNode = document.getElementById(podTableBody.id).childNodes[i+1];
-            console.log(`Replace Child, trNode: ${trNode.id}`);
-            podTableBody.replaceChild(trPod, trNode);
+            console.log(`Replace Child, trPod.id: ${trPod.id}`);
+            podTableBody.replaceChild(trPod.cloneNode(true), document.getElementById(trPod.id));
         }
+        podTableBody = document.getElementById("k8sNamespacePodTableBody");
     }
 }
 
