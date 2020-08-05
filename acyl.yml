@@ -11,6 +11,7 @@ application:
   value_overrides:
     - "app.ui.enforce_oauth=true"
     - "ingress.traefik.enabled=true"
+    - "ingress.traefik.secretName=cert-dqa-email"
 # uncomment to use in-environment Furan
 #    - "app.furan_addr=furan:4001"
 # local:

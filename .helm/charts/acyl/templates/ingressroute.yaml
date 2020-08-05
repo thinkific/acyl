@@ -19,5 +19,9 @@ spec:
     - name: {{ .Values.service.name }}
       port: {{ .Values.service.internalPort }}
   tls:
+  {{- if .Values.ingress.traefik.secretName }}
+    secretName: {{ .Values.ingress.traefik.secretName }}
+  {{- else }}
     certResolver: default
+  {{- end }}
 {{- end }}

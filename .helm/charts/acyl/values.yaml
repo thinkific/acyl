@@ -76,6 +76,7 @@ ingress:
     enabled: false
     ingress_class: 'traefik'
     host: foo.bar.com
+    secretName: ''
 rbac:
   cluster_role: cluster-admin
   cluster_role_binding:
