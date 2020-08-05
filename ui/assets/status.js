@@ -554,6 +554,7 @@ function updateLogs(logs) {
 }
 
 function setFormValues() {
+    console.log(`document.getElementById("k8sNamespacePodTableBody").selectedIndex: ${document.getElementById("k8sNamespacePodTableBody").selectedIndex}`)
     localStorage.setItem("podsTableBody", document.getElementById("k8sNamespacePodTableBody").selectedIndex);
 }
 
@@ -562,6 +563,7 @@ function getFormValues() {
     if (ptb === null) {
         ptb = "0";
     }
+    console.log(`ptb: ${ptb}`)
     document.getElementById("k8sNamespacePodTableBody").selectedIndex = ptb;
 }
 
@@ -703,7 +705,6 @@ async function update() {
         }
 
         let data3 = JSON.parse(req3.response);
-        setFormValues();
         updatePodData(data3);
 
     };
@@ -719,6 +720,7 @@ async function update() {
     if (env_name !== null) {
         req3.send(null);
     }
+    setFormValues();
 }
 
 document.addEventListener("DOMContentLoaded", function(){
