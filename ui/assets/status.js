@@ -553,68 +553,51 @@ function updateLogs(logs) {
     objDiv.scrollTop = objDiv.scrollHeight;
 }
 
-function setFormValues() {
-    console.log(`document.getElementById("k8sNamespacePodTableBody").selectedIndex: ${document.getElementById("k8sNamespacePodTableBody").selectedIndex}`)
-    localStorage.setItem("podsTableBody", document.getElementById("k8sNamespacePodTableBody").selectedIndex);
+// podRow creates a table row from a pod object
+function podRow(podValues) {
+    let trPod = document.createElement("tr");
+    trPod.id = `tr-pod`;
+    for (let i = 0; i < podValues.length; i++) {
+        let td = document.createElement("td");
+        td.id = `td-pod-${podValues[0]}`;
+        td.className = "text-left"
+        td.innerHTML = podValues[i];
+        trPod.appendChild(td);
+    }
+    return trPod;
 }
 
-function getFormValues() {
-    let ptb = localStorage.getItem("podsTableBody");
-    if (ptb === null) {
-        ptb = "0";
+// setPodList replaces the table body with tbody
+function setPodList(tbody) {
+    let oldtbody = document.getElementById("k8sNamespacePodTableBody");
+    if (tbody === null) {
+        return;
     }
-    console.log(`ptb: ${ptb}`)
-    document.getElementById("k8sNamespacePodTableBody").selectedIndex = ptb;
+    oldtbody.parentNode.replaceChild(tbody, oldtbody);
+    tbody.id = "k8sNamespacePodTableBody";
 }
 
-function updatePodData(pods) {
-    let podTableBody = document.getElementById("k8sNamespacePodTableBody");
-    const trHeadingId = "namespace-pods-table-row-headings";
-    const podHeadings = ["Name", "Ready", "Status", "Restarts", "Age"];
-    if (document.getElementById(trHeadingId) == null) {
-        let trHeading = document.createElement("tr");
-        trHeading.id = trHeadingId;
-        for (let i = 0; i < podHeadings.length; i++) {
-            let th = document.createElement("th");
-            th.id = `table-heading-${podHeadings[i].toLowerCase()}`;
-            th.innerHTML = podHeadings[i];
-            trHeading.appendChild(th);
-        }
-        podTableBody.appendChild(trHeading);
+// renderPodList renders the pod table rows with the pod data
+function renderPodList(pods) {
+    let tbody = document.createElement("tbody");
+    const podHeadings = ["Name", "Ready", "Status", "Restarts", "Age"]
+    let trHeading = document.createElement("tr");
+    trHeading.id = "tr-pod-headings";
+    for (let i = 0; i < podHeadings.length; i++) {
+        let th = document.createElement("th");
+        th.id = `th-pod-${podHeadings[i].toLowerCase()}`;
+        th.className = "text-left";
+        th.innerHTML = podHeadings[i];
+        trHeading.appendChild(th);
     }
-    // let podsReadyCheck = [];
-    if (pods !== null) {
-        for (let i = 0; i < pods.length; i++) {
-            let trPod = document.createElement("tr");
-            let podValues = Object.values(pods[i]);
-            // podsReadyCheck.push(podValues[1]);
-            trPod.id = `table-row-pod-${podValues[0]}`;
-            for (let k = 0; k < podValues.length; k++) {
-                let td = document.createElement("td");
-                td.id = `table-data-pod-${podValues[0]}-${podHeadings[k].toLowerCase()}`;
-                td.innerHTML = podValues[k];
-                trPod.appendChild(td);
-            }
-            if (document.getElementById(trPod.id) == null) {
-                podTableBody.appendChild(trPod.cloneNode(true));
-            } else {
-                podTableBody.replaceChild(trPod.cloneNode(true), document.getElementById(trPod.id));
-            }
-            podTableBody = document.getElementById("k8sNamespacePodTableBody");
-        }
+    tbody.appendChild(trHeading);
+    for (let i = 0; i < pods.length; i++) {
+        let podValues = Object.values(pods[i]);
+        let row = podRow(podValues);
+        tbody.appendChild(row);
     }
+    setPodList(tbody);
 }
-
-// function parseK8sPodsReady(podsReadyCheck) {
-//     for (let i = 0; i < podsReadyCheck.length; i++) {
-//         let values = podsReadyCheck[i].split('/');
-//         console.log(`podsReadyCheck values: ${values}`);
-//         if (parseInt(values[0]) !== parseInt(values[1])) {
-//             return false;
-//         }
-//     }
-//     return true;
-// }
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -705,8 +688,9 @@ async function update() {
         }
 
         let data3 = JSON.parse(req3.response);
-        updatePodData(data3);
-
+        if (data3 !== null) {
+            renderPodList(data3);
+        }
     };
     req3.onerror = function (e) {
         console.error(`error getting namespace pod endpoint for ${env_name}: ${req3.statusText}`);
@@ -720,11 +704,9 @@ async function update() {
     if (env_name !== null) {
         req3.send(null);
     }
-    setFormValues();
 }
 
 document.addEventListener("DOMContentLoaded", function(){
-    getFormValues();
     createTree();
     update();
 });
