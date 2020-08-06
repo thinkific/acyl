@@ -890,6 +890,7 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 			api.rlogger(r).Logf("error marshaling user env detail: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
+		return
 	}
 	pl, err := api.kr.GetK8sEnvPodList(r.Context(), k8senv.Namespace)
 	if err != nil {
@@ -904,6 +905,7 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 			api.rlogger(r).Logf("error marshaling user env detail: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
+		return
 	}
 	for _, p := range pl {
 		v2enp = append(v2enp, V2EnvNamePods{
