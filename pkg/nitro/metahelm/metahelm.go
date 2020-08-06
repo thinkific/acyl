@@ -1124,7 +1124,8 @@ func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (out [
 		return []K8sPod{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
 	}
 	if len(pl.Items) == 0 {
-		return []K8sPod{}, errors.Errorf("error no pods found for namespace %v", ns)
+		// return blank K8sPod struct if no pods found
+		return []K8sPod{}, nil
 	}
 	for _, p := range pl.Items {
 		age := time.Since(p.CreationTimestamp.Time)

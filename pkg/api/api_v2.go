@@ -883,7 +883,7 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	// Return empty k8senv if not found
+	// Return empty kubernetes environment if not found
 	if k8senv == nil {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
@@ -891,12 +891,19 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	// Returns error if no pod(s) found for namespace
 	pl, err := api.kr.GetK8sEnvPodList(context.Background(), k8senv.Namespace)
 	if err != nil {
 		api.rlogger(r).Logf("error getting pod list for k8s env: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
+	}
+	// Return empty pod list if nil
+	if pl == nil {
+		w.Header().Add("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
+			api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}
 	for _, p := range pl {
 		age, err := time.ParseDuration(p.Age.String())
