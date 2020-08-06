@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dollarshaveclub/acyl/pkg/nitro/metahelm"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/google/uuid"
 
@@ -161,6 +162,7 @@ func mockui(cmd *cobra.Command, args []string) {
 		ServerConfig: serverConfig,
 		Logger:       logger,
 		EnvironmentSpawner: &spawner.FakeEnvironmentSpawner{UpdateFunc: uf},
+		KubernetesReporter: metahelm.FakeKubernetesReporter{},
 	}
 
 	serverConfig.UIBaseURL = "http://" + listenAddr

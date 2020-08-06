@@ -2,11 +2,14 @@ package metahelm
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -82,4 +85,79 @@ func (fi FakeInstaller) DeleteNamespace(ctx context.Context, k8senv *models.Kube
 		return fi.DL.DeleteK8sEnv(ctx, k8senv.EnvName)
 	}
 	return nil
+}
+
+// FakeKubernetesReporter satisfies the kubernetes reporter interface but does nothing
+type FakeKubernetesReporter struct {}
+
+var _ KubernetesReporter = &FakeKubernetesReporter{}
+
+func (fkr FakeKubernetesReporter) GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error) {
+	pl := stubPodData(ns)
+	for _, p := range pl.Items {
+		age := time.Since(p.CreationTimestamp.Time)
+		var nReady int
+		nContainers := len(p.Spec.Containers)
+		for _, c := range p.Status.ContainerStatuses {
+			if c.Ready {
+				nReady += 1
+			}
+		}
+		out = append(out, K8sPod{
+			Name:     p.Name,
+			Ready:    fmt.Sprintf("%v/%v", nReady, nContainers),
+			Status:   string(p.Status.Phase),
+			Restarts: p.Status.ContainerStatuses[0].RestartCount,
+			Age:      age,
+		})
+	}
+	return out, nil
+}
+
+func stubPodData(ns string) *v1.PodList {
+	podContainerStatus := v1.ContainerStatus{
+		Name:         "foo-app",
+		RestartCount: 0,
+		Ready:        true,
+	}
+	pod := v1.Pod{
+		Status: v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{podContainerStatus},
+			Phase: "Running",
+			PodIP: "10.0.0.1",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{{Name: podContainerStatus.Name}},
+		},
+	}
+	pod.Kind = "Pod"
+	pod.Name = "foo-app-abc123"
+	pod.Namespace = ns
+	pod.Labels = map[string]string{"app": "foo-app"}
+	pod.Status.Phase = "Running"
+	pod.CreationTimestamp.Time = time.Now().UTC().Add(-3*time.Hour).Add(-37 * time.Minute).Add(-33 * time.Second)
+
+	podContainerStatus.Name = "bar-app"
+	pod2 := v1.Pod{
+		Status: v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{podContainerStatus},
+			Phase: "Running",
+			PodIP: "10.0.0.2",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{{Name: podContainerStatus.Name}},
+		},
+	}
+	pod2.Kind = "Pod"
+	pod2.Name = "bar-app-abc123"
+	pod2.Namespace = ns
+	pod2.Labels = map[string]string{"app": "bar-app"}
+	pod2.CreationTimestamp.Time = time.Now().UTC().Add(-3*time.Hour).Add(-37 * time.Minute).Add(-33 * time.Second)
+
+	return &v1.PodList{
+		Items: []v1.Pod{
+			pod,
+			pod2,
+		},
+	}
 }

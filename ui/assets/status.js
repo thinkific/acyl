@@ -12,6 +12,7 @@ const pollingIntervalMilliseconds = 750;
 let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
+let env_name = "";
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
 function millisToMinutesAndSeconds(millis) {
@@ -144,7 +145,7 @@ function createTree() {
     const {
         width,
         height,
-    } = treeDimensions()
+    } = treeDimensions();
 
     tree = d3.layout.tree()
         .nodeSize([4,4])
@@ -552,6 +553,52 @@ function updateLogs(logs) {
     objDiv.scrollTop = objDiv.scrollHeight;
 }
 
+// podRow creates a table row from a pod object
+function podRow(podValues) {
+    let trPod = document.createElement("tr");
+    trPod.id = `tr-pod`;
+    for (let i = 0; i < podValues.length; i++) {
+        let td = document.createElement("td");
+        td.id = `td-pod-${podValues[0]}`;
+        td.className = "text-left"
+        td.innerHTML = podValues[i];
+        trPod.appendChild(td);
+    }
+    return trPod;
+}
+
+// setPodList replaces the table body with tbody
+function setPodList(tbody) {
+    let oldtbody = document.getElementById("k8sNamespacePodTableBody");
+    if (tbody === null) {
+        return;
+    }
+    oldtbody.parentNode.replaceChild(tbody, oldtbody);
+    tbody.id = "k8sNamespacePodTableBody";
+}
+
+// renderPodList renders the pod table rows with the pod data
+function renderPodList(pods) {
+    let tbody = document.createElement("tbody");
+    const podHeadings = ["Name", "Ready", "Status", "Restarts", "Age"]
+    let trHeading = document.createElement("tr");
+    trHeading.id = "tr-pod-headings";
+    for (let i = 0; i < podHeadings.length; i++) {
+        let th = document.createElement("th");
+        th.id = `th-pod-${podHeadings[i].toLowerCase()}`;
+        th.className = "text-left";
+        th.innerHTML = podHeadings[i];
+        trHeading.appendChild(th);
+    }
+    tbody.appendChild(trHeading);
+    for (let i = 0; i < pods.length; i++) {
+        let podValues = Object.values(pods[i]);
+        let row = podRow(podValues);
+        tbody.appendChild(row);
+    }
+    setPodList(tbody);
+}
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -562,7 +609,7 @@ function randomIntFromInterval(min, max) { // min and max included
 }
 
 async function update() {
-    let req = new XMLHttpRequest(), req2 = new XMLHttpRequest();
+    let req = new XMLHttpRequest(), req2 = new XMLHttpRequest(), req3 = new XMLHttpRequest();
 
     req.open('GET', statusEndpoint, true);
     req.onload = function(e) {
@@ -579,6 +626,11 @@ async function update() {
         const data = JSON.parse(req.response);
 
         if (data.hasOwnProperty('config')) {
+            if (data.config.env_name !== null) {
+                env_name = data.config.env_name;
+                // req3 (namespace/pods) requires env_name
+                req3.send(null);
+            }
             updateConfig(data.config);
         } else {
             console.log("event status missing config element");
@@ -623,6 +675,24 @@ async function update() {
     req2.onerror = function(e) {
         console.error(`error getting event log endpoint: ${req2.statusText}`);
     };
+
+    if (env_name !== "") {
+        req3.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pods`, true);
+        req3.onload = function (e) {
+            if (req3.status !== 200) {
+                console.log(`namespace pods request failed: ${req3.status}: ${req3.responseText}`);
+                return;
+            }
+
+            let data3 = JSON.parse(req3.response);
+            if (data3 !== null) {
+                renderPodList(data3);
+            }
+        };
+        req3.onerror = function (e) {
+            console.error(`error getting namespace pod endpoint for ${env_name}: ${req3.statusText}`);
+        };
+    }
 
     // add some jitter to make the display seem smoother
     await sleep(randomIntFromInterval(1, 500));

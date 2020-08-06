@@ -19,7 +19,7 @@ function envrow(env) {
     let tdpr = document.createElement("td");
     tdpr.className = "text-left";
     tdpr.innerHTML = env.pull_request;
-    tr.appendChild(tdpr)
+    tr.appendChild(tdpr);
     let tdname = document.createElement("td");
     tdname.className = "text-left";
     tdname.innerHTML = `<a href="${apiBaseURL}/ui/env/${env.env_name}">${env.env_name}</a>`;

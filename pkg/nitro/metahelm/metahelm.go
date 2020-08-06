@@ -61,6 +61,11 @@ type Installer interface {
 	DeleteNamespace(ctx context.Context, k8senv *models.KubernetesEnvironment) error
 }
 
+// KubernetesReporter describes an object that returns k8s environment data
+type KubernetesReporter interface {
+	GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error)
+}
+
 // metrics prefix
 var mpfx = "metahelm."
 
@@ -1103,4 +1108,41 @@ func (ci ChartInstaller) removeOrphanedCRBs(ctx context.Context, maxAge time.Dur
 		}
 	}
 	return nil
+}
+
+// K8sPod models the returned pod details
+type K8sPod struct {
+	Name, Ready, Status string
+	Restarts            int32
+	Age                 time.Duration
+}
+
+// GetK8sEnvPodList returns a kubernetes environment pod list for the namespace provided
+func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error) {
+	pl, err := ci.kc.CoreV1().Pods(ns).List(meta.ListOptions{})
+	if err != nil {
+		return []K8sPod{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
+	}
+	if len(pl.Items) == 0 {
+		// return blank K8sPod struct if no pods found
+		return []K8sPod{}, nil
+	}
+	for _, p := range pl.Items {
+		age := time.Since(p.CreationTimestamp.Time)
+		var nReady int
+		nContainers := len(p.Spec.Containers)
+		for _, c := range p.Status.ContainerStatuses {
+			if c.Ready {
+				nReady += 1
+			}
+		}
+		out = append(out, K8sPod{
+			Name:     p.Name,
+			Ready:    fmt.Sprintf("%v/%v", nReady, nContainers),
+			Status:   string(p.Status.Phase),
+			Restarts: p.Status.ContainerStatuses[0].RestartCount,
+			Age:      age,
+		})
+	}
+	return out, nil
 }

@@ -65,6 +65,43 @@
             </div>
 
             <div class="card">
+              <div class="card-header" id="k8sNamespacePodsHeading">
+                <h2 class="mb-0">
+                  <button
+                          class="btn btn-link text-dark btn-lg"
+                          type="button"
+                          data-toggle="collapse"
+                          data-target="#collapseK8sNamespacePods"
+                          aria-expanded="true"
+                          aria-controls="collapseK8sNamespacePods"
+                          id="k8sNamespaceButton"
+                  >
+                    Kubernetes Namespace <img class="mb-1" src="{{ .APIBaseURL }}/ui/static/k8sicon.svg" width="20" height="20">
+                  </button>
+                </h2>
+              </div>
+              <div
+                      id="collapseK8sNamespacePods"
+                      class="collapse"
+                      aria-labelledby="k8sNamespacePodsHeading"
+              >
+                <div class="card-body p-0">
+                  <div
+                          class="overflow-auto p-4"
+                          id="k8sNamespacePodsContainer"
+                  >
+                    <table
+                            id="k8sNamespacePodTable" class="table table-sm table-striped table-dark m-0"
+                    >
+                      <tbody id="k8sNamespacePodTableBody">
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
               <div class="card-header" id="detailsHeading">
                 <h2 class="mb-0">
                   <button

@@ -15,6 +15,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
 	"github.com/dollarshaveclub/acyl/pkg/models"
 	ncontext "github.com/dollarshaveclub/acyl/pkg/nitro/context"
+	"github.com/dollarshaveclub/acyl/pkg/nitro/metahelm"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/google/uuid"
@@ -265,9 +266,10 @@ type v2api struct {
 	es    spawner.EnvironmentSpawner
 	sc    config.ServerConfig
 	oauth OAuthConfig
+	kr    metahelm.KubernetesReporter
 }
 
-func newV2API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, sc config.ServerConfig, oauth OAuthConfig, logger *log.Logger) (*v2api, error) {
+func newV2API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawner.EnvironmentSpawner, sc config.ServerConfig, oauth OAuthConfig, logger *log.Logger, kr metahelm.KubernetesReporter) (*v2api, error) {
 	return &v2api{
 		apiBase: apiBase{
 			logger: logger,
@@ -277,6 +279,7 @@ func newV2API(dl persistence.DataLayer, ge *ghevent.GitHubEventWebhook, es spawn
 		es:    es,
 		sc:    sc,
 		oauth: oauth,
+		kr:    kr,
 	}, nil
 }
 
@@ -297,6 +300,7 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/userenvs", middlewareChain(api.userEnvsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}", middlewareChain(api.userEnvDetailHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}/actions/rebuild", middlewareChain(api.userEnvActionsRebuildHandler, sessionAuthMiddleware.sessionAuth)).Methods("POST")
+	r.HandleFunc("/v2/userenvs/{name}/namespace/pods", middlewareChain(api.userEnvNamePodsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
@@ -828,4 +832,93 @@ func (api *v2api) userEnvActionsRebuildHandler(w http.ResponseWriter, r *http.Re
 		logger("success processing %v update event (env: %q); done", messaging, name)
 	}()
 	w.WriteHeader(http.StatusCreated)
+}
+
+type V2EnvNamePods struct {
+	Name     string `json:"name"`
+	Ready    string `json:"ready"`
+	Status   string `json:"status"`
+	Restarts string `json:"restarts"`
+	Age      string `json:"age"`
+}
+
+// userEnvNamePodsHandler returns curated kubernetes pod data by the environment name
+func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request) {
+	v2enp := []V2EnvNamePods{}
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("session missing from context")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	envname := mux.Vars(r)["name"]
+	if envname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	qae, err := api.dl.GetQAEnvironment(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting qa env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if qae == nil {
+		api.rlogger(r).Logf("qa env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user visible repos: %v: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !repoInRepos(repos, qae.Repo) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	k8senv, err := api.dl.GetK8sEnv(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	// Return empty kubernetes environment if not found
+	if k8senv == nil {
+		w.Header().Add("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
+			api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+	pl, err := api.kr.GetK8sEnvPodList(r.Context(), k8senv.Namespace)
+	if err != nil {
+		api.rlogger(r).Logf("error getting pod list for k8s env: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	// Return empty pod list if nil
+	if pl == nil {
+		w.Header().Add("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
+			api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+	for _, p := range pl {
+		v2enp = append(v2enp, V2EnvNamePods{
+			Name: p.Name,
+			Ready: p.Ready,
+			Status: p.Status,
+			Restarts: strconv.Itoa(int(p.Restarts)),
+			Age: p.Age.Round(time.Second).String(),
+		})
+	}
+	w.Header().Add("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
+		api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }

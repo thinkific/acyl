@@ -1283,3 +1283,19 @@ func TestTruncateLongDQAName(t *testing.T) {
 		}
 	}
 }
+
+func TestMetahelmGetK8sEnvPodList(t *testing.T) {
+	ci := FakeKubernetesReporter{}
+	pl, err := ci.GetK8sEnvPodList(context.Background(), "foo")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if len(pl) != 2 {
+		t.Fatalf("expected 2, got %v", len(pl))
+	}
+	for _, p := range pl {
+		if p.Ready != "1/1" && p.Status != "Running" {
+			t.Fatalf("expected Ready: 1/1 & Status: Running, got %v, %v", p.Ready, p.Status)
+		}
+	}
+}

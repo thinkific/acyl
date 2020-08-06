@@ -11,6 +11,7 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/ghevent"
+	"github.com/dollarshaveclub/acyl/pkg/nitro/metahelm"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
 	"github.com/dollarshaveclub/acyl/pkg/spawner"
 	"github.com/pkg/errors"
@@ -76,6 +77,7 @@ type Dependencies struct {
 	ServerConfig       config.ServerConfig
 	DatadogServiceName string
 	Logger             *log.Logger
+	KubernetesReporter metahelm.KubernetesReporter
 }
 
 // Manager describes an object capable of registering API versions and waiting on requests
@@ -266,7 +268,8 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		deps.EnvironmentSpawner,
 		deps.ServerConfig,
 		oauthcfg,
-		deps.Logger)
+		deps.Logger,
+		deps.KubernetesReporter)
 	if err != nil {
 		return fmt.Errorf("error creating api v2: %v", err)
 	}
