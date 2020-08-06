@@ -46,8 +46,6 @@ spec:
         {{ end }}
           - "--global-environment-limit"
           - "{{ .Values.app.env_limit }}"
-          - "--consul-addr"
-          - '{{ .Values.app.consul_server_host }}:8500'
           - "--dogstatsd-addr"
           - "{{ .Values.app.dogstatsd_addr }}"
           - "--datadog-tracing-agent-addr"

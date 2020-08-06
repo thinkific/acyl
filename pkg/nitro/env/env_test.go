@@ -40,9 +40,7 @@ func TestLockingOperation(t *testing.T) {
 	c := make(chan struct{})
 	close(c)
 	m := Manager{
-		LP: &locker.FakePreemptiveLockProvider{
-			ChannelFactory: func() chan struct{} { return c },
-		},
+		LP: locker.NewFakeLockProvider(),
 		MC: &metrics.FakeCollector{},
 	}
 	f := func(ctx context.Context) error {
@@ -444,14 +442,8 @@ func TestCreate(t *testing.T) {
 			}
 			nt := newNotificationTracker()
 			m := Manager{
-				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
+				DL:               dl,
+				LP:               locker.NewFakeLockProvider(),
 				NF:               nt.sender,
 				MC:               &metrics.FakeCollector{},
 				NG:               &namegen.FakeNameGenerator{},
@@ -713,14 +705,8 @@ func TestUpdate(t *testing.T) {
 			}
 			nt := newNotificationTracker()
 			m := Manager{
-				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
+				DL:               dl,
+				LP:               locker.NewFakeLockProvider(),
 				NF:               nt.sender,
 				MC:               &metrics.FakeCollector{},
 				NG:               &namegen.FakeNameGenerator{},
@@ -878,13 +864,7 @@ func TestDelete(t *testing.T) {
 			}
 			m := Manager{
 				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
+				LP: locker.NewFakeLockProvider(),
 				NF: testNF,
 				MC: &metrics.FakeCollector{},
 				MG: fg,

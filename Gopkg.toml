@@ -50,10 +50,6 @@
   version = "1.4.0"
 
 [[constraint]]
-  name = "github.com/hashicorp/consul"
-  version = "0.9.0"
-
-[[constraint]]
   name = "github.com/nlopes/slack"
   version = "0.1.0"
 
@@ -153,7 +149,10 @@
 [[constraint]]
   name = "gopkg.in/DataDog/dd-trace-go.v1"
   version = "1.10.0"
-  
+
 [[constraint]]
   name = "github.com/google/go-cmp"
   version = "0.3.0"
+[[constraint]]
+  name = "github.com/lib/pq"
+  version = "1.8.0"

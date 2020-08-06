@@ -21,16 +21,12 @@ type FuranBuilderBackend struct {
 
 var _ BuilderBackend = &FuranBuilderBackend{}
 
-func NewFuranBuilderBackend(addrs []string, caddr string, dl persistence.DataLayer, mc metrics.Collector, logout io.Writer, datadogServiceNamePrefix string) (*FuranBuilderBackend, error) {
+func NewFuranBuilderBackend(addrs []string, dl persistence.DataLayer, mc metrics.Collector, logout io.Writer, datadogServiceNamePrefix string) (*FuranBuilderBackend, error) {
 	fcopts := &furan.DiscoveryOptions{}
-	if len(addrs) > 0 {
-		fcopts.NodeList = addrs
-	} else {
-		fcopts.UseConsul = true
-		fcopts.ConsulAddr = caddr
-		fcopts.SelectionStrategy = furan.RandomNodeSelection
-		fcopts.ServiceName = "furan"
+	if len(addrs) == 0 {
+		return nil, errors.New("must provide at least a single furan address")
 	}
+	fcopts.NodeList = addrs
 	logger := log.New(logout, "", log.LstdFlags)
 	fc, err := furan.NewFuranClient(fcopts, logger, datadogServiceNamePrefix)
 	if err != nil {
