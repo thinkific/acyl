@@ -690,7 +690,6 @@ async function update() {
             }
 
             let data3 = JSON.parse(req3.response);
-            console.log(data3);
             if (data3 !== null) {
                 renderPodList(data3);
             }
