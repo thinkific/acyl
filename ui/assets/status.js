@@ -12,7 +12,7 @@ const pollingIntervalMilliseconds = 750;
 let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
-let env_name = null;
+let env_name = "";
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
 function millisToMinutesAndSeconds(millis) {
@@ -675,17 +675,12 @@ async function update() {
     req2.onerror = function(e) {
         console.error(`error getting event log endpoint: ${req2.statusText}`);
     };
-    
-    if (env_name !== null) {
+
+    if (env_name !== "") {
         req3.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pods`, true);
         req3.onload = function (e) {
             if (req3.status !== 200) {
-                failures++;
-                console.log(`namespace pods request failed (${failures}): ${req3.status}: ${req3.responseText}`);
-                if (failures >= 10) {
-                    console.log(`API failures exceed limit: ${failures}: aborting update`);
-                    clearInterval(updateInterval);
-                }
+                console.log(`namespace pods request failed: ${req3.status}: ${req3.responseText}`);
                 return;
             }
 

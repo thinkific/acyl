@@ -891,7 +891,7 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	pl, err := api.kr.GetK8sEnvPodList(context.Background(), k8senv.Namespace)
+	pl, err := api.kr.GetK8sEnvPodList(r.Context(), k8senv.Namespace)
 	if err != nil {
 		api.rlogger(r).Logf("error getting pod list for k8s env: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)

@@ -10,8 +10,8 @@ application:
   image: quay.io/dollarshaveclub/acyl
   value_overrides:
     - "app.ui.enforce_oauth=true"
-    - "ingress.traefik.enabled=true"
-    - "ingress.traefik.tls_secret_name=cert-dqa-email"
+# uncomment to disable traefik ingress
+#    - "ingress.traefik.enabled=false"
 # uncomment to use in-environment Furan
 #    - "app.furan_addr=furan:4001"
 # local:
