@@ -135,7 +135,7 @@ func stubPodData(ns string) *v1.PodList {
 	pod.Namespace = ns
 	pod.Labels = map[string]string{"app": "foo-app"}
 	pod.Status.Phase = "Running"
-	pod.CreationTimestamp.Time = time.Now().UTC()
+	pod.CreationTimestamp.Time = time.Now().UTC().Add(-3*time.Hour).Add(-37 * time.Minute).Add(-33 * time.Second)
 
 	podContainerStatus.Name = "bar-app"
 	pod2 := v1.Pod{
@@ -152,7 +152,7 @@ func stubPodData(ns string) *v1.PodList {
 	pod2.Name = "bar-app-abc123"
 	pod2.Namespace = ns
 	pod2.Labels = map[string]string{"app": "bar-app"}
-	pod2.CreationTimestamp.Time = time.Now().UTC()
+	pod2.CreationTimestamp.Time = time.Now().UTC().Add(-3*time.Hour).Add(-37 * time.Minute).Add(-33 * time.Second)
 
 	return &v1.PodList{
 		Items: []v1.Pod{

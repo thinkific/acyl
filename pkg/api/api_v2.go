@@ -899,7 +899,7 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	for _, p := range pl {
-
+		age, err := time.ParseDuration(p.Age.String())
 		if err != nil {
 			api.rlogger(r).Logf("error parsing pod age: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -910,7 +910,7 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 			Ready: p.Ready,
 			Status: p.Status,
 			Restarts: fmt.Sprintf("%v", p.Restarts),
-			Age: p.Age.String(),
+			Age: age.Round(time.Second).String(),
 		})
 	}
 	w.Header().Add("Content-Type", "application/json")
