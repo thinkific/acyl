@@ -12,7 +12,6 @@ const pollingIntervalMilliseconds = 750;
 let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
-let env_name = "";
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
 function millisToMinutesAndSeconds(millis) {
@@ -608,8 +607,31 @@ function randomIntFromInterval(min, max) { // min and max included
     return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
+// getNamespacePods gets and renders the namespace pod list
+function getNamespacePods(env_name) {
+    let req = new XMLHttpRequest();
+
+    req.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pods`, true);
+    req.onload = function (e) {
+        if (req.status !== 200) {
+            console.log(`namespace pods request failed: ${req.status}: ${req.responseText}`);
+            return;
+        }
+
+        let podListData = JSON.parse(req.response);
+        if (podListData !== null) {
+            renderPodList(podListData);
+        }
+    };
+    req.onerror = function (e) {
+        console.error(`error getting namespace pod endpoint for ${env_name}: ${req.statusText}`);
+    };
+
+    req.send();
+}
+
 async function update() {
-    let req = new XMLHttpRequest(), req2 = new XMLHttpRequest(), req3 = new XMLHttpRequest();
+    let req = new XMLHttpRequest(), req2 = new XMLHttpRequest();
 
     req.open('GET', statusEndpoint, true);
     req.onload = function(e) {
@@ -627,9 +649,7 @@ async function update() {
 
         if (data.hasOwnProperty('config')) {
             if (data.config.env_name !== null) {
-                env_name = data.config.env_name;
-                // req3 (namespace/pods) requires env_name
-                req3.send(null);
+                getNamespacePods(data.config.env_name);
             }
             updateConfig(data.config);
         } else {
@@ -675,24 +695,6 @@ async function update() {
     req2.onerror = function(e) {
         console.error(`error getting event log endpoint: ${req2.statusText}`);
     };
-
-    if (env_name !== "") {
-        req3.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pods`, true);
-        req3.onload = function (e) {
-            if (req3.status !== 200) {
-                console.log(`namespace pods request failed: ${req3.status}: ${req3.responseText}`);
-                return;
-            }
-
-            let data3 = JSON.parse(req3.response);
-            if (data3 !== null) {
-                renderPodList(data3);
-            }
-        };
-        req3.onerror = function (e) {
-            console.error(`error getting namespace pod endpoint for ${env_name}: ${req3.statusText}`);
-        };
-    }
 
     // add some jitter to make the display seem smoother
     await sleep(randomIntFromInterval(1, 500));
