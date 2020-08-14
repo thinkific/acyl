@@ -89,7 +89,7 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 
 	pl3 := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
 		LockDelay: time.Second,
-		LockWait:  time.Second,
+		LockWait:  2 * time.Second,
 	})
 
 	// New PreemptiveLocker should be able to acquire lock now
