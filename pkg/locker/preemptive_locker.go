@@ -145,7 +145,7 @@ func (p *PreemptiveLocker) Lock(ctx context.Context, event string) (ch <-chan No
 	return ch, nil
 }
 
-// Release releases the lock
+// Release releases the lock. Should likely pass context.Background()
 func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
 	span, ctx := p.startSpanFromContext(ctx, "release")
 	defer func() {
@@ -155,8 +155,7 @@ func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
 	if p.lock == nil {
 		return errors.New("attempting to Release before the lock has been locked")
 	}
-
-	err = p.lock.Unlock(context.Background())
+	err = p.lock.Unlock(ctx)
 	if err != nil {
 		p.log(ctx, "error unlocking lock: %v", err)
 	}

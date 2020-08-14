@@ -77,7 +77,7 @@ func (r *Reaper) Reap() {
 		r.logger.Printf("error locking: %v", err)
 		return
 	}
-	defer lock.Unlock(ctx)
+	defer lock.Unlock(context.Background())
 
 	err = r.pruneDestroyedRecords(ctx)
 	if err != nil {

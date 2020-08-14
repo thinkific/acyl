@@ -26,7 +26,6 @@ func (fls *fakeLockStore) store(key string, lock *FakePreemptableLock) {
 	_, found := fls.locks[key]
 	if !found {
 		l := make(chan struct{}, 1)
-		l <- struct{}{}
 		fls.locks[key] = &fakeLockStoreEntry{
 			contenders: []*FakePreemptableLock{},
 			lock:       l,
@@ -58,7 +57,7 @@ func (fls *fakeLockStore) lock(ctx context.Context, key string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-entry.lock:
+	case entry.lock <- struct{}{}:
 		return nil
 	}
 }
@@ -68,12 +67,8 @@ func (fls *fakeLockStore) unlock(ctx context.Context, key string, id uuid.UUID) 
 	defer fls.mutex.Unlock()
 	fls.delete(key, id)
 	entry := fls.locks[key]
-	select {
-	case entry.lock <- struct{}{}:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	go func() { <-entry.lock }()
+	return nil
 }
 
 func (fls *fakeLockStore) notify(ctx context.Context, key string, id uuid.UUID) error {
@@ -86,15 +81,14 @@ func (fls *fakeLockStore) notify(ctx context.Context, key string, id uuid.UUID) 
 		if lock.id == id {
 			continue
 		}
-		// Note: Possible want this in a separate go routine?
-		go func() {
+		go func(l *FakePreemptableLock) {
+			l.preempt <- NotificationPayload{
+				ID:        l.id,
+				Message:   l.event,
+				Preempted: true,
+			}
+		}(lock)
 
-		}()
-		lock.preempt <- NotificationPayload{
-			ID:        lock.id,
-			Message:   lock.event,
-			Preempted: true,
-		}
 	}
 	return nil
 }

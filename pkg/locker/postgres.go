@@ -73,11 +73,6 @@ func (psc *postgresSessionController) sendKeepAlive(ctx context.Context) error {
 	return psc.conn.PingContext(ctx)
 }
 
-// The postgresSessionController does not manage the connection, so we do not want to close it here
-func (psc *postgresSessionController) close() {
-	close(psc.sessionErr)
-}
-
 type postgresLock struct {
 	// A unique id for this lock. This way, we can determine if the notifications we receive are from other locks.
 	id  uuid.UUID
@@ -134,11 +129,6 @@ func newPostgresLock(ctx context.Context, db *sqlx.DB, key, connInfo, message st
 	}()
 
 	psc := newPostgresSessionController(ctx, defaultKeepAlivePeriod, conn, defaultFailureThreshold)
-	defer func() {
-		if err != nil {
-			psc.close()
-		}
-	}()
 
 	go func() {
 		psc.run(ctx)
@@ -170,12 +160,18 @@ func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener)
 			}
 			return
 		case err := <-pl.psc.sessionErr:
-			pl.preempted <- NotificationPayload{
-				ID:      pl.id,
-				Message: err.Error(),
+			if err != nil {
+				pl.preempted <- NotificationPayload{
+					ID:      pl.id,
+					Message: err.Error(),
+				}
 			}
 			return
 		case notification := <-listener.Notify:
+			if notification == nil {
+				pl.log(ctx, "received nil notiifcation")
+				return
+			}
 			payload := notification.Extra
 			np := NotificationPayload{}
 			if err := json.Unmarshal([]byte(payload), &np); err != nil {
@@ -201,7 +197,6 @@ func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener)
 }
 
 func (pl *postgresLock) Notify(ctx context.Context) error {
-	q := `NOTIFY $1, $2`
 	np := NotificationPayload{
 		ID:        pl.id,
 		Message:   pl.message,
@@ -211,7 +206,8 @@ func (pl *postgresLock) Notify(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("unable to encode NotificationPayload: %v", err)
 	}
-	_, err = pl.conn.ExecContext(ctx, q, pl.key, string(b))
+	q := fmt.Sprintf("NOTIFY  %s, %s", pq.QuoteIdentifier(pl.key), pq.QuoteLiteral(string(b)))
+	_, err = pl.conn.ExecContext(ctx, q)
 	if err != nil {
 		return fmt.Errorf("unable to execute postgres notify command: %v", err)
 	}
@@ -234,7 +230,8 @@ func (pl *postgresLock) Unlock(ctx context.Context) error {
 		pl.destroy(ctx)
 	}()
 
-	q := `pg_advisory_unlock($1)`
+	// TODO: Consider additional measures to reduce the chance of collision
+	q := `SELECT pg_advisory_unlock($1)`
 	_, err := pl.conn.ExecContext(context.Background(), q, pl.sum32)
 	if err != nil {
 		return fmt.Errorf("unable to unlock advisory lock: %v", err)
@@ -243,7 +240,7 @@ func (pl *postgresLock) Unlock(ctx context.Context) error {
 }
 
 func (pl *postgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error) {
-	query := `pg_advisory_lock($1)`
+	query := `SELECT pg_advisory_lock($1)`
 	advLockContext, cancel := context.WithTimeout(ctx, lockWait)
 	defer cancel()
 	_, err := pl.conn.ExecContext(advLockContext, query, pl.sum32)
@@ -283,9 +280,6 @@ func (pl *postgresLock) destroy(ctx context.Context) {
 		if err != nil {
 			pl.log(ctx, "unable to close the connection")
 		}
-	}
-	if pl.psc != nil {
-		pl.psc.close()
 	}
 }
 

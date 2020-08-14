@@ -32,7 +32,7 @@ jobs:
       - run:
           name: Running tests
           working_directory: /go/src/github.com/dollarshaveclub/acyl
-          command: go test -cover $(go list ./... |grep -v pkg/persistence |grep -v pkg/api)
+          command: go test -cover $(go list ./... |grep -v pkg/persistence |grep -v pkg/api| grep -v pkg/locker)
       - run:
           name: Running DB tests
           working_directory: /go/src/github.com/dollarshaveclub/acyl/pkg/persistence
@@ -45,7 +45,13 @@ jobs:
           command: go test -cover
           environment:
             POSTGRES_ALREADY_RUNNING: 1
-  
+      - run:
+          name: Running Locker tests
+          working_directory: /go/src/github.com/dollarshaveclub/acyl/pkg/locker
+          command: go test -cover
+          environment:
+            POSTGRES_ALREADY_RUNNING: 1
+
   nitro_integration:
     docker:
       - image: docker:stable-git
@@ -58,7 +64,7 @@ jobs:
       - run:
           name: Building container image
           command: docker build -t quay.io/dollarshaveclub/acyl:${CIRCLE_SHA1}-integration .
-      - run: 
+      - run:
           name: Pushing container image
           command: docker push quay.io/dollarshaveclub/acyl:${CIRCLE_SHA1}-integration
       - run:

@@ -48,7 +48,7 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 	testEvent := "update"
 	pl := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
 		LockDelay: time.Second,
-		LockWait:  100 * time.Millisecond,
+		LockWait:  time.Second,
 	})
 
 	// Should be able to lock
@@ -76,20 +76,21 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 		t.Fatalf("should have failed to acquire second lock on same key")
 	}
 
-	go func() {
-		select {
-		case <-preempt:
-			// first lock was preempted, release the lock
-			err := pl.Release(context.Background())
-			if err != nil {
-				t.Errorf("error releasing the lock: %v", err)
-			}
+	select {
+	case <-preempt:
+		// first lock was preempted, release the lock
+		err := pl.Release(context.Background())
+		if err != nil {
+			t.Fatalf("error releasing the lock: %v", err)
 		}
-	}()
+	default:
+		t.Fatalf("original lock was not preempted")
+
+	}
 
 	pl3 := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
 		LockDelay: time.Second,
-		LockWait:  2 * time.Second,
+		LockWait:  time.Second,
 	})
 
 	// New PreemptiveLocker should be able to acquire lock now
