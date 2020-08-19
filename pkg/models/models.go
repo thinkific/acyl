@@ -77,6 +77,7 @@ type RepoRevisionData struct {
 	BaseBranch   string `json:"base_branch"`
 	SourceRef    string `json:"source_ref"` // if environment is not based on a PR
 	IsFork       bool   `json:"is_fork"`    // set if PR head is from a different repo (fork) from base
+	RepoID       int32  `json:"repo_id"`
 }
 
 // QAEnvironment describes an individual QA environment

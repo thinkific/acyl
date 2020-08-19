@@ -61,7 +61,7 @@ func runTests(t *testing.T, plfunc pLFactoryFunc) {
 }
 
 func testLockAndUnlock(t *testing.T, lp LockProvider) {
-	lock, err := lp.AcquireLock(context.Background(), "some_key", "some-event")
+	lock, err := lp.AcquireLock(context.Background(), 0, 0, "some-event")
 	if err != nil {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}
@@ -77,7 +77,7 @@ func testLockAndUnlock(t *testing.T, lp LockProvider) {
 		}
 	}()
 
-	newLock, err := lp.AcquireLock(context.Background(), "some_key", "new-event")
+	newLock, err := lp.AcquireLock(context.Background(), 0, 0, "new-event")
 	if err != nil {
 		t.Fatalf("unable to lock: %v", err)
 	}
@@ -97,12 +97,12 @@ func testLockAndUnlock(t *testing.T, lp LockProvider) {
 }
 
 func testPreemption(t *testing.T, lp LockProvider) {
-	lock, err := lp.AcquireLock(context.Background(), "some_key", "some-event")
+	lock, err := lp.AcquireLock(context.Background(), 0, 0, "some-event")
 	if err != nil {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}
 
-	lock2, err := lp.AcquireLock(context.Background(), "some_key", "new-event")
+	lock2, err := lp.AcquireLock(context.Background(), 0, 0, "new-event")
 	if err != nil {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}

@@ -54,6 +54,7 @@ type GitHubPRReference struct {
 type GitHubEventRepository struct {
 	Name     string `json:"name"`
 	FullName string `json:"full_name"`
+	ID       int32  `json:"id"`
 }
 
 // GitHubEventPullRequest models a pull request in a GH webhook
@@ -157,6 +158,7 @@ func (ge *GitHubEventWebhook) generateRepoMetadataPR(event *GitHubEvent) *models
 	return &models.RepoRevisionData{
 		User:         event.PullRequest.User.Login,
 		Repo:         event.Repository.FullName,
+		RepoID:       event.Repository.ID,
 		PullRequest:  event.PullRequest.Number,
 		SourceSHA:    event.PullRequest.Head.SHA,
 		BaseSHA:      event.PullRequest.Base.SHA,

@@ -16,13 +16,14 @@ type fakeLockStoreEntry struct {
 
 // fakeLockStore stores all of the local preemptable locks
 type fakeLockStore struct {
-	locks map[string]*fakeLockStoreEntry
+	locks map[[2]int32]*fakeLockStoreEntry
 	mutex sync.Mutex
 }
 
-func (fls *fakeLockStore) store(key string, lock *FakePreemptableLock) {
+func (fls *fakeLockStore) store(key1, key2 int32, lock *FakePreemptableLock) {
 	fls.mutex.Lock()
 	defer fls.mutex.Unlock()
+	key := [2]int32{key1, key2}
 	_, found := fls.locks[key]
 	if !found {
 		l := make(chan struct{}, 1)
@@ -34,8 +35,9 @@ func (fls *fakeLockStore) store(key string, lock *FakePreemptableLock) {
 	fls.locks[key].contenders = append(fls.locks[key].contenders, lock)
 }
 
-func (fls *fakeLockStore) delete(key string, id uuid.UUID) {
+func (fls *fakeLockStore) delete(key1, key2 int32, id uuid.UUID) {
 	// assumes the mutex is already held
+	key := [2]int32{key1, key2}
 	var index int
 	for i, lock := range fls.locks[key].contenders {
 		if lock.id == id {
@@ -50,9 +52,10 @@ func (fls *fakeLockStore) delete(key string, id uuid.UUID) {
 	fls.locks[key].contenders = fls.locks[key].contenders[:length-1]
 }
 
-func (fls *fakeLockStore) lock(ctx context.Context, key string) error {
+func (fls *fakeLockStore) lock(ctx context.Context, key1, key2 int32) error {
 	fls.mutex.Lock()
 	defer fls.mutex.Unlock()
+	key := [2]int32{key1, key2}
 	entry := fls.locks[key]
 	select {
 	case <-ctx.Done():
@@ -62,18 +65,20 @@ func (fls *fakeLockStore) lock(ctx context.Context, key string) error {
 	}
 }
 
-func (fls *fakeLockStore) unlock(ctx context.Context, key string, id uuid.UUID) error {
+func (fls *fakeLockStore) unlock(ctx context.Context, key1, key2 int32, id uuid.UUID) error {
 	fls.mutex.Lock()
 	defer fls.mutex.Unlock()
-	fls.delete(key, id)
+	fls.delete(key1, key2, id)
+	key := [2]int32{key1, key2}
 	entry := fls.locks[key]
 	go func() { <-entry.lock }()
 	return nil
 }
 
-func (fls *fakeLockStore) notify(ctx context.Context, key string, id uuid.UUID) error {
+func (fls *fakeLockStore) notify(ctx context.Context, key1, key2 int32, id uuid.UUID) error {
 	fls.mutex.Lock()
 	defer fls.mutex.Unlock()
+	key := [2]int32{key1, key2}
 	if _, ok := fls.locks[key]; !ok {
 		return nil
 	}
@@ -101,12 +106,12 @@ type FakeLockProvider struct {
 func NewFakeLockProvider() *FakeLockProvider {
 	return &FakeLockProvider{
 		store: &fakeLockStore{
-			locks: make(map[string]*fakeLockStoreEntry),
+			locks: make(map[[2]int32]*fakeLockStoreEntry),
 		},
 	}
 }
 
-func (flp *FakeLockProvider) AcquireLock(ctx context.Context, key, event string) (PreemptableLock, error) {
+func (flp *FakeLockProvider) AcquireLock(ctx context.Context, key1, key2 int32, event string) (PreemptableLock, error) {
 	id, err := uuid.NewUUID()
 	if err != nil {
 		return nil, err
@@ -116,9 +121,10 @@ func (flp *FakeLockProvider) AcquireLock(ctx context.Context, key, event string)
 		preempt: make(chan NotificationPayload, 1000),
 		store:   flp.store,
 		event:   event,
-		key:     key,
+		key1:    key1,
+		key2:    key2,
 	}
-	flp.store.store(key, l)
+	flp.store.store(key1, key2, l)
 	return l, nil
 }
 
@@ -126,14 +132,15 @@ type FakePreemptableLock struct {
 	store   *fakeLockStore
 	id      uuid.UUID
 	event   string
-	key     string
+	key1    int32
+	key2    int32
 	preempt chan NotificationPayload
 }
 
 func (fpl *FakePreemptableLock) Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error) {
 	lockCtx, cancel := context.WithTimeout(ctx, lockWait)
 	defer cancel()
-	err := fpl.store.lock(lockCtx, fpl.key)
+	err := fpl.store.lock(lockCtx, fpl.key1, fpl.key2)
 	if err != nil {
 		return nil, fmt.Errorf("unable to lock fake preemptable lock: %v", err)
 	}
@@ -141,9 +148,9 @@ func (fpl *FakePreemptableLock) Lock(ctx context.Context, lockWait time.Duration
 }
 
 func (fpl *FakePreemptableLock) Unlock(ctx context.Context) error {
-	return fpl.store.unlock(ctx, fpl.key, fpl.id)
+	return fpl.store.unlock(ctx, fpl.key1, fpl.key2, fpl.id)
 }
 
 func (fpl *FakePreemptableLock) Notify(ctx context.Context) error {
-	return fpl.store.notify(ctx, fpl.key, fpl.id)
+	return fpl.store.notify(ctx, fpl.key1, fpl.key2, fpl.id)
 }

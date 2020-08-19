@@ -46,9 +46,12 @@ func TestLockingOperation(t *testing.T) {
 			LockWait:  1 * time.Second,
 		},
 	}
+	repoID := int32(1)
+	pr := int32(1)
+	repoName := "foo"
 	preemptedFunc := func(ctx context.Context) error {
 		timer := time.NewTimer(10 * time.Second)
-		pl := locker.NewPreemptiveLocker(m.LP, "foo/1", m.PLO)
+		pl := locker.NewPreemptiveLocker(m.LP, repoID, pr, m.PLO)
 
 		pl.Lock(ctx, "update")
 		defer pl.Release(context.Background())
@@ -70,12 +73,14 @@ func TestLockingOperation(t *testing.T) {
 		}
 	}
 	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
-	if err := m.lockingOperation(ctx, "foo", "1", preemptedFunc); err != nil {
+	if err := m.lockingOperation(ctx, repoName, repoID, pr, preemptedFunc); err != nil {
 		t.Fatalf("should have been preempted: %v", err)
 	}
 
+	// New PR
+	pr++
 	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), el)
-	err := m.lockingOperation(ctx2, "foo", "2", longOpFunc)
+	err := m.lockingOperation(ctx2, repoName, repoID, pr, longOpFunc)
 	if err == nil {
 		t.Fatalf("should have timed out")
 	}

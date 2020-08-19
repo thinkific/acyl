@@ -7,7 +7,6 @@ import (
 	"html/template"
 	"io"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghapp"
@@ -216,12 +215,12 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 }
 
 // lockingOperation sets up the lock and if successful executes f, releasing the lock afterward
-func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(ctx context.Context) error) (err error) {
+func (m *Manager) lockingOperation(ctx context.Context, repoName string, repoID, pr int32, f func(ctx context.Context) error) (err error) {
 	ctx, cf := context.WithCancel(ctx)
 	defer cf()
 
-	end := m.MC.Timing(mpfx+"lock_wait", "triggering_repo:"+repo)
-	lock := locker.NewPreemptiveLocker(m.LP, fmt.Sprintf("%s/%s", repo, pr), m.PLO)
+	end := m.MC.Timing(mpfx+"lock_wait", "triggering_repo:"+repoName)
+	lock := locker.NewPreemptiveLocker(m.LP, repoID, pr, m.PLO)
 	preempt, err := lock.Lock(ctx, "event") // TODO: consider adding more detailed event information
 	if err != nil {
 		end("success:false")
@@ -234,18 +233,18 @@ func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(
 	go func() {
 		select {
 		case np := <-preempt: // Lock got preempted, cancel action
-			m.MC.Increment(mpfx+"lock_preempt", "triggering_repo:"+repo)
-			m.log(ctx, "operation preempted: %v: %v, %v", repo, pr, np)
+			m.MC.Increment(mpfx+"lock_preempt", "triggering_repo:"+repoName)
+			m.log(ctx, "operation preempted: %v: %v, %v", repoName, pr, np)
 			eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		case <-stop:
 		}
 		cf()
 	}()
-	endop := m.MC.Timing(mpfx+"operation", "triggering_repo:"+repo)
+	endop := m.MC.Timing(mpfx+"operation", "triggering_repo:"+repoName)
 	err = f(ctx)
 	if err != nil {
 		eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
-		m.log(ctx, "operation error (user: %v, sys: %v): %v: %v: %v", nitroerrors.IsUserError(err), nitroerrors.IsSystemError(err), repo, pr, err)
+		m.log(ctx, "operation error (user: %v, sys: %v): %v: %v: %v", nitroerrors.IsUserError(err), nitroerrors.IsSystemError(err), repoName, pr, err)
 	}
 	endop(fmt.Sprintf("success:%v", err == nil), fmt.Sprintf("user_error:%v", nitroerrors.IsUserError(err)), fmt.Sprintf("system_error:%v", nitroerrors.IsSystemError(err)))
 	return err
@@ -255,7 +254,7 @@ func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(
 func (m *Manager) Create(ctx context.Context, rd models.RepoRevisionData) (string, error) {
 	var err error
 	var name string
-	err = m.lockingOperation(ctx, rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
+	err = m.lockingOperation(ctx, rd.Repo, rd.RepoID, int32(rd.PullRequest), func(ctx context.Context) error {
 		name, err = m.create(ctx, &rd)
 		return err
 	})
@@ -544,7 +543,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 // Delete destroys an environment in k8s and marks it as such in the DB
 func (m *Manager) Delete(ctx context.Context, rd *models.RepoRevisionData, reason models.QADestroyReason) error {
 	var err error
-	err = m.lockingOperation(ctx, rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
+	err = m.lockingOperation(ctx, rd.Repo, rd.RepoID, int32(rd.PullRequest), func(ctx context.Context) error {
 		return m.delete(ctx, rd, reason)
 	})
 	return err
@@ -670,7 +669,7 @@ func (m *Manager) deleteNamespace(ctx context.Context, k8senv *models.Kubernetes
 func (m *Manager) Update(ctx context.Context, rd models.RepoRevisionData) (string, error) {
 	var err error
 	var name string
-	err = m.lockingOperation(ctx, rd.Repo, strconv.Itoa(int(rd.PullRequest)), func(ctx context.Context) error {
+	err = m.lockingOperation(ctx, rd.Repo, rd.RepoID, int32(rd.PullRequest), func(ctx context.Context) error {
 		name, err = m.update(ctx, &rd)
 		return err
 	})

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
@@ -88,11 +87,8 @@ type postgresLock struct {
 	// psc allows the lock to determine if there are any issues with the underlying postgres connection
 	psc *postgresSessionController
 
-	// key is the key that will be locked. For Acyl, this might typically be the Repo/PR combination
-	key string
-
-	// sum32 is the checksum value for the key. Required because postgres advisory locks require uint32 as the key
-	sum32 uint32
+	// 2 keys used to obtain a lock
+	key1, key2 int32
 
 	// We want to use a single connection as the Advisory Lock we will be using will be a session-level lock
 	// This means that the lock is released in 2 conditions:
@@ -113,18 +109,15 @@ type postgresLock struct {
 
 	// message represents a message to use when notifying other lock holders that their operation has been preempted
 	message string
+
+	// notificationChannel is the listen/notify channel for this lock
+	notificationChannel string
 }
 
-func newPostgresLock(ctx context.Context, db *sqlx.DB, key, connInfo, message string) (pl *postgresLock, err error) {
+func newPostgresLock(ctx context.Context, db *sqlx.DB, key1, key2 int32, connInfo, message string) (pl *postgresLock, err error) {
 	id, err := uuid.NewUUID()
 	if err != nil {
 		return nil, err
-	}
-
-	// TODO: Consider additional measures to reduce the chance of collision
-	sum32, err := hashSum32([]byte(key))
-	if err != nil {
-		return nil, fmt.Errorf("unable to obtain hash sum32 for key %s: %v", key, err)
 	}
 
 	conn, err := db.Conn(ctx)
@@ -144,14 +137,15 @@ func newPostgresLock(ctx context.Context, db *sqlx.DB, key, connInfo, message st
 	}()
 
 	pl = &postgresLock{
-		id:          id,
-		psc:         psc,
-		key:         key,
-		sum32:       sum32,
-		conn:        conn,
-		postgresURI: connInfo,
-		preempted:   make(chan NotificationPayload),
-		message:     message,
+		id:                  id,
+		psc:                 psc,
+		key1:                key1,
+		key2:                key2,
+		conn:                conn,
+		postgresURI:         connInfo,
+		preempted:           make(chan NotificationPayload),
+		message:             message,
+		notificationChannel: fmt.Sprintf("%d,%d", key1, key2),
 	}
 	return pl, nil
 }
@@ -214,21 +208,12 @@ func (pl *postgresLock) Notify(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("unable to encode NotificationPayload: %v", err)
 	}
-	q := fmt.Sprintf("NOTIFY  %s, %s", pq.QuoteIdentifier(pl.key), pq.QuoteLiteral(string(b)))
+	q := fmt.Sprintf("NOTIFY  %s, %s", pq.QuoteIdentifier(pl.notificationChannel), pq.QuoteLiteral(string(b)))
 	_, err = pl.conn.ExecContext(ctx, q)
 	if err != nil {
 		return fmt.Errorf("unable to execute postgres notify command: %v", err)
 	}
 	return nil
-}
-
-func hashSum32(data []byte) (uint32, error) {
-	h := fnv.New32a()
-	n, err := h.Write(data)
-	if n == 0 || err != nil {
-		return 0, fmt.Errorf("unable to write to hash: %v", err)
-	}
-	return h.Sum32(), nil
 }
 
 func (pl *postgresLock) Unlock(ctx context.Context) error {
@@ -239,9 +224,9 @@ func (pl *postgresLock) Unlock(ctx context.Context) error {
 		pl.destroy(context.Background())
 	}()
 
-	q := `SELECT pg_advisory_unlock($1)`
+	q := `SELECT pg_advisory_unlock($1, $2)`
 	// TODO (mk): Should we use the passed context or protect users from passing in canceled contexts?
-	_, err := pl.conn.ExecContext(context.Background(), q, pl.sum32)
+	_, err := pl.conn.ExecContext(context.Background(), q, pl.key1, pl.key2)
 	if err != nil {
 		return fmt.Errorf("unable to unlock advisory lock: %v", err)
 	}
@@ -249,10 +234,10 @@ func (pl *postgresLock) Unlock(ctx context.Context) error {
 }
 
 func (pl *postgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error) {
-	query := `SELECT pg_advisory_lock($1)`
+	query := `SELECT pg_advisory_lock($1, $2)`
 	advLockContext, cancel := context.WithTimeout(ctx, lockWait)
 	defer cancel()
-	_, err := pl.conn.ExecContext(advLockContext, query, pl.sum32)
+	_, err := pl.conn.ExecContext(advLockContext, query, pl.key1, pl.key2)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create pg advisory lock: %v", err)
 	}
@@ -265,7 +250,7 @@ func (pl *postgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-cha
 	}
 
 	listener := pq.NewListener(pl.postgresURI, 10*time.Second, time.Minute, handleEvents)
-	err = listener.Listen(pl.key)
+	err = listener.Listen(pl.notificationChannel)
 	if err != nil {
 		return nil, fmt.Errorf("unable to establish listener: %v", err)
 	}
@@ -318,6 +303,6 @@ func NewPostgresLockProvider(postgresURI, datadogServiceName string, enableTraci
 	return &PostgresLockProvider{db: db, connInfo: postgresURI}, nil
 }
 
-func (plp *PostgresLockProvider) AcquireLock(ctx context.Context, key, event string) (PreemptableLock, error) {
-	return newPostgresLock(ctx, plp.db, key, plp.connInfo, event)
+func (plp *PostgresLockProvider) AcquireLock(ctx context.Context, key1, key2 int32, event string) (PreemptableLock, error) {
+	return newPostgresLock(ctx, plp.db, key1, key2, plp.connInfo, event)
 }

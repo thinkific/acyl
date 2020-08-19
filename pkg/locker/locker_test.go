@@ -8,8 +8,8 @@ import (
 
 func TestPreemptiveLockerReleaseBeforeLock(t *testing.T) {
 	lp := NewFakeLockProvider()
-	testKey := "foo"
-	pl := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
+	testKey1, testKey2 := int32(0), int32(0)
+	pl := NewPreemptiveLocker(lp, testKey1, testKey2, PreemptiveLockerOpts{
 		LockDelay: time.Second,
 		LockWait:  100 * time.Millisecond,
 	})
@@ -23,13 +23,13 @@ func TestPreemptiveLockerReleaseBeforeLock(t *testing.T) {
 
 func TestPreemptLockerLocksOnlyOnce(t *testing.T) {
 	lp := NewFakeLockProvider()
-	testKey := "foo"
-	testEvent := "update"
-	pl := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
+	testKey1, testKey2 := int32(0), int32(0)
+	pl := NewPreemptiveLocker(lp, testKey1, testKey2, PreemptiveLockerOpts{
 		LockDelay: time.Second,
 		LockWait:  100 * time.Millisecond,
 	})
 
+	testEvent := "update"
 	_, err := pl.Lock(context.Background(), testEvent)
 	if err != nil {
 		t.Fatalf("unexpected error when locking: %v", err)
@@ -44,14 +44,13 @@ func TestPreemptLockerLocksOnlyOnce(t *testing.T) {
 
 func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 	lp := NewFakeLockProvider()
-	testKey := "foo"
-	testEvent := "update"
-	pl := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
+	testKey1, testKey2 := int32(0), int32(0)
+	pl := NewPreemptiveLocker(lp, testKey1, testKey2, PreemptiveLockerOpts{
 		LockDelay: time.Second,
 		LockWait:  time.Second,
 	})
-
 	// Should be able to lock
+	testEvent := "update"
 	preempt, err := pl.Lock(context.Background(), testEvent)
 	if err != nil {
 		t.Fatalf("unexpected error when locking: %v", err)
@@ -65,7 +64,7 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 		break
 	}
 
-	pl2 := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
+	pl2 := NewPreemptiveLocker(lp, testKey1, testKey2, PreemptiveLockerOpts{
 		LockDelay: time.Second,
 		LockWait:  time.Second,
 	})
@@ -88,7 +87,7 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 
 	}
 
-	pl3 := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
+	pl3 := NewPreemptiveLocker(lp, testKey1, testKey2, PreemptiveLockerOpts{
 		LockDelay: time.Second,
 		LockWait:  time.Second,
 	})
@@ -101,14 +100,14 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 }
 func TestPreemptiveLockerLockDelay(t *testing.T) {
 	lp := NewFakeLockProvider()
-	testKey := "foo"
-	testEvent := "update"
+	testKey1, testKey2 := int32(0), int32(0)
 	lockDelay := time.Second
-	pl := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
+	pl := NewPreemptiveLocker(lp, testKey1, testKey2, PreemptiveLockerOpts{
 		LockDelay: lockDelay,
 		LockWait:  100 * time.Millisecond,
 	})
 	start := time.Now()
+	testEvent := "update"
 	_, err := pl.Lock(context.Background(), testEvent)
 	if err != nil {
 		t.Fatalf("unexpected error locking: %v", err)
@@ -121,10 +120,10 @@ func TestPreemptiveLockerLockDelay(t *testing.T) {
 
 func TestNewPreemptiveLockerCancelledContext(t *testing.T) {
 	lp := NewFakeLockProvider()
-	testKey := "foo"
+	testKey1, testKey2 := int32(0), int32(0)
 	testEvent := "update"
 	lockDelay := time.Second
-	pl := NewPreemptiveLocker(lp, testKey, PreemptiveLockerOpts{
+	pl := NewPreemptiveLocker(lp, testKey1, testKey2, PreemptiveLockerOpts{
 		LockDelay: lockDelay,
 		LockWait:  100 * time.Millisecond,
 	})

@@ -13,14 +13,13 @@ import (
 )
 
 var (
-	defaultSessionTTL   = 30 * time.Second
 	defaultLockWaitTime = (30 * time.Minute) + (30 * time.Second) // global async timeout is 30 minutes
 	defaultLockDelay    = 15 * time.Second
 )
 
 // LockProvider describes an object capable of creating locks
 type LockProvider interface {
-	AcquireLock(ctx context.Context, key, event string) (PreemptableLock, error)
+	AcquireLock(ctx context.Context, key1, key2 int32, event string) (PreemptableLock, error)
 }
 
 // NotificationPayload represents the content of messages sent to the lock holder.
@@ -46,10 +45,10 @@ type NotificationPayload struct {
 // - Client C's invocation of Lock() returns successfully
 //
 type PreemptiveLocker struct {
-	lp   LockProvider
-	lock PreemptableLock
-	opts PreemptiveLockerOpts
-	key  string
+	lp         LockProvider
+	lock       PreemptableLock
+	opts       PreemptiveLockerOpts
+	key1, key2 int32
 }
 
 // PreemptableLock describes an object that acts as a Lock that can signal to peers that they should unlock
@@ -83,7 +82,7 @@ type PreemptiveLockerOpts struct {
 }
 
 // NewPreemptiveLocker returns a new preemptive locker or an error
-func NewPreemptiveLocker(provider LockProvider, key string, opts PreemptiveLockerOpts) *PreemptiveLocker {
+func NewPreemptiveLocker(provider LockProvider, key1, key2 int32, opts PreemptiveLockerOpts) *PreemptiveLocker {
 	if opts.LockWait == 0 {
 		opts.LockWait = defaultLockWaitTime
 	}
@@ -93,7 +92,8 @@ func NewPreemptiveLocker(provider LockProvider, key string, opts PreemptiveLocke
 	return &PreemptiveLocker{
 		lp:   provider,
 		opts: opts,
-		key:  key,
+		key1: key1,
+		key2: key2,
 	}
 }
 
@@ -128,7 +128,7 @@ func (p *PreemptiveLocker) Lock(ctx context.Context, event string) (ch <-chan No
 	if p.lock != nil {
 		return nil, errors.New("single use lock attempted to be reused")
 	}
-	lock, err := p.lp.AcquireLock(ctx, p.key, event)
+	lock, err := p.lp.AcquireLock(ctx, p.key1, p.key2, event)
 	if err != nil {
 		return nil, fmt.Errorf("unable to acquire lock")
 	}
