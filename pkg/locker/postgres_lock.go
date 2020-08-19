@@ -80,6 +80,8 @@ func (psc *postgresSessionController) sendKeepAlive(ctx context.Context) error {
 	return psc.conn.PingContext(ctx)
 }
 
+var _ PreemptableLock = &postgresLock{}
+
 type postgresLock struct {
 	// id is a unique identifier for this lock. This way, we can determine if the notifications we receive are from other locks
 	id uuid.UUID
@@ -189,7 +191,7 @@ func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener)
 			}
 			if np.ID == pl.id {
 				pl.log(ctx, "received our own notification, ignoring")
-				return
+				continue
 			}
 			// We have received a legimate notification and the lock has been preempted.
 			pl.preempted <- np

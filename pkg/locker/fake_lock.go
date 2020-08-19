@@ -128,6 +128,8 @@ func (flp *FakeLockProvider) AcquireLock(ctx context.Context, key1, key2 int32, 
 	return l, nil
 }
 
+var _ PreemptableLock = &FakePreemptableLock{}
+
 type FakePreemptableLock struct {
 	store   *fakeLockStore
 	id      uuid.UUID
