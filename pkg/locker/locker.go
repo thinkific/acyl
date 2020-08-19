@@ -52,14 +52,17 @@ type PreemptiveLocker struct {
 	key  string
 }
 
-// PreemptableLock describes an object that acts as a Lock that can signal to peers that they should drop the lock
-// Preemptable locks are single use. Meaning, once you unlock the lock, resources will be cleaned up.
+// PreemptableLock describes an object that acts as a Lock that can signal to peers that they should unlock
+// Preemptable locks are single use. Once you unlock the lock, underlying resources will be cleaned up
 type PreemptableLock interface {
-	// TODO (mk): comments
+	// Lock locks the preemptable lock. If it's unable to obtain the lock after that timeout period, it should return an error
 	Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error)
+
+	// Unlock unlocks the preemptable lock. It should clean up any underlying resources
+	// Typically, you should pass context.Background() to this function.
 	Unlock(ctx context.Context) error
 
-	// Notify informs the current lock holder that they should release the lock
+	// Notify informs the current lock holder that they should unlock the lock
 	Notify(ctx context.Context) error
 }
 
@@ -68,7 +71,8 @@ type PreemptiveLockerOpts struct {
 	// LockWait is how long a preemtive lock will block waiting for the lock to be acquired
 	LockWait time.Duration
 
-	// LockDelay is how long to wait after a lock session has been forcefully invalidated before allowing a new client to acquire the lock
+	// LockDelay is how long the locker should wait before attempting to acquire the lock
+	// This is an imperfect, but practical way of ensuring we don't perform operations before other lock holders have realized that their session has ended
 	LockDelay time.Duration
 
 	// DatadogServiceName is the service name used for Datadog APM

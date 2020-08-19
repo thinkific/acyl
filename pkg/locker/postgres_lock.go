@@ -24,12 +24,20 @@ const (
 )
 
 type postgresSessionController struct {
-	// the number of consecutive failures before marking connection as failed
+	// failureThreshold is the number of consecutive failures before marking connection as failed
 	failureThreshold int
-	failureCount     int
-	keepAlivePeriod  time.Duration
-	sessionErr       chan error
-	conn             *sql.Conn
+
+	// failreCount is the current count of consecutive failures
+	failureCount int
+
+	// keepAlivePeriod determines how often we will ping Postgres to ensure the connection is still working
+	keepAlivePeriod time.Duration
+
+	// sessionErr allows us to propagate session errors to the user of this struct
+	sessionErr chan error
+
+	// conn is the underlying sql connection
+	conn *sql.Conn
 }
 
 func newPostgresSessionController(ctx context.Context, keepAlivePeriod time.Duration, conn *sql.Conn, failureThreshold int) *postgresSessionController {
@@ -74,21 +82,24 @@ func (psc *postgresSessionController) sendKeepAlive(ctx context.Context) error {
 }
 
 type postgresLock struct {
-	// A unique id for this lock. This way, we can determine if the notifications we receive are from other locks.
-	id  uuid.UUID
+	// id is a unique identifier for this lock. This way, we can determine if the notifications we receive are from other locks
+	id uuid.UUID
+
+	// psc allows the lock to determine if there are any issues with the underlying postgres connection
 	psc *postgresSessionController
 
-	// The key to lock. For Acyl, this might typically be the Repo/PR combination
+	// key is the key that will be locked. For Acyl, this might typically be the Repo/PR combination
 	key string
 
-	// Checksum value for the key. Required because postgres advisory locks require uint32 as the key.
+	// sum32 is the checksum value for the key. Required because postgres advisory locks require uint32 as the key
 	sum32 uint32
 
-	// We want to use a single connection as the Advisory Lock we will be using will be a session-level lock.
+	// We want to use a single connection as the Advisory Lock we will be using will be a session-level lock
 	// This means that the lock is released in 2 conditions:
 	// 1. The lock is explicitly released (e.g. via pg_advisory_unlock(key bigint))
 	// 2. The session ended (i.e. the tcp connection terminated)
-	// Using a single connection will allow us to detect if the session has ended more reliably than using a connection pool.
+	// Using a single connection will allow us to detect if the session has ended more reliably than using a connection pool
+	// conn is the single connection to postgres that will be used for the lock
 	conn *sql.Conn
 
 	// postgresURI stores the postgres connection string.
@@ -102,9 +113,6 @@ type postgresLock struct {
 
 	// message represents a message to use when notifying other lock holders that their operation has been preempted
 	message string
-
-	// lockWait
-	lockWait time.Duration
 }
 
 func newPostgresLock(ctx context.Context, db *sqlx.DB, key, connInfo, message string) (pl *postgresLock, err error) {
@@ -113,6 +121,7 @@ func newPostgresLock(ctx context.Context, db *sqlx.DB, key, connInfo, message st
 		return nil, err
 	}
 
+	// TODO: Consider additional measures to reduce the chance of collision
 	sum32, err := hashSum32([]byte(key))
 	if err != nil {
 		return nil, fmt.Errorf("unable to obtain hash sum32 for key %s: %v", key, err)
@@ -148,8 +157,7 @@ func newPostgresLock(ctx context.Context, db *sqlx.DB, key, connInfo, message st
 }
 
 // handleEvents is a blocking function.
-// It checks the multiple different channels to determine how to proceed..
-// If the context ends up being canceled, this will
+// It checks the multiple different channels to determine how to proceed
 func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener) {
 	for {
 		select {
@@ -227,11 +235,12 @@ func (pl *postgresLock) Unlock(ctx context.Context) error {
 	defer func() {
 		// Even if we fail to unlock via Postgres properly, destroying the lock should close the underlying sql.Conn.
 		// At that point, Postgres should clean up the connection.
-		pl.destroy(ctx)
+		// TODO (mk): Should we use the passed context or protect users from passing in canceled contexts?
+		pl.destroy(context.Background())
 	}()
 
-	// TODO: Consider additional measures to reduce the chance of collision
 	q := `SELECT pg_advisory_unlock($1)`
+	// TODO (mk): Should we use the passed context or protect users from passing in canceled contexts?
 	_, err := pl.conn.ExecContext(context.Background(), q, pl.sum32)
 	if err != nil {
 		return fmt.Errorf("unable to unlock advisory lock: %v", err)
@@ -249,7 +258,7 @@ func (pl *postgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-cha
 	}
 
 	handleEvents := func(event pq.ListenerEventType, err error) {
-		// TODO: Reconsider how we want to handle these events after we have enough usage
+		// TODO (mk): Reconsider how we want to handle these events after we have enough usage
 		if err != nil {
 			pl.log(ctx, "received error when handling postgres listener event: %v", err)
 		}
@@ -292,7 +301,7 @@ type PostgresLockProvider struct {
 	connInfo string
 }
 
-// NewPostgresLocker returns a PostgresLocker, which is a LockProvider.
+// NewPostgresLockProvider returns a PostgresLockProvider, which implements the LockProvider interface
 // It utilizes advisory locks and Notify / Listen in order to provide PreemptableLocks
 func NewPostgresLockProvider(postgresURI, datadogServiceName string, enableTracing bool) (*PostgresLockProvider, error) {
 	var db *sqlx.DB

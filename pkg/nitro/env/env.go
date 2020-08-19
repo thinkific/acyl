@@ -264,7 +264,6 @@ func (m *Manager) Create(ctx context.Context, rd models.RepoRevisionData) (strin
 
 // enforceGlobalLimit checks existing environments against the configured global limit.
 // If necessary, kill oldest environments to bring the environment count into compliance with the limit.
-// Assumes the lock is already held. Otherwise, if we acquired the lock, we would preempt the call to Create which calls this function.
 func (m *Manager) enforceGlobalLimit(ctx context.Context) error {
 	if m.GlobalLimit == 0 {
 		return nil
