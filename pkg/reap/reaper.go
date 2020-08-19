@@ -64,7 +64,7 @@ func (r *Reaper) Reap() {
 	defer func() {
 		reapSpan.Finish(tracer.WithError(err))
 	}()
-	lock, err := r.lp.AcquireNamedLock(lockName, lockTTL)
+	lock, err := r.lp.AcquireLock(ctx, lockName, "reap")
 	if err != nil {
 		r.logger.Printf("error trying to acquire lock: %v", err)
 		return
@@ -72,7 +72,12 @@ func (r *Reaper) Reap() {
 	if lock == nil {
 		return
 	}
-	defer lock.Release()
+	_, err = lock.Lock(ctx, 5*time.Second)
+	if err != nil {
+		r.logger.Printf("error locking: %v", err)
+		return
+	}
+	defer lock.Unlock(context.Background())
 
 	err = r.pruneDestroyedRecords(ctx)
 	if err != nil {

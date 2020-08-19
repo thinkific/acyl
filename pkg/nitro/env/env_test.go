@@ -37,16 +37,21 @@ import (
 )
 
 func TestLockingOperation(t *testing.T) {
-	c := make(chan struct{})
-	close(c)
+	el := &eventlogger.Logger{DL: persistence.NewFakeDataLayer()}
 	m := Manager{
-		LP: &locker.FakePreemptiveLockProvider{
-			ChannelFactory: func() chan struct{} { return c },
-		},
+		LP: locker.NewFakeLockProvider(),
 		MC: &metrics.FakeCollector{},
+		PLO: locker.PreemptiveLockerOpts{
+			LockDelay: 1 * time.Millisecond,
+			LockWait:  1 * time.Second,
+		},
 	}
-	f := func(ctx context.Context) error {
-		timer := time.NewTimer(10 * time.Millisecond)
+	preemptedFunc := func(ctx context.Context) error {
+		timer := time.NewTimer(10 * time.Second)
+		pl := locker.NewPreemptiveLocker(m.LP, "foo/1", m.PLO)
+
+		pl.Lock(ctx, "update")
+		defer pl.Release(context.Background())
 		select {
 		case <-timer.C:
 			return errors.New("timer expired")
@@ -54,11 +59,23 @@ func TestLockingOperation(t *testing.T) {
 			return nil
 		}
 	}
-	if err := m.lockingOperation(context.Background(), "foo", "1", f); err != nil {
-		t.Fatalf("should have been preempted")
+
+	longOpFunc := func(ctx context.Context) error {
+		timer := time.NewTimer(1 * time.Second)
+		select {
+		case <-timer.C:
+			return errors.New("timer expired")
+		case <-ctx.Done():
+			return nil
+		}
 	}
-	c = make(chan struct{})
-	err := m.lockingOperation(context.Background(), "foo", "1", f)
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+	if err := m.lockingOperation(ctx, "foo", "1", preemptedFunc); err != nil {
+		t.Fatalf("should have been preempted: %v", err)
+	}
+
+	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), el)
+	err := m.lockingOperation(ctx2, "foo", "2", longOpFunc)
 	if err == nil {
 		t.Fatalf("should have timed out")
 	}
@@ -310,16 +327,18 @@ func TestCreate(t *testing.T) {
 		Created:     time.Now().UTC(),
 		Name:        "some-other-random-name",
 		Repo:        rdd.Repo,
-		PullRequest: rdd.PullRequest,
+		PullRequest: rdd.PullRequest + 1,
 		Status:      models.Success,
 	})
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: "some-other-random-name"})
 	dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{
 		Created:     time.Now().UTC().Add(10 * time.Millisecond),
 		Name:        "some-other-random-name2",
 		Repo:        rdd.Repo,
-		PullRequest: rdd.PullRequest,
+		PullRequest: rdd.PullRequest + 2,
 		Status:      models.Success,
 	})
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: "some-other-random-name2"})
 	cases := []struct {
 		name               string
 		inputRRD           models.RepoRevisionData
@@ -444,14 +463,8 @@ func TestCreate(t *testing.T) {
 			}
 			nt := newNotificationTracker()
 			m := Manager{
-				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
+				DL:               dl,
+				LP:               locker.NewFakeLockProvider(),
 				NF:               nt.sender,
 				MC:               &metrics.FakeCollector{},
 				NG:               &namegen.FakeNameGenerator{},
@@ -461,6 +474,10 @@ func TestCreate(t *testing.T) {
 				CI:               ci,
 				GlobalLimit:      c.limit,
 				OperationTimeout: c.timeout,
+				PLO: locker.PreemptiveLockerOpts{
+					LockDelay: 1 * time.Second,
+					LockWait:  2 * time.Second,
+				},
 			}
 
 			el := &eventlogger.Logger{DL: dl}
@@ -713,14 +730,8 @@ func TestUpdate(t *testing.T) {
 			}
 			nt := newNotificationTracker()
 			m := Manager{
-				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
+				DL:               dl,
+				LP:               locker.NewFakeLockProvider(),
 				NF:               nt.sender,
 				MC:               &metrics.FakeCollector{},
 				NG:               &namegen.FakeNameGenerator{},
@@ -729,6 +740,10 @@ func TestUpdate(t *testing.T) {
 				RC:               frc,
 				CI:               ci,
 				OperationTimeout: c.timeout,
+				PLO: locker.PreemptiveLockerOpts{
+					LockDelay: 1 * time.Millisecond,
+					LockWait:  1 * time.Second,
+				},
 			}
 
 			el := &eventlogger.Logger{DL: dl}
@@ -878,18 +893,16 @@ func TestDelete(t *testing.T) {
 			}
 			m := Manager{
 				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
+				LP: locker.NewFakeLockProvider(),
 				NF: testNF,
 				MC: &metrics.FakeCollector{},
 				MG: fg,
 				RC: frc,
 				CI: ci,
+				PLO: locker.PreemptiveLockerOpts{
+					LockDelay: 1 * time.Millisecond,
+					LockWait:  1 * time.Second,
+				},
 			}
 
 			el := &eventlogger.Logger{DL: dl}

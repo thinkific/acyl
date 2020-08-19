@@ -16,15 +16,15 @@ application:
 #    - "app.furan_addr=furan:4001"
 #    - "image.pullPolicy=IfNotPresent"
 # local:
-#    - "app.dogstatsd_addr=1.2.3.4:8125"
-#    - "app.secrets_backend=env"
-#    - "app.secrets_mapping=ACYL_{{ .ID }}"
-#    - "app.secrets_from_env=true"
-#    - "app.k8s_secret_injections="
-#    - "app.operation_timeout_override=10m"
-#    - "app.k8s_secret_injections=image-pull-secret=k8s/image_pull_secret"
-#    - "app.ui_base_url=http://192.168.64.10:4000"
-#    - "cronautoscaling.enabled=false"
+#     - "app.dogstatsd_addr=1.2.3.4:8125"
+#     - "app.secrets_backend=env"
+#     - "app.secrets_mapping=ACYL_{{ .ID }}"
+#     - "app.secrets_from_env=true"
+#     - "app.k8s_secret_injections="
+#     - "app.operation_timeout_override=10m"
+#     - "app.k8s_secret_injections=image-pull-secret=k8s/image_pull_secret"
+#     - "app.ui_base_url=http://192.168.64.10:4000"
+#     - "cronautoscaling.enabled=false"
 
 dependencies:
   direct:
@@ -39,8 +39,6 @@ dependencies:
         - "postgresqlDatabase=acyl"
         - "persistence.enabled=false"
         - "fullnameOverride=postgresql-postgresql"
-    - chart_path: '.helm/charts/consul'
-      chart_vars_path: './.helm/charts/consul/values.yaml'
 
 notifications:
   github:

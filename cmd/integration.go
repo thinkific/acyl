@@ -281,11 +281,7 @@ func setupNitro(dl persistence.DataLayer, useGHToken bool) (spawner.EnvironmentS
 	rc := ghclient.NewGitHubClient(ghtkn)
 	ng := &namegen.FakeNameGenerator{Unique: true}
 	mc := &metrics.FakeCollector{}
-	lp := &locker.FakePreemptiveLockProvider{
-		ChannelFactory: func() chan struct{} {
-			return make(chan struct{})
-		},
-	}
+	lp := locker.NewFakeLockProvider()
 	nf := func(lf func(string, ...interface{}), notifications models.Notifications, user string) notifier.Router {
 		sb := &notifier.SlackBackend{
 			Username: "john.doe",

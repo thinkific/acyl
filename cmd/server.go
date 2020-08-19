@@ -43,7 +43,6 @@ import (
 
 var serverConfig config.ServerConfig
 var githubConfig config.GithubConfig
-var consulConfig config.ConsulConfig
 var slackConfig config.SlackConfig
 
 var k8sConfig config.K8sConfig
@@ -74,9 +73,7 @@ func init() {
 	serverCmd.PersistentFlags().BoolVar(&serverConfig.DisableTLS, "disable-tls", false, "Disable TLS for the REST HTTP(S) server")
 	serverCmd.PersistentFlags().StringVar(&githubConfig.TypePath, "repo-type-path", "acyl.yml", "Relative path within the target repo to look for the type definition")
 	serverCmd.PersistentFlags().StringVar(&serverConfig.WordnetPath, "wordnet-path", "/opt/words.json.gz", "Path to gzip-compressed JSON wordnet file")
-	serverCmd.PersistentFlags().StringSliceVar(&serverConfig.FuranAddrs, "furan-addrs", []string{}, "Furan hosts (optional, otherwise use Consul discovery)")
-	serverCmd.PersistentFlags().StringVar(&consulConfig.Addr, "consul-addr", "127.0.0.1:8500", "Consul agent address")
-	serverCmd.PersistentFlags().StringVar(&consulConfig.LockPrefix, "consul-lock-prefix", "acyl/", "Consul lock name prefix")
+	serverCmd.PersistentFlags().StringSliceVar(&serverConfig.FuranAddrs, "furan-addrs", []string{}, "Furan hosts")
 	serverCmd.PersistentFlags().StringVar(&slackConfig.Channel, "slack-channel", "dyn-qa-notifications", "Slack channel for notifications")
 	serverCmd.PersistentFlags().StringVar(&slackConfig.Username, "slack-username", "Acyl Environment Notifier", "Slack username for notifications")
 	serverCmd.PersistentFlags().StringVar(&slackConfig.IconURL, "slack-icon-url", "https://picsum.photos/48/48", "Slack user avatar icon for notifications")
@@ -160,9 +157,9 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error opening wordnet file: %v", err)
 	}
 
-	lp, err := locker.NewConsulLocker(consulConfig.Addr, consulConfig.LockPrefix, datadogServiceName, true)
+	lp, err := locker.NewPostgresLockProvider(pgConfig.PostgresURI, datadogServiceName+".postgres_locker", pgConfig.EnableTracing)
 	if err != nil {
-		log.Fatalf("error creating Consul lock service: %v", err)
+		log.Fatalf("error creating Postgres lock provider: %v", err)
 	}
 
 	slackapi := slack.New(slackConfig.Token)
@@ -172,7 +169,7 @@ func server(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("error setting up nitro metrics collector: %v", err)
 	}
-	fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, consulConfig.Addr, dl, mc, os.Stderr, datadogServiceName)
+	fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, dl, mc, os.Stderr, datadogServiceName)
 	if err != nil {
 		log.Fatalf("error getting Furan image builder backend: %v", err)
 	}

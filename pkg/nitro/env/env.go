@@ -56,7 +56,8 @@ type Manager struct {
 	RC                   ghclient.RepoClient
 	MC                   metrics.Collector
 	NG                   namegen.NameGenerator
-	LP                   locker.PreemptiveLockProvider
+	LP                   locker.LockProvider
+	PLO                  locker.PreemptiveLockerOpts
 	FS                   billy.Filesystem
 	MG                   meta.Getter
 	CI                   metahelm.Installer
@@ -220,22 +221,21 @@ func (m *Manager) lockingOperation(ctx context.Context, repo, pr string, f func(
 	defer cf()
 
 	end := m.MC.Timing(mpfx+"lock_wait", "triggering_repo:"+repo)
-	lock := m.LP.NewPreemptiveLocker(repo, pr, locker.PreemptiveLockerOpts{})
-	preempt, err := lock.Lock(ctx)
+	lock := locker.NewPreemptiveLocker(m.LP, fmt.Sprintf("%s/%s", repo, pr), m.PLO)
+	preempt, err := lock.Lock(ctx, "event") // TODO: consider adding more detailed event information
 	if err != nil {
 		end("success:false")
 		return errors.Wrap(err, "error getting lock")
 	}
 	end("success:true")
-	defer lock.Release(ctx)
-
+	defer lock.Release(context.Background())
 	stop := make(chan struct{})
 	defer close(stop)
 	go func() {
 		select {
-		case <-preempt: // Lock got preempted, cancel action
+		case np := <-preempt: // Lock got preempted, cancel action
 			m.MC.Increment(mpfx+"lock_preempt", "triggering_repo:"+repo)
-			m.log(ctx, "operation preempted: %v: %v", repo, pr)
+			m.log(ctx, "operation preempted: %v: %v, %v", repo, pr, np)
 			eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		case <-stop:
 		}
@@ -264,6 +264,7 @@ func (m *Manager) Create(ctx context.Context, rd models.RepoRevisionData) (strin
 
 // enforceGlobalLimit checks existing environments against the configured global limit.
 // If necessary, kill oldest environments to bring the environment count into compliance with the limit.
+// Assumes the lock is already held. Otherwise, if we acquired the lock, we would preempt the call to Create which calls this function.
 func (m *Manager) enforceGlobalLimit(ctx context.Context) error {
 	if m.GlobalLimit == 0 {
 		return nil
