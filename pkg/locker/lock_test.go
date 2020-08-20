@@ -31,7 +31,7 @@ func TestPostgresPreemptableLock(t *testing.T) {
 // pLFactoryFunc is a function that returns an empty Preemptable Locker
 type pLFactoryFunc func(t *testing.T) LockProvider
 
-// runTests runs all tests against the DataLayer implementation returned by dlfunc
+// runTests runs all tests against the LockProvider implementation returned by plfunc
 func runTests(t *testing.T, plfunc pLFactoryFunc) {
 	if plfunc == nil {
 		t.Fatalf("plfunc cannot be nil")
@@ -136,5 +136,26 @@ func testPreemption(t *testing.T, lp LockProvider) {
 	err = lock2.Unlock(context.Background())
 	if err != nil {
 		t.Fatalf("error unlocking: %v", err)
+	}
+}
+
+func testContextCancellation(t *testing.T, lp LockProvider) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := lp.AcquireLock(ctx, 0, 0, "some-event")
+	if err == nil {
+		t.Fatalf("expected canceled context to prevent the ability to acquire the lock")
+	}
+
+	ctx, cancel = context.WithCancel(context.Background())
+	lock, err := lp.AcquireLock(ctx, 0, 0, "some-event")
+	if err != nil {
+		t.Fatalf("unable to acquire the lock")
+	}
+
+	cancel()
+	_, err = lock.Lock(ctx, time.Second)
+	if err == nil {
+		t.Fatalf("expected canceled context to prevent the ability to lock the lock")
 	}
 }
