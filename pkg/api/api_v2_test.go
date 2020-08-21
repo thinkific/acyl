@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -512,5 +514,181 @@ func TestAPIv2UserEnvNamePods(t *testing.T) {
 		if p.Ready != "1/1" && p.Status != "Running" {
 			t.Fatalf("expected Ready: 1/1 & Status: Running, got %v, %v", p.Ready, p.Status)
 		}
+	}
+}
+
+func TestAPIv2UserEnvNamePodContainers(t *testing.T) {
+	dl, tdl := testdatalayer.New(testlogger, t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+
+	logger := log.New(os.Stdout, "", log.LstdFlags)
+	k8senv := &models.KubernetesEnvironment{
+		Created: time.Now(),
+		Updated: pq.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		EnvName:         "foo-bar",
+		Namespace:       "nitro-1234-foo-bar",
+		ConfigSignature: []byte("0f0o0o0b0a0r00000000000000000000"),
+		TillerAddr:      "192.168.1.1:1234",
+	}
+	dl.CreateK8sEnv(context.Background(), k8senv)
+	oauthcfg := OAuthConfig{
+		AppGHClientFactoryFunc: func(_ string) ghclient.GitHubAppInstallationClient {
+			return &ghclient.FakeRepoClient{
+				GetUserAppRepoPermissionsFunc: func(_ context.Context, _ int64) (map[string]ghclient.AppRepoPermissions, error) {
+					return map[string]ghclient.AppRepoPermissions{
+						"dollarshaveclub/foo-bar": ghclient.AppRepoPermissions{
+							Repo: "dollarshaveclub/foo-bar",
+							Pull: true,
+						},
+					}, nil
+				},
+			}
+		},
+	}
+	copy(oauthcfg.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger, metahelm.FakeKubernetesReporter{})
+	if err != nil {
+		t.Fatalf("error creating api: %v", err)
+	}
+
+	uis := models.UISession{
+		Authenticated: true,
+		GitHubUser:    "bobsmith",
+	}
+	uis.EncryptandSetUserToken([]byte("foo"), oauthcfg.UserTokenEncKey)
+
+	// test missing pod_name
+	req, _ := http.NewRequest("GET", "https://foo.com/v2/userenvs/foo-bar/namespace//containers", nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "foo-bar"})
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc := httptest.NewRecorder()
+	apiv2.userEnvPodContainersHandler(rc, req)
+	res := rc.Result()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+
+	// test with pod_name
+	podName := "foo-app-abc123"
+	req, _ = http.NewRequest("GET", fmt.Sprintf("https://foo.com/v2/userenvs/foo-bar/namespace/%v/containers", podName), nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "foo-bar", "pod": podName})
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc = httptest.NewRecorder()
+	apiv2.userEnvPodContainersHandler(rc, req)
+	res = rc.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+	out := V2EnvNamePodContainers{}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatalf("error decoding response: %v", err)
+	}
+	res.Body.Close()
+	if out.Name != podName {
+		t.Fatalf("expected pod & containers for podname")
+	}
+	if len(out.Containers) != 2 {
+		t.Fatalf("expected 2 containers for pod, got: %v", len(out.Containers))
+	}
+}
+
+func TestAPIv2UserEnvNamePodLogs(t *testing.T) {
+	dl, tdl := testdatalayer.New(testlogger, t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+
+	logger := log.New(os.Stdout, "", log.LstdFlags)
+	k8senv := &models.KubernetesEnvironment{
+		Created: time.Now(),
+		Updated: pq.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		EnvName:         "foo-bar",
+		Namespace:       "nitro-1234-foo-bar",
+		ConfigSignature: []byte("0f0o0o0b0a0r00000000000000000000"),
+		TillerAddr:      "192.168.1.1:1234",
+	}
+	dl.CreateK8sEnv(context.Background(), k8senv)
+	oauthcfg := OAuthConfig{
+		AppGHClientFactoryFunc: func(_ string) ghclient.GitHubAppInstallationClient {
+			return &ghclient.FakeRepoClient{
+				GetUserAppRepoPermissionsFunc: func(_ context.Context, _ int64) (map[string]ghclient.AppRepoPermissions, error) {
+					return map[string]ghclient.AppRepoPermissions{
+						"dollarshaveclub/foo-bar": ghclient.AppRepoPermissions{
+							Repo: "dollarshaveclub/foo-bar",
+							Pull: true,
+						},
+					}, nil
+				},
+			}
+		},
+	}
+	copy(oauthcfg.UserTokenEncKey[:], []byte("00000000000000000000000000000000"))
+	apiv2, err := newV2API(dl, nil, nil, config.ServerConfig{APIKeys: []string{"foo"}}, oauthcfg, logger, metahelm.FakeKubernetesReporter{FakePodLogFilePath: "../nitro/metahelm/testdata/pod_logs.log"})
+	if err != nil {
+		t.Fatalf("error creating api: %v", err)
+	}
+
+	uis := models.UISession{
+		Authenticated: true,
+		GitHubUser:    "bobsmith",
+	}
+	uis.EncryptandSetUserToken([]byte("foo"), oauthcfg.UserTokenEncKey)
+
+	// test 1000 line request maximum
+	nLogLines := metahelm.MaxPodContainerLogLines + 1
+	req, _ := http.NewRequest("GET", fmt.Sprintf("https://foo.com/v2/userenvs/foo-bar/namespace/foo-bar-abc123/logs?lines=%v", nLogLines), nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "foo-bar", "pod": "foo-bar-abc123"})
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc := httptest.NewRecorder()
+	apiv2.userEnvPodLogsHandler(rc, req)
+	res := rc.Result()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+	res.Body.Close()
+
+	// test valid line request
+	nLogLines = 777
+	req, _ = http.NewRequest("GET", fmt.Sprintf("https://foo.com/v2/userenvs/foo-bar/namespace/foo-bar-abc123/logs?lines=%v", nLogLines), nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "foo-bar", "pod": "foo-bar-abc123"})
+	req = req.Clone(withSession(req.Context(), uis))
+
+	rc = httptest.NewRecorder()
+	apiv2.userEnvPodLogsHandler(rc, req)
+	res = rc.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("bad status code: %v", res.StatusCode)
+	}
+	defer res.Body.Close()
+	buf := make([]byte, 68*1024)
+	_, err = res.Body.Read(buf)
+	if err != nil {
+		t.Fatalf("error reading pod logs: %v", err)
+	}
+	br := bytes.NewReader(buf)
+	scanner := bufio.NewScanner(br)
+	scanner.Split(bufio.ScanLines)
+	count := 0
+	for scanner.Scan() {
+		if count == int(nLogLines) {
+			break
+		}
+		count++
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("error lines returned exceeded expected %v, actual %v", nLogLines, count)
 	}
 }

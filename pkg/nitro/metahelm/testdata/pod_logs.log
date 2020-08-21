@@ -1,0 +1,1100 @@
+1:M 04 Jul 2020 23:42:41.040 * 100 changes in 300 seconds. Saving...
+1:M 04 Jul 2020 23:42:41.040 * Background saving started by pid 1551
+1551:C 04 Jul 2020 23:42:41.050 * DB saved on disk
+1551:C 04 Jul 2020 23:42:41.051 * RDB: 0 MB of memory used by copy-on-write
+1:M 04 Jul 2020 23:42:41.140 * Background saving terminated with success
+1:M 04 Jul 2020 23:47:42.012 * 100 changes in 300 seconds. Saving...
+1:M 04 Jul 2020 23:47:42.013 * Background saving started by pid 1552
+1552:C 04 Jul 2020 23:47:42.023 * DB saved on disk
+1552:C 04 Jul 2020 23:47:42.023 * RDB: 0 MB of memory used by copy-on-write
+1:M 04 Jul 2020 23:47:42.113 * Background saving terminated with success
+1:M 04 Jul 2020 23:52:43.006 * 100 changes in 300 seconds. Saving...
+1:M 04 Jul 2020 23:52:43.006 * Background saving started by pid 1553
+1553:C 04 Jul 2020 23:52:43.016 * DB saved on disk
+1553:C 04 Jul 2020 23:52:43.017 * RDB: 0 MB of memory used by copy-on-write
+1:M 04 Jul 2020 23:52:43.106 * Background saving terminated with success
+1:M 04 Jul 2020 23:57:44.090 * 100 changes in 300 seconds. Saving...
+1:M 04 Jul 2020 23:57:44.090 * Background saving started by pid 1554
+1554:C 04 Jul 2020 23:57:44.100 * DB saved on disk
+1554:C 04 Jul 2020 23:57:44.101 * RDB: 0 MB of memory used by copy-on-write
+1:M 04 Jul 2020 23:57:44.190 * Background saving terminated with success
+1:M 05 Jul 2020 00:02:45.058 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:02:45.058 * Background saving started by pid 1555
+1555:C 05 Jul 2020 00:02:45.068 * DB saved on disk
+1555:C 05 Jul 2020 00:02:45.069 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:02:45.158 * Background saving terminated with success
+1:M 05 Jul 2020 00:07:46.053 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:07:46.054 * Background saving started by pid 1556
+1556:C 05 Jul 2020 00:07:46.065 * DB saved on disk
+1556:C 05 Jul 2020 00:07:46.066 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:07:46.154 * Background saving terminated with success
+1:M 05 Jul 2020 00:12:47.012 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:12:47.013 * Background saving started by pid 1557
+1557:C 05 Jul 2020 00:12:47.023 * DB saved on disk
+1557:C 05 Jul 2020 00:12:47.023 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:12:47.113 * Background saving terminated with success
+1:M 05 Jul 2020 00:17:48.086 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:17:48.087 * Background saving started by pid 1558
+1558:C 05 Jul 2020 00:17:48.097 * DB saved on disk
+1558:C 05 Jul 2020 00:17:48.098 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:17:48.187 * Background saving terminated with success
+1:M 05 Jul 2020 00:22:49.085 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:22:49.085 * Background saving started by pid 1559
+1559:C 05 Jul 2020 00:22:49.096 * DB saved on disk
+1559:C 05 Jul 2020 00:22:49.096 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:22:49.186 * Background saving terminated with success
+1:M 05 Jul 2020 00:27:50.052 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:27:50.053 * Background saving started by pid 1560
+1560:C 05 Jul 2020 00:27:50.065 * DB saved on disk
+1560:C 05 Jul 2020 00:27:50.066 * RDB: 0 MB of memory used by copy-on-write
+50 -- 1:M 05 Jul 2020 00:27:50.153 * Background saving terminated with success
+1:M 05 Jul 2020 00:32:51.054 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:32:51.054 * Background saving started by pid 1561
+1561:C 05 Jul 2020 00:32:51.065 * DB saved on disk
+1561:C 05 Jul 2020 00:32:51.065 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:32:51.155 * Background saving terminated with success
+1:M 05 Jul 2020 00:37:52.037 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:37:52.038 * Background saving started by pid 1562
+1562:C 05 Jul 2020 00:37:52.049 * DB saved on disk
+1562:C 05 Jul 2020 00:37:52.050 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:37:52.138 * Background saving terminated with success
+1:M 05 Jul 2020 00:42:53.016 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:42:53.016 * Background saving started by pid 1563
+1563:C 05 Jul 2020 00:42:53.028 * DB saved on disk
+1563:C 05 Jul 2020 00:42:53.028 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:42:53.117 * Background saving terminated with success
+1:M 05 Jul 2020 00:47:54.077 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:47:54.078 * Background saving started by pid 1564
+1564:C 05 Jul 2020 00:47:54.091 * DB saved on disk
+1564:C 05 Jul 2020 00:47:54.092 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:47:54.178 * Background saving terminated with success
+1:M 05 Jul 2020 00:52:55.076 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:52:55.076 * Background saving started by pid 1565
+1565:C 05 Jul 2020 00:52:55.086 * DB saved on disk
+1565:C 05 Jul 2020 00:52:55.087 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:52:55.177 * Background saving terminated with success
+1:M 05 Jul 2020 00:57:56.079 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 00:57:56.079 * Background saving started by pid 1566
+1566:C 05 Jul 2020 00:57:56.090 * DB saved on disk
+1566:C 05 Jul 2020 00:57:56.091 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 00:57:56.179 * Background saving terminated with success
+1:M 05 Jul 2020 01:02:57.098 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:02:57.098 * Background saving started by pid 1567
+1567:C 05 Jul 2020 01:02:57.109 * DB saved on disk
+1567:C 05 Jul 2020 01:02:57.109 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:02:57.199 * Background saving terminated with success
+1:M 05 Jul 2020 01:07:58.091 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:07:58.092 * Background saving started by pid 1568
+1568:C 05 Jul 2020 01:07:58.102 * DB saved on disk
+1568:C 05 Jul 2020 01:07:58.103 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:07:58.192 * Background saving terminated with success
+1:M 05 Jul 2020 01:12:59.057 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:12:59.058 * Background saving started by pid 1569
+1569:C 05 Jul 2020 01:12:59.068 * DB saved on disk
+1569:C 05 Jul 2020 01:12:59.068 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:12:59.158 * Background saving terminated with success
+1:M 05 Jul 2020 01:18:00.036 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:18:00.037 * Background saving started by pid 1570
+1570:C 05 Jul 2020 01:18:00.048 * DB saved on disk
+1570:C 05 Jul 2020 01:18:00.049 * RDB: 0 MB of memory used by copy-on-write
+100 -- 1:M 05 Jul 2020 01:18:00.137 * Background saving terminated with success
+1:M 05 Jul 2020 01:23:01.012 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:23:01.012 * Background saving started by pid 1571
+1571:C 05 Jul 2020 01:23:01.022 * DB saved on disk
+1571:C 05 Jul 2020 01:23:01.022 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:23:01.112 * Background saving terminated with success
+1:M 05 Jul 2020 01:28:02.078 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:28:02.078 * Background saving started by pid 1572
+1572:C 05 Jul 2020 01:28:02.088 * DB saved on disk
+1572:C 05 Jul 2020 01:28:02.089 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:28:02.179 * Background saving terminated with success
+1:M 05 Jul 2020 01:33:03.049 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:33:03.049 * Background saving started by pid 1573
+1573:C 05 Jul 2020 01:33:03.059 * DB saved on disk
+1573:C 05 Jul 2020 01:33:03.060 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:33:03.149 * Background saving terminated with success
+1:M 05 Jul 2020 01:38:04.033 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:38:04.034 * Background saving started by pid 1574
+1574:C 05 Jul 2020 01:38:04.044 * DB saved on disk
+1574:C 05 Jul 2020 01:38:04.044 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:38:04.134 * Background saving terminated with success
+1:M 05 Jul 2020 01:43:05.015 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:43:05.016 * Background saving started by pid 1575
+1575:C 05 Jul 2020 01:43:05.026 * DB saved on disk
+1575:C 05 Jul 2020 01:43:05.027 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:43:05.116 * Background saving terminated with success
+1:M 05 Jul 2020 01:48:06.093 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:48:06.093 * Background saving started by pid 1576
+1576:C 05 Jul 2020 01:48:06.104 * DB saved on disk
+1576:C 05 Jul 2020 01:48:06.104 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:48:06.194 * Background saving terminated with success
+1:M 05 Jul 2020 01:53:07.095 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:53:07.095 * Background saving started by pid 1577
+1577:C 05 Jul 2020 01:53:07.106 * DB saved on disk
+1577:C 05 Jul 2020 01:53:07.107 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:53:07.196 * Background saving terminated with success
+1:M 05 Jul 2020 01:58:08.080 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 01:58:08.081 * Background saving started by pid 1578
+1578:C 05 Jul 2020 01:58:08.090 * DB saved on disk
+1578:C 05 Jul 2020 01:58:08.091 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 01:58:08.181 * Background saving terminated with success
+1:M 05 Jul 2020 02:03:09.093 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:03:09.093 * Background saving started by pid 1579
+1579:C 05 Jul 2020 02:03:09.104 * DB saved on disk
+1579:C 05 Jul 2020 02:03:09.104 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:03:09.194 * Background saving terminated with success
+1:M 05 Jul 2020 02:08:10.091 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:08:10.092 * Background saving started by pid 1580
+1580:C 05 Jul 2020 02:08:10.106 * DB saved on disk
+1580:C 05 Jul 2020 02:08:10.106 * RDB: 0 MB of memory used by copy-on-write
+150 -- 1:M 05 Jul 2020 02:08:10.192 * Background saving terminated with success
+1:M 05 Jul 2020 02:13:11.048 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:13:11.048 * Background saving started by pid 1581
+1581:C 05 Jul 2020 02:13:11.058 * DB saved on disk
+1581:C 05 Jul 2020 02:13:11.059 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:13:11.148 * Background saving terminated with success
+1:M 05 Jul 2020 02:18:12.043 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:18:12.044 * Background saving started by pid 1582
+1582:C 05 Jul 2020 02:18:12.053 * DB saved on disk
+1582:C 05 Jul 2020 02:18:12.054 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:18:12.144 * Background saving terminated with success
+1:M 05 Jul 2020 02:23:13.024 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:23:13.024 * Background saving started by pid 1583
+1583:C 05 Jul 2020 02:23:13.035 * DB saved on disk
+1583:C 05 Jul 2020 02:23:13.035 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:23:13.124 * Background saving terminated with success
+1:M 05 Jul 2020 02:28:14.091 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:28:14.091 * Background saving started by pid 1584
+1584:C 05 Jul 2020 02:28:14.103 * DB saved on disk
+1584:C 05 Jul 2020 02:28:14.103 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:28:14.192 * Background saving terminated with success
+1:M 05 Jul 2020 02:33:15.090 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:33:15.090 * Background saving started by pid 1585
+1585:C 05 Jul 2020 02:33:15.101 * DB saved on disk
+1585:C 05 Jul 2020 02:33:15.101 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:33:15.191 * Background saving terminated with success
+1:M 05 Jul 2020 02:38:16.076 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:38:16.076 * Background saving started by pid 1586
+1586:C 05 Jul 2020 02:38:16.090 * DB saved on disk
+1586:C 05 Jul 2020 02:38:16.090 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:38:16.177 * Background saving terminated with success
+1:M 05 Jul 2020 02:43:17.033 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:43:17.034 * Background saving started by pid 1587
+1587:C 05 Jul 2020 02:43:17.044 * DB saved on disk
+1587:C 05 Jul 2020 02:43:17.045 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:43:17.134 * Background saving terminated with success
+1:M 05 Jul 2020 02:48:18.028 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:48:18.029 * Background saving started by pid 1588
+1588:C 05 Jul 2020 02:48:18.044 * DB saved on disk
+1588:C 05 Jul 2020 02:48:18.045 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:48:18.129 * Background saving terminated with success
+1:M 05 Jul 2020 02:53:19.021 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:53:19.021 * Background saving started by pid 1589
+1589:C 05 Jul 2020 02:53:19.031 * DB saved on disk
+1589:C 05 Jul 2020 02:53:19.031 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 02:53:19.121 * Background saving terminated with success
+1:M 05 Jul 2020 02:58:20.010 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 02:58:20.011 * Background saving started by pid 1590
+1590:C 05 Jul 2020 02:58:20.021 * DB saved on disk
+1590:C 05 Jul 2020 02:58:20.022 * RDB: 0 MB of memory used by copy-on-write
+200 -- 1:M 05 Jul 2020 02:58:20.111 * Background saving terminated with success
+1:M 05 Jul 2020 03:03:21.014 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:03:21.014 * Background saving started by pid 1591
+1591:C 05 Jul 2020 03:03:21.024 * DB saved on disk
+1591:C 05 Jul 2020 03:03:21.025 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:03:21.114 * Background saving terminated with success
+1:M 05 Jul 2020 03:08:22.000 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:08:22.000 * Background saving started by pid 1592
+1592:C 05 Jul 2020 03:08:22.011 * DB saved on disk
+1592:C 05 Jul 2020 03:08:22.011 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:08:22.101 * Background saving terminated with success
+1:M 05 Jul 2020 03:13:23.100 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:13:23.100 * Background saving started by pid 1593
+1593:C 05 Jul 2020 03:13:23.110 * DB saved on disk
+1593:C 05 Jul 2020 03:13:23.111 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:13:23.200 * Background saving terminated with success
+1:M 05 Jul 2020 03:18:24.059 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:18:24.059 * Background saving started by pid 1594
+1594:C 05 Jul 2020 03:18:24.069 * DB saved on disk
+1594:C 05 Jul 2020 03:18:24.070 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:18:24.159 * Background saving terminated with success
+1:M 05 Jul 2020 03:23:25.037 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:23:25.038 * Background saving started by pid 1595
+1595:C 05 Jul 2020 03:23:25.048 * DB saved on disk
+1595:C 05 Jul 2020 03:23:25.049 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:23:25.138 * Background saving terminated with success
+1:M 05 Jul 2020 03:28:26.099 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:28:26.100 * Background saving started by pid 1596
+1596:C 05 Jul 2020 03:28:26.109 * DB saved on disk
+1596:C 05 Jul 2020 03:28:26.110 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:28:26.200 * Background saving terminated with success
+1:M 05 Jul 2020 03:33:27.087 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:33:27.087 * Background saving started by pid 1597
+1597:C 05 Jul 2020 03:33:27.099 * DB saved on disk
+1597:C 05 Jul 2020 03:33:27.100 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:33:27.187 * Background saving terminated with success
+1:M 05 Jul 2020 03:38:28.077 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:38:28.078 * Background saving started by pid 1598
+1598:C 05 Jul 2020 03:38:28.088 * DB saved on disk
+1598:C 05 Jul 2020 03:38:28.089 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:38:28.178 * Background saving terminated with success
+1:M 05 Jul 2020 03:43:29.056 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:43:29.056 * Background saving started by pid 1599
+1599:C 05 Jul 2020 03:43:29.066 * DB saved on disk
+1599:C 05 Jul 2020 03:43:29.067 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:43:29.156 * Background saving terminated with success
+1:M 05 Jul 2020 03:48:30.025 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:48:30.025 * Background saving started by pid 1600
+1600:C 05 Jul 2020 03:48:30.036 * DB saved on disk
+1600:C 05 Jul 2020 03:48:30.036 * RDB: 0 MB of memory used by copy-on-write
+250 -- 1:M 05 Jul 2020 03:48:30.126 * Background saving terminated with success
+1:M 05 Jul 2020 03:53:31.095 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:53:31.096 * Background saving started by pid 1601
+1601:C 05 Jul 2020 03:53:31.106 * DB saved on disk
+1601:C 05 Jul 2020 03:53:31.107 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:53:31.196 * Background saving terminated with success
+1:M 05 Jul 2020 03:58:32.092 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 03:58:32.092 * Background saving started by pid 1602
+1602:C 05 Jul 2020 03:58:32.106 * DB saved on disk
+1602:C 05 Jul 2020 03:58:32.107 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 03:58:32.192 * Background saving terminated with success
+1:M 05 Jul 2020 04:03:33.076 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:03:33.076 * Background saving started by pid 1603
+1603:C 05 Jul 2020 04:03:33.087 * DB saved on disk
+1603:C 05 Jul 2020 04:03:33.087 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:03:33.177 * Background saving terminated with success
+1:M 05 Jul 2020 04:08:34.074 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:08:34.075 * Background saving started by pid 1604
+1604:C 05 Jul 2020 04:08:34.090 * DB saved on disk
+1604:C 05 Jul 2020 04:08:34.091 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:08:34.175 * Background saving terminated with success
+1:M 05 Jul 2020 04:13:35.064 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:13:35.065 * Background saving started by pid 1605
+1605:C 05 Jul 2020 04:13:35.075 * DB saved on disk
+1605:C 05 Jul 2020 04:13:35.075 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:13:35.165 * Background saving terminated with success
+1:M 05 Jul 2020 04:18:36.063 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:18:36.064 * Background saving started by pid 1606
+1606:C 05 Jul 2020 04:18:36.074 * DB saved on disk
+1606:C 05 Jul 2020 04:18:36.075 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:18:36.164 * Background saving terminated with success
+1:M 05 Jul 2020 04:23:37.073 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:23:37.073 * Background saving started by pid 1607
+1607:C 05 Jul 2020 04:23:37.083 * DB saved on disk
+1607:C 05 Jul 2020 04:23:37.083 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:23:37.174 * Background saving terminated with success
+1:M 05 Jul 2020 04:28:38.050 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:28:38.051 * Background saving started by pid 1608
+1608:C 05 Jul 2020 04:28:38.061 * DB saved on disk
+1608:C 05 Jul 2020 04:28:38.062 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:28:38.151 * Background saving terminated with success
+1:M 05 Jul 2020 04:33:39.040 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:33:39.040 * Background saving started by pid 1609
+1609:C 05 Jul 2020 04:33:39.050 * DB saved on disk
+1609:C 05 Jul 2020 04:33:39.051 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:33:39.141 * Background saving terminated with success
+1:M 05 Jul 2020 04:38:40.038 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:38:40.039 * Background saving started by pid 1610
+1610:C 05 Jul 2020 04:38:40.049 * DB saved on disk
+1610:C 05 Jul 2020 04:38:40.049 * RDB: 0 MB of memory used by copy-on-write
+300 -- 1:M 05 Jul 2020 04:38:40.139 * Background saving terminated with success
+1:M 05 Jul 2020 04:43:41.001 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:43:41.001 * Background saving started by pid 1611
+1611:C 05 Jul 2020 04:43:41.011 * DB saved on disk
+1611:C 05 Jul 2020 04:43:41.012 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:43:41.101 * Background saving terminated with success
+1:M 05 Jul 2020 04:48:42.093 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:48:42.093 * Background saving started by pid 1612
+1612:C 05 Jul 2020 04:48:42.104 * DB saved on disk
+1612:C 05 Jul 2020 04:48:42.104 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:48:42.194 * Background saving terminated with success
+1:M 05 Jul 2020 04:53:43.066 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:53:43.066 * Background saving started by pid 1613
+1613:C 05 Jul 2020 04:53:43.076 * DB saved on disk
+1613:C 05 Jul 2020 04:53:43.077 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:53:43.167 * Background saving terminated with success
+1:M 05 Jul 2020 04:58:44.054 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 04:58:44.054 * Background saving started by pid 1614
+1614:C 05 Jul 2020 04:58:44.068 * DB saved on disk
+1614:C 05 Jul 2020 04:58:44.069 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 04:58:44.155 * Background saving terminated with success
+1:M 05 Jul 2020 05:03:45.030 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:03:45.030 * Background saving started by pid 1615
+1615:C 05 Jul 2020 05:03:45.042 * DB saved on disk
+1615:C 05 Jul 2020 05:03:45.042 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:03:45.130 * Background saving terminated with success
+1:M 05 Jul 2020 05:08:46.023 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:08:46.023 * Background saving started by pid 1616
+1616:C 05 Jul 2020 05:08:46.035 * DB saved on disk
+1616:C 05 Jul 2020 05:08:46.036 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:08:46.124 * Background saving terminated with success
+1:M 05 Jul 2020 05:13:47.096 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:13:47.096 * Background saving started by pid 1617
+1617:C 05 Jul 2020 05:13:47.108 * DB saved on disk
+1617:C 05 Jul 2020 05:13:47.109 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:13:47.196 * Background saving terminated with success
+1:M 05 Jul 2020 05:18:48.006 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:18:48.006 * Background saving started by pid 1618
+1618:C 05 Jul 2020 05:18:48.016 * DB saved on disk
+1618:C 05 Jul 2020 05:18:48.017 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:18:48.107 * Background saving terminated with success
+1:M 05 Jul 2020 05:23:49.090 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:23:49.090 * Background saving started by pid 1619
+1619:C 05 Jul 2020 05:23:49.102 * DB saved on disk
+1619:C 05 Jul 2020 05:23:49.102 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:23:49.191 * Background saving terminated with success
+1:M 05 Jul 2020 05:28:50.060 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:28:50.061 * Background saving started by pid 1620
+1620:C 05 Jul 2020 05:28:50.073 * DB saved on disk
+1620:C 05 Jul 2020 05:28:50.074 * RDB: 0 MB of memory used by copy-on-write
+350 -- 1:M 05 Jul 2020 05:28:50.161 * Background saving terminated with success
+1:M 05 Jul 2020 05:33:51.062 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:33:51.062 * Background saving started by pid 1621
+1621:C 05 Jul 2020 05:33:51.073 * DB saved on disk
+1621:C 05 Jul 2020 05:33:51.073 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:33:51.163 * Background saving terminated with success
+1:M 05 Jul 2020 05:38:52.038 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:38:52.038 * Background saving started by pid 1622
+1622:C 05 Jul 2020 05:38:52.049 * DB saved on disk
+1622:C 05 Jul 2020 05:38:52.049 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:38:52.139 * Background saving terminated with success
+1:M 05 Jul 2020 05:43:53.022 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:43:53.022 * Background saving started by pid 1623
+1623:C 05 Jul 2020 05:43:53.033 * DB saved on disk
+1623:C 05 Jul 2020 05:43:53.034 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:43:53.123 * Background saving terminated with success
+1:M 05 Jul 2020 05:48:54.078 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:48:54.079 * Background saving started by pid 1624
+1624:C 05 Jul 2020 05:48:54.089 * DB saved on disk
+1624:C 05 Jul 2020 05:48:54.090 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:48:54.179 * Background saving terminated with success
+1:M 05 Jul 2020 05:53:55.051 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:53:55.051 * Background saving started by pid 1625
+1625:C 05 Jul 2020 05:53:55.062 * DB saved on disk
+1625:C 05 Jul 2020 05:53:55.062 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:53:55.152 * Background saving terminated with success
+1:M 05 Jul 2020 05:58:56.001 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 05:58:56.001 * Background saving started by pid 1626
+1626:C 05 Jul 2020 05:58:56.012 * DB saved on disk
+1626:C 05 Jul 2020 05:58:56.013 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 05:58:56.101 * Background saving terminated with success
+1:M 05 Jul 2020 06:03:57.076 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:03:57.077 * Background saving started by pid 1627
+1627:C 05 Jul 2020 06:03:57.087 * DB saved on disk
+1627:C 05 Jul 2020 06:03:57.087 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:03:57.177 * Background saving terminated with success
+1:M 05 Jul 2020 06:08:58.062 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:08:58.063 * Background saving started by pid 1628
+1628:C 05 Jul 2020 06:08:58.073 * DB saved on disk
+1628:C 05 Jul 2020 06:08:58.074 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:08:58.163 * Background saving terminated with success
+1:M 05 Jul 2020 06:13:59.035 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:13:59.035 * Background saving started by pid 1629
+1629:C 05 Jul 2020 06:13:59.045 * DB saved on disk
+1629:C 05 Jul 2020 06:13:59.046 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:13:59.136 * Background saving terminated with success
+1:M 05 Jul 2020 06:19:00.029 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:19:00.030 * Background saving started by pid 1630
+1630:C 05 Jul 2020 06:19:00.044 * DB saved on disk
+1630:C 05 Jul 2020 06:19:00.045 * RDB: 0 MB of memory used by copy-on-write
+400 -- 1:M 05 Jul 2020 06:19:00.130 * Background saving terminated with success
+1:M 05 Jul 2020 06:24:01.012 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:24:01.013 * Background saving started by pid 1631
+1631:C 05 Jul 2020 06:24:01.025 * DB saved on disk
+1631:C 05 Jul 2020 06:24:01.025 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:24:01.113 * Background saving terminated with success
+1:M 05 Jul 2020 06:29:02.075 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:29:02.076 * Background saving started by pid 1632
+1632:C 05 Jul 2020 06:29:02.086 * DB saved on disk
+1632:C 05 Jul 2020 06:29:02.086 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:29:02.176 * Background saving terminated with success
+1:M 05 Jul 2020 06:34:03.049 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:34:03.049 * Background saving started by pid 1633
+1633:C 05 Jul 2020 06:34:03.060 * DB saved on disk
+1633:C 05 Jul 2020 06:34:03.061 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:34:03.150 * Background saving terminated with success
+1:M 05 Jul 2020 06:39:04.050 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:39:04.051 * Background saving started by pid 1634
+1634:C 05 Jul 2020 06:39:04.065 * DB saved on disk
+1634:C 05 Jul 2020 06:39:04.066 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:39:04.151 * Background saving terminated with success
+1:M 05 Jul 2020 06:44:05.033 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:44:05.033 * Background saving started by pid 1635
+1635:C 05 Jul 2020 06:44:05.043 * DB saved on disk
+1635:C 05 Jul 2020 06:44:05.044 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:44:05.134 * Background saving terminated with success
+1:M 05 Jul 2020 06:49:06.044 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:49:06.044 * Background saving started by pid 1636
+1636:C 05 Jul 2020 06:49:06.055 * DB saved on disk
+1636:C 05 Jul 2020 06:49:06.056 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:49:06.144 * Background saving terminated with success
+1:M 05 Jul 2020 06:54:07.035 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:54:07.035 * Background saving started by pid 1637
+1637:C 05 Jul 2020 06:54:07.045 * DB saved on disk
+1637:C 05 Jul 2020 06:54:07.046 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:54:07.135 * Background saving terminated with success
+1:M 05 Jul 2020 06:59:08.004 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 06:59:08.005 * Background saving started by pid 1638
+1638:C 05 Jul 2020 06:59:08.015 * DB saved on disk
+1638:C 05 Jul 2020 06:59:08.016 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 06:59:08.106 * Background saving terminated with success
+1:M 05 Jul 2020 07:04:09.012 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:04:09.013 * Background saving started by pid 1639
+1639:C 05 Jul 2020 07:04:09.023 * DB saved on disk
+1639:C 05 Jul 2020 07:04:09.024 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:04:09.113 * Background saving terminated with success
+1:M 05 Jul 2020 07:09:10.092 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:09:10.092 * Background saving started by pid 1640
+1640:C 05 Jul 2020 07:09:10.103 * DB saved on disk
+1640:C 05 Jul 2020 07:09:10.104 * RDB: 0 MB of memory used by copy-on-write
+450 -- 1:M 05 Jul 2020 07:09:10.192 * Background saving terminated with success
+1:M 05 Jul 2020 07:14:11.082 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:14:11.082 * Background saving started by pid 1641
+1641:C 05 Jul 2020 07:14:11.093 * DB saved on disk
+1641:C 05 Jul 2020 07:14:11.093 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:14:11.182 * Background saving terminated with success
+1:M 05 Jul 2020 07:19:12.061 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:19:12.062 * Background saving started by pid 1642
+1642:C 05 Jul 2020 07:19:12.076 * DB saved on disk
+1642:C 05 Jul 2020 07:19:12.076 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:19:12.163 * Background saving terminated with success
+1:M 05 Jul 2020 07:24:13.041 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:24:13.041 * Background saving started by pid 1643
+1643:C 05 Jul 2020 07:24:13.052 * DB saved on disk
+1643:C 05 Jul 2020 07:24:13.053 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:24:13.142 * Background saving terminated with success
+1:M 05 Jul 2020 07:29:14.024 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:29:14.024 * Background saving started by pid 1644
+1644:C 05 Jul 2020 07:29:14.039 * DB saved on disk
+1644:C 05 Jul 2020 07:29:14.040 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:29:14.125 * Background saving terminated with success
+1:M 05 Jul 2020 07:34:15.002 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:34:15.002 * Background saving started by pid 1645
+1645:C 05 Jul 2020 07:34:15.013 * DB saved on disk
+1645:C 05 Jul 2020 07:34:15.013 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:34:15.102 * Background saving terminated with success
+1:M 05 Jul 2020 07:39:16.098 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:39:16.098 * Background saving started by pid 1646
+1646:C 05 Jul 2020 07:39:16.111 * DB saved on disk
+1646:C 05 Jul 2020 07:39:16.112 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:39:16.199 * Background saving terminated with success
+1:M 05 Jul 2020 07:44:17.007 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:44:17.007 * Background saving started by pid 1647
+1647:C 05 Jul 2020 07:44:17.018 * DB saved on disk
+1647:C 05 Jul 2020 07:44:17.019 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:44:17.108 * Background saving terminated with success
+1:M 05 Jul 2020 07:49:18.034 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:49:18.035 * Background saving started by pid 1648
+1648:C 05 Jul 2020 07:49:18.045 * DB saved on disk
+1648:C 05 Jul 2020 07:49:18.046 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:49:18.135 * Background saving terminated with success
+1:M 05 Jul 2020 07:54:19.043 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:54:19.043 * Background saving started by pid 1649
+1649:C 05 Jul 2020 07:54:19.054 * DB saved on disk
+1649:C 05 Jul 2020 07:54:19.055 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 07:54:19.144 * Background saving terminated with success
+1:M 05 Jul 2020 07:59:20.031 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 07:59:20.032 * Background saving started by pid 1650
+1650:C 05 Jul 2020 07:59:20.047 * DB saved on disk
+1650:C 05 Jul 2020 07:59:20.047 * RDB: 0 MB of memory used by copy-on-write
+500 -- 1:M 05 Jul 2020 07:59:20.132 * Background saving terminated with success
+1:M 05 Jul 2020 08:04:21.015 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:04:21.015 * Background saving started by pid 1651
+1651:C 05 Jul 2020 08:04:21.026 * DB saved on disk
+1651:C 05 Jul 2020 08:04:21.026 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:04:21.116 * Background saving terminated with success
+1:M 05 Jul 2020 08:09:22.073 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:09:22.073 * Background saving started by pid 1652
+1652:C 05 Jul 2020 08:09:22.084 * DB saved on disk
+1652:C 05 Jul 2020 08:09:22.084 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:09:22.173 * Background saving terminated with success
+1:M 05 Jul 2020 08:14:23.054 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:14:23.054 * Background saving started by pid 1653
+1653:C 05 Jul 2020 08:14:23.064 * DB saved on disk
+1653:C 05 Jul 2020 08:14:23.065 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:14:23.155 * Background saving terminated with success
+1:M 05 Jul 2020 08:19:24.009 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:19:24.010 * Background saving started by pid 1654
+1654:C 05 Jul 2020 08:19:24.020 * DB saved on disk
+1654:C 05 Jul 2020 08:19:24.021 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:19:24.110 * Background saving terminated with success
+1:M 05 Jul 2020 08:24:25.092 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:24:25.092 * Background saving started by pid 1655
+1655:C 05 Jul 2020 08:24:25.103 * DB saved on disk
+1655:C 05 Jul 2020 08:24:25.103 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:24:25.193 * Background saving terminated with success
+1:M 05 Jul 2020 08:29:26.081 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:29:26.081 * Background saving started by pid 1656
+1656:C 05 Jul 2020 08:29:26.091 * DB saved on disk
+1656:C 05 Jul 2020 08:29:26.092 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:29:26.181 * Background saving terminated with success
+1:M 05 Jul 2020 08:34:27.093 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:34:27.094 * Background saving started by pid 1657
+1657:C 05 Jul 2020 08:34:27.104 * DB saved on disk
+1657:C 05 Jul 2020 08:34:27.105 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:34:27.194 * Background saving terminated with success
+1:M 05 Jul 2020 08:39:28.011 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:39:28.011 * Background saving started by pid 1658
+1658:C 05 Jul 2020 08:39:28.021 * DB saved on disk
+1658:C 05 Jul 2020 08:39:28.022 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:39:28.111 * Background saving terminated with success
+1:M 05 Jul 2020 08:44:29.001 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:44:29.001 * Background saving started by pid 1659
+1659:C 05 Jul 2020 08:44:29.013 * DB saved on disk
+1659:C 05 Jul 2020 08:44:29.013 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:44:29.101 * Background saving terminated with success
+1:M 05 Jul 2020 08:49:30.088 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:49:30.088 * Background saving started by pid 1660
+1660:C 05 Jul 2020 08:49:30.100 * DB saved on disk
+1660:C 05 Jul 2020 08:49:30.101 * RDB: 0 MB of memory used by copy-on-write
+550 -- 1:M 05 Jul 2020 08:49:30.189 * Background saving terminated with success
+1:M 05 Jul 2020 08:54:31.067 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:54:31.068 * Background saving started by pid 1661
+1661:C 05 Jul 2020 08:54:31.079 * DB saved on disk
+1661:C 05 Jul 2020 08:54:31.079 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:54:31.168 * Background saving terminated with success
+1:M 05 Jul 2020 08:59:32.040 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 08:59:32.041 * Background saving started by pid 1662
+1662:C 05 Jul 2020 08:59:32.053 * DB saved on disk
+1662:C 05 Jul 2020 08:59:32.054 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 08:59:32.141 * Background saving terminated with success
+1:M 05 Jul 2020 09:04:33.009 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:04:33.009 * Background saving started by pid 1663
+1663:C 05 Jul 2020 09:04:33.020 * DB saved on disk
+1663:C 05 Jul 2020 09:04:33.021 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:04:33.110 * Background saving terminated with success
+1:M 05 Jul 2020 09:09:34.097 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:09:34.098 * Background saving started by pid 1664
+1664:C 05 Jul 2020 09:09:34.108 * DB saved on disk
+1664:C 05 Jul 2020 09:09:34.109 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:09:34.198 * Background saving terminated with success
+1:M 05 Jul 2020 09:14:35.098 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:14:35.098 * Background saving started by pid 1665
+1665:C 05 Jul 2020 09:14:35.109 * DB saved on disk
+1665:C 05 Jul 2020 09:14:35.109 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:14:35.198 * Background saving terminated with success
+1:M 05 Jul 2020 09:19:36.088 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:19:36.088 * Background saving started by pid 1666
+1666:C 05 Jul 2020 09:19:36.098 * DB saved on disk
+1666:C 05 Jul 2020 09:19:36.099 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:19:36.188 * Background saving terminated with success
+1:M 05 Jul 2020 09:24:37.058 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:24:37.058 * Background saving started by pid 1667
+1667:C 05 Jul 2020 09:24:37.068 * DB saved on disk
+1667:C 05 Jul 2020 09:24:37.069 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:24:37.158 * Background saving terminated with success
+1:M 05 Jul 2020 09:29:38.045 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:29:38.045 * Background saving started by pid 1668
+1668:C 05 Jul 2020 09:29:38.056 * DB saved on disk
+1668:C 05 Jul 2020 09:29:38.057 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:29:38.146 * Background saving terminated with success
+1:M 05 Jul 2020 09:34:39.094 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:34:39.094 * Background saving started by pid 1669
+1669:C 05 Jul 2020 09:34:39.104 * DB saved on disk
+1669:C 05 Jul 2020 09:34:39.105 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:34:39.195 * Background saving terminated with success
+1:M 05 Jul 2020 09:39:40.081 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:39:40.081 * Background saving started by pid 1670
+1670:C 05 Jul 2020 09:39:40.092 * DB saved on disk
+1670:C 05 Jul 2020 09:39:40.093 * RDB: 0 MB of memory used by copy-on-write
+600 -- 1:M 05 Jul 2020 09:39:40.182 * Background saving terminated with success
+1:M 05 Jul 2020 09:44:41.056 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:44:41.056 * Background saving started by pid 1671
+1671:C 05 Jul 2020 09:44:41.067 * DB saved on disk
+1671:C 05 Jul 2020 09:44:41.068 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:44:41.157 * Background saving terminated with success
+1:M 05 Jul 2020 09:49:42.042 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:49:42.043 * Background saving started by pid 1672
+1672:C 05 Jul 2020 09:49:42.053 * DB saved on disk
+1672:C 05 Jul 2020 09:49:42.054 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:49:42.143 * Background saving terminated with success
+1:M 05 Jul 2020 09:54:43.018 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:54:43.018 * Background saving started by pid 1673
+1673:C 05 Jul 2020 09:54:43.028 * DB saved on disk
+1673:C 05 Jul 2020 09:54:43.029 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:54:43.118 * Background saving terminated with success
+1:M 05 Jul 2020 09:59:44.095 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 09:59:44.095 * Background saving started by pid 1674
+1674:C 05 Jul 2020 09:59:44.105 * DB saved on disk
+1674:C 05 Jul 2020 09:59:44.106 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 09:59:44.196 * Background saving terminated with success
+1:M 05 Jul 2020 10:04:45.009 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:04:45.009 * Background saving started by pid 1675
+1675:C 05 Jul 2020 10:04:45.027 * DB saved on disk
+1675:C 05 Jul 2020 10:04:45.028 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:04:45.110 * Background saving terminated with success
+1:M 05 Jul 2020 10:09:46.078 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:09:46.078 * Background saving started by pid 1676
+1676:C 05 Jul 2020 10:09:46.090 * DB saved on disk
+1676:C 05 Jul 2020 10:09:46.090 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:09:46.179 * Background saving terminated with success
+1:M 05 Jul 2020 10:14:47.046 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:14:47.047 * Background saving started by pid 1677
+1677:C 05 Jul 2020 10:14:47.057 * DB saved on disk
+1677:C 05 Jul 2020 10:14:47.057 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:14:47.147 * Background saving terminated with success
+1:M 05 Jul 2020 10:19:48.009 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:19:48.009 * Background saving started by pid 1678
+1678:C 05 Jul 2020 10:19:48.020 * DB saved on disk
+1678:C 05 Jul 2020 10:19:48.020 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:19:48.110 * Background saving terminated with success
+1:M 05 Jul 2020 10:24:49.085 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:24:49.085 * Background saving started by pid 1679
+1679:C 05 Jul 2020 10:24:49.095 * DB saved on disk
+1679:C 05 Jul 2020 10:24:49.096 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:24:49.186 * Background saving terminated with success
+1:M 05 Jul 2020 10:29:50.072 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:29:50.073 * Background saving started by pid 1680
+1680:C 05 Jul 2020 10:29:50.083 * DB saved on disk
+1680:C 05 Jul 2020 10:29:50.084 * RDB: 0 MB of memory used by copy-on-write
+650 -- 1:M 05 Jul 2020 10:29:50.173 * Background saving terminated with success
+1:M 05 Jul 2020 10:34:51.049 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:34:51.050 * Background saving started by pid 1681
+1681:C 05 Jul 2020 10:34:51.063 * DB saved on disk
+1681:C 05 Jul 2020 10:34:51.064 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:34:51.150 * Background saving terminated with success
+1:M 05 Jul 2020 10:39:52.001 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:39:52.001 * Background saving started by pid 1682
+1682:C 05 Jul 2020 10:39:52.011 * DB saved on disk
+1682:C 05 Jul 2020 10:39:52.012 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:39:52.101 * Background saving terminated with success
+1:M 05 Jul 2020 10:44:53.086 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:44:53.086 * Background saving started by pid 1683
+1683:C 05 Jul 2020 10:44:53.097 * DB saved on disk
+1683:C 05 Jul 2020 10:44:53.097 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:44:53.186 * Background saving terminated with success
+1:M 05 Jul 2020 10:49:54.093 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:49:54.094 * Background saving started by pid 1684
+1684:C 05 Jul 2020 10:49:54.104 * DB saved on disk
+1684:C 05 Jul 2020 10:49:54.105 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:49:54.194 * Background saving terminated with success
+1:M 05 Jul 2020 10:54:55.093 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:54:55.094 * Background saving started by pid 1685
+1685:C 05 Jul 2020 10:54:55.104 * DB saved on disk
+1685:C 05 Jul 2020 10:54:55.105 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:54:55.194 * Background saving terminated with success
+1:M 05 Jul 2020 10:59:56.074 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 10:59:56.075 * Background saving started by pid 1686
+1686:C 05 Jul 2020 10:59:56.086 * DB saved on disk
+1686:C 05 Jul 2020 10:59:56.086 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 10:59:56.175 * Background saving terminated with success
+1:M 05 Jul 2020 11:04:57.025 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:04:57.026 * Background saving started by pid 1687
+1687:C 05 Jul 2020 11:04:57.036 * DB saved on disk
+1687:C 05 Jul 2020 11:04:57.036 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:04:57.126 * Background saving terminated with success
+1:M 05 Jul 2020 11:09:58.015 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:09:58.016 * Background saving started by pid 1688
+1688:C 05 Jul 2020 11:09:58.026 * DB saved on disk
+1688:C 05 Jul 2020 11:09:58.027 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:09:58.116 * Background saving terminated with success
+1:M 05 Jul 2020 11:14:59.088 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:14:59.088 * Background saving started by pid 1689
+1689:C 05 Jul 2020 11:14:59.098 * DB saved on disk
+1689:C 05 Jul 2020 11:14:59.098 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:14:59.189 * Background saving terminated with success
+1:M 05 Jul 2020 11:20:00.081 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:20:00.082 * Background saving started by pid 1690
+1690:C 05 Jul 2020 11:20:00.092 * DB saved on disk
+1690:C 05 Jul 2020 11:20:00.093 * RDB: 0 MB of memory used by copy-on-write
+700 -- 1:M 05 Jul 2020 11:20:00.183 * Background saving terminated with success
+1:M 05 Jul 2020 11:25:01.077 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:25:01.078 * Background saving started by pid 1691
+1691:C 05 Jul 2020 11:25:01.088 * DB saved on disk
+1691:C 05 Jul 2020 11:25:01.089 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:25:01.178 * Background saving terminated with success
+1:M 05 Jul 2020 11:30:02.060 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:30:02.060 * Background saving started by pid 1692
+1692:C 05 Jul 2020 11:30:02.070 * DB saved on disk
+1692:C 05 Jul 2020 11:30:02.071 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:30:02.160 * Background saving terminated with success
+1:M 05 Jul 2020 11:35:03.066 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:35:03.066 * Background saving started by pid 1693
+1693:C 05 Jul 2020 11:35:03.076 * DB saved on disk
+1693:C 05 Jul 2020 11:35:03.077 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:35:03.167 * Background saving terminated with success
+1:M 05 Jul 2020 11:40:04.061 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:40:04.061 * Background saving started by pid 1694
+1694:C 05 Jul 2020 11:40:04.076 * DB saved on disk
+1694:C 05 Jul 2020 11:40:04.077 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:40:04.161 * Background saving terminated with success
+1:M 05 Jul 2020 11:45:05.044 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:45:05.044 * Background saving started by pid 1695
+1695:C 05 Jul 2020 11:45:05.055 * DB saved on disk
+1695:C 05 Jul 2020 11:45:05.055 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:45:05.145 * Background saving terminated with success
+1:M 05 Jul 2020 11:50:06.032 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:50:06.033 * Background saving started by pid 1696
+1696:C 05 Jul 2020 11:50:06.046 * DB saved on disk
+1696:C 05 Jul 2020 11:50:06.047 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:50:06.133 * Background saving terminated with success
+1:M 05 Jul 2020 11:55:07.094 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 11:55:07.094 * Background saving started by pid 1697
+1697:C 05 Jul 2020 11:55:07.108 * DB saved on disk
+1697:C 05 Jul 2020 11:55:07.109 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 11:55:07.195 * Background saving terminated with success
+1:M 05 Jul 2020 12:00:08.084 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:00:08.084 * Background saving started by pid 1698
+1698:C 05 Jul 2020 12:00:08.096 * DB saved on disk
+1698:C 05 Jul 2020 12:00:08.097 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:00:08.185 * Background saving terminated with success
+1:M 05 Jul 2020 12:05:09.061 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:05:09.061 * Background saving started by pid 1699
+1699:C 05 Jul 2020 12:05:09.071 * DB saved on disk
+1699:C 05 Jul 2020 12:05:09.072 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:05:09.162 * Background saving terminated with success
+1:M 05 Jul 2020 12:10:10.040 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:10:10.041 * Background saving started by pid 1700
+1700:C 05 Jul 2020 12:10:10.053 * DB saved on disk
+1700:C 05 Jul 2020 12:10:10.053 * RDB: 0 MB of memory used by copy-on-write
+750 -- 1:M 05 Jul 2020 12:10:10.141 * Background saving terminated with success
+1:M 05 Jul 2020 12:15:11.017 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:15:11.017 * Background saving started by pid 1701
+1701:C 05 Jul 2020 12:15:11.028 * DB saved on disk
+1701:C 05 Jul 2020 12:15:11.029 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:15:11.118 * Background saving terminated with success
+1:M 05 Jul 2020 12:20:12.099 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:20:12.100 * Background saving started by pid 1702
+1702:C 05 Jul 2020 12:20:12.110 * DB saved on disk
+1702:C 05 Jul 2020 12:20:12.111 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:20:12.201 * Background saving terminated with success
+1:M 05 Jul 2020 12:25:13.077 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:25:13.077 * Background saving started by pid 1703
+1703:C 05 Jul 2020 12:25:13.087 * DB saved on disk
+1703:C 05 Jul 2020 12:25:13.088 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:25:13.177 * Background saving terminated with success
+1:M 05 Jul 2020 12:30:14.060 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:30:14.060 * Background saving started by pid 1704
+1704:C 05 Jul 2020 12:30:14.071 * DB saved on disk
+1704:C 05 Jul 2020 12:30:14.072 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:30:14.161 * Background saving terminated with success
+1:M 05 Jul 2020 12:35:15.031 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:35:15.031 * Background saving started by pid 1705
+1705:C 05 Jul 2020 12:35:15.043 * DB saved on disk
+1705:C 05 Jul 2020 12:35:15.043 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:35:15.132 * Background saving terminated with success
+1:M 05 Jul 2020 12:40:16.013 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:40:16.013 * Background saving started by pid 1706
+1706:C 05 Jul 2020 12:40:16.023 * DB saved on disk
+1706:C 05 Jul 2020 12:40:16.024 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:40:16.113 * Background saving terminated with success
+1:M 05 Jul 2020 12:45:17.097 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:45:17.097 * Background saving started by pid 1707
+1707:C 05 Jul 2020 12:45:17.108 * DB saved on disk
+1707:C 05 Jul 2020 12:45:17.109 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:45:17.197 * Background saving terminated with success
+1:M 05 Jul 2020 12:50:18.093 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:50:18.093 * Background saving started by pid 1708
+1708:C 05 Jul 2020 12:50:18.104 * DB saved on disk
+1708:C 05 Jul 2020 12:50:18.105 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:50:18.193 * Background saving terminated with success
+1:M 05 Jul 2020 12:55:19.079 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 12:55:19.079 * Background saving started by pid 1709
+1709:C 05 Jul 2020 12:55:19.089 * DB saved on disk
+1709:C 05 Jul 2020 12:55:19.089 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 12:55:19.179 * Background saving terminated with success
+1:M 05 Jul 2020 13:00:20.069 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:00:20.070 * Background saving started by pid 1710
+1710:C 05 Jul 2020 13:00:20.081 * DB saved on disk
+1710:C 05 Jul 2020 13:00:20.082 * RDB: 0 MB of memory used by copy-on-write
+800 -- 1:M 05 Jul 2020 13:00:20.170 * Background saving terminated with success
+1:M 05 Jul 2020 13:05:21.072 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:05:21.072 * Background saving started by pid 1711
+1711:C 05 Jul 2020 13:05:21.083 * DB saved on disk
+1711:C 05 Jul 2020 13:05:21.084 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:05:21.173 * Background saving terminated with success
+1:M 05 Jul 2020 13:10:22.066 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:10:22.066 * Background saving started by pid 1712
+1712:C 05 Jul 2020 13:10:22.077 * DB saved on disk
+1712:C 05 Jul 2020 13:10:22.077 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:10:22.167 * Background saving terminated with success
+1:M 05 Jul 2020 13:15:23.053 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:15:23.053 * Background saving started by pid 1713
+1713:C 05 Jul 2020 13:15:23.065 * DB saved on disk
+1713:C 05 Jul 2020 13:15:23.066 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:15:23.154 * Background saving terminated with success
+1:M 05 Jul 2020 13:20:24.053 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:20:24.054 * Background saving started by pid 1714
+1714:C 05 Jul 2020 13:20:24.066 * DB saved on disk
+1714:C 05 Jul 2020 13:20:24.066 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:20:24.154 * Background saving terminated with success
+1:M 05 Jul 2020 13:25:25.022 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:25:25.022 * Background saving started by pid 1715
+1715:C 05 Jul 2020 13:25:25.033 * DB saved on disk
+1715:C 05 Jul 2020 13:25:25.034 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:25:25.123 * Background saving terminated with success
+1:M 05 Jul 2020 13:30:26.000 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:30:26.001 * Background saving started by pid 1716
+1716:C 05 Jul 2020 13:30:26.015 * DB saved on disk
+1716:C 05 Jul 2020 13:30:26.016 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:30:26.101 * Background saving terminated with success
+1:M 05 Jul 2020 13:35:27.073 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:35:27.073 * Background saving started by pid 1717
+1717:C 05 Jul 2020 13:35:27.083 * DB saved on disk
+1717:C 05 Jul 2020 13:35:27.084 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:35:27.173 * Background saving terminated with success
+1:M 05 Jul 2020 13:40:28.059 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:40:28.059 * Background saving started by pid 1718
+1718:C 05 Jul 2020 13:40:28.070 * DB saved on disk
+1718:C 05 Jul 2020 13:40:28.070 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:40:28.160 * Background saving terminated with success
+1:M 05 Jul 2020 13:45:29.022 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:45:29.022 * Background saving started by pid 1719
+1719:C 05 Jul 2020 13:45:29.033 * DB saved on disk
+1719:C 05 Jul 2020 13:45:29.034 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:45:29.123 * Background saving terminated with success
+1:M 05 Jul 2020 13:50:30.029 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:50:30.029 * Background saving started by pid 1720
+1720:C 05 Jul 2020 13:50:30.039 * DB saved on disk
+1720:C 05 Jul 2020 13:50:30.040 * RDB: 0 MB of memory used by copy-on-write
+850 -- 1:M 05 Jul 2020 13:50:30.130 * Background saving terminated with success
+1:M 05 Jul 2020 13:55:31.029 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 13:55:31.029 * Background saving started by pid 1721
+1721:C 05 Jul 2020 13:55:31.039 * DB saved on disk
+1721:C 05 Jul 2020 13:55:31.040 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 13:55:31.130 * Background saving terminated with success
+1:M 05 Jul 2020 14:00:32.015 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:00:32.015 * Background saving started by pid 1722
+1722:C 05 Jul 2020 14:00:32.026 * DB saved on disk
+1722:C 05 Jul 2020 14:00:32.026 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:00:32.116 * Background saving terminated with success
+1:M 05 Jul 2020 14:05:33.094 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:05:33.094 * Background saving started by pid 1723
+1723:C 05 Jul 2020 14:05:33.105 * DB saved on disk
+1723:C 05 Jul 2020 14:05:33.106 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:05:33.195 * Background saving terminated with success
+1:M 05 Jul 2020 14:10:34.020 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:10:34.021 * Background saving started by pid 1724
+1724:C 05 Jul 2020 14:10:34.031 * DB saved on disk
+1724:C 05 Jul 2020 14:10:34.032 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:10:34.121 * Background saving terminated with success
+1:M 05 Jul 2020 14:15:35.020 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:15:35.021 * Background saving started by pid 1725
+1725:C 05 Jul 2020 14:15:35.035 * DB saved on disk
+1725:C 05 Jul 2020 14:15:35.036 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:15:35.121 * Background saving terminated with success
+1:M 05 Jul 2020 14:20:36.084 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:20:36.084 * Background saving started by pid 1726
+1726:C 05 Jul 2020 14:20:36.095 * DB saved on disk
+1726:C 05 Jul 2020 14:20:36.096 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:20:36.184 * Background saving terminated with success
+1:M 05 Jul 2020 14:25:37.059 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:25:37.059 * Background saving started by pid 1727
+1727:C 05 Jul 2020 14:25:37.070 * DB saved on disk
+1727:C 05 Jul 2020 14:25:37.071 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:25:37.160 * Background saving terminated with success
+1:M 05 Jul 2020 14:30:38.022 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:30:38.022 * Background saving started by pid 1728
+1728:C 05 Jul 2020 14:30:38.032 * DB saved on disk
+1728:C 05 Jul 2020 14:30:38.033 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:30:38.122 * Background saving terminated with success
+1:M 05 Jul 2020 14:35:39.093 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:35:39.093 * Background saving started by pid 1729
+1729:C 05 Jul 2020 14:35:39.104 * DB saved on disk
+1729:C 05 Jul 2020 14:35:39.104 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:35:39.193 * Background saving terminated with success
+1:M 05 Jul 2020 14:40:40.096 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:40:40.097 * Background saving started by pid 1730
+1730:C 05 Jul 2020 14:40:40.109 * DB saved on disk
+1730:C 05 Jul 2020 14:40:40.110 * RDB: 0 MB of memory used by copy-on-write
+900 -- 1:M 05 Jul 2020 14:40:40.197 * Background saving terminated with success
+1:M 05 Jul 2020 14:45:41.005 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:45:41.006 * Background saving started by pid 1731
+1731:C 05 Jul 2020 14:45:41.016 * DB saved on disk
+1731:C 05 Jul 2020 14:45:41.017 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:45:41.106 * Background saving terminated with success
+1:M 05 Jul 2020 14:50:42.085 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:50:42.085 * Background saving started by pid 1732
+1732:C 05 Jul 2020 14:50:42.096 * DB saved on disk
+1732:C 05 Jul 2020 14:50:42.096 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:50:42.185 * Background saving terminated with success
+1:M 05 Jul 2020 14:55:43.081 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:55:43.081 * Background saving started by pid 1733
+1733:C 05 Jul 2020 14:55:43.091 * DB saved on disk
+1733:C 05 Jul 2020 14:55:43.092 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:55:43.182 * Background saving terminated with success
+1:M 05 Jul 2020 15:00:44.004 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:00:44.004 * Background saving started by pid 1734
+1734:C 05 Jul 2020 15:00:44.014 * DB saved on disk
+1734:C 05 Jul 2020 15:00:44.015 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:00:44.105 * Background saving terminated with success
+1:M 05 Jul 2020 15:05:45.076 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:05:45.076 * Background saving started by pid 1735
+1735:C 05 Jul 2020 15:05:45.087 * DB saved on disk
+1735:C 05 Jul 2020 15:05:45.087 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:05:45.177 * Background saving terminated with success
+1:M 05 Jul 2020 15:10:46.063 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:10:46.063 * Background saving started by pid 1736
+1736:C 05 Jul 2020 15:10:46.074 * DB saved on disk
+1736:C 05 Jul 2020 15:10:46.075 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:10:46.163 * Background saving terminated with success
+1:M 05 Jul 2020 15:15:47.014 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:15:47.014 * Background saving started by pid 1737
+1737:C 05 Jul 2020 15:15:47.024 * DB saved on disk
+1737:C 05 Jul 2020 15:15:47.025 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:15:47.115 * Background saving terminated with success
+1:M 05 Jul 2020 15:20:48.078 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:20:48.078 * Background saving started by pid 1738
+1738:C 05 Jul 2020 15:20:48.089 * DB saved on disk
+1738:C 05 Jul 2020 15:20:48.089 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:20:48.178 * Background saving terminated with success
+1:M 05 Jul 2020 15:25:49.060 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:25:49.061 * Background saving started by pid 1739
+1739:C 05 Jul 2020 15:25:49.071 * DB saved on disk
+1739:C 05 Jul 2020 15:25:49.072 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:25:49.161 * Background saving terminated with success
+1:M 05 Jul 2020 15:30:50.041 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:30:50.041 * Background saving started by pid 1740
+1740:C 05 Jul 2020 15:30:50.060 * DB saved on disk
+1740:C 05 Jul 2020 15:30:50.061 * RDB: 0 MB of memory used by copy-on-write
+950 -- 1:M 05 Jul 2020 15:30:50.141 * Background saving terminated with success
+1:M 05 Jul 2020 15:35:51.021 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:35:51.022 * Background saving started by pid 1741
+1741:C 05 Jul 2020 15:35:51.032 * DB saved on disk
+1741:C 05 Jul 2020 15:35:51.032 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:35:51.122 * Background saving terminated with success
+1:M 05 Jul 2020 15:40:52.020 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:40:52.020 * Background saving started by pid 1742
+1742:C 05 Jul 2020 15:40:52.032 * DB saved on disk
+1742:C 05 Jul 2020 15:40:52.032 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:40:52.121 * Background saving terminated with success
+1:M 05 Jul 2020 15:45:53.001 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:45:53.001 * Background saving started by pid 1743
+1743:C 05 Jul 2020 15:45:53.012 * DB saved on disk
+1743:C 05 Jul 2020 15:45:53.013 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:45:53.102 * Background saving terminated with success
+1:M 05 Jul 2020 15:50:54.006 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:50:54.006 * Background saving started by pid 1744
+1744:C 05 Jul 2020 15:50:54.016 * DB saved on disk
+1744:C 05 Jul 2020 15:50:54.017 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:50:54.107 * Background saving terminated with success
+1:M 05 Jul 2020 15:55:55.014 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:55:55.014 * Background saving started by pid 1745
+1745:C 05 Jul 2020 15:55:55.025 * DB saved on disk
+1745:C 05 Jul 2020 15:55:55.026 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:55:55.115 * Background saving terminated with success
+1:M 05 Jul 2020 16:00:56.065 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:00:56.066 * Background saving started by pid 1746
+1746:C 05 Jul 2020 16:00:56.076 * DB saved on disk
+1746:C 05 Jul 2020 16:00:56.077 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 16:00:56.166 * Background saving terminated with success
+1:M 05 Jul 2020 16:05:57.071 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:05:57.071 * Background saving started by pid 1747
+1747:C 05 Jul 2020 16:05:57.081 * DB saved on disk
+1747:C 05 Jul 2020 16:05:57.082 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 16:05:57.171 * Background saving terminated with success
+1:M 05 Jul 2020 16:10:58.043 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:10:58.044 * Background saving started by pid 1748
+1748:C 05 Jul 2020 16:10:58.055 * DB saved on disk
+1748:C 05 Jul 2020 16:10:58.056 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 16:10:58.144 * Background saving terminated with success
+1:M 05 Jul 2020 16:15:59.021 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:15:59.021 * Background saving started by pid 1749
+1749:C 05 Jul 2020 16:15:59.031 * DB saved on disk
+1749:C 05 Jul 2020 16:15:59.032 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 16:15:59.122 * Background saving terminated with success
+1:M 05 Jul 2020 16:21:00.029 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:21:00.029 * Background saving started by pid 1750
+1750:C 05 Jul 2020 16:21:00.040 * DB saved on disk
+1750:C 05 Jul 2020 16:21:00.041 * RDB: 0 MB of memory used by copy-on-write
+1000 -- 1:M 05 Jul 2020 16:21:00.130 * Background saving terminated with success
+1:M 05 Jul 2020 14:45:41.005 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:45:41.006 * Background saving started by pid 1731
+1731:C 05 Jul 2020 14:45:41.016 * DB saved on disk
+1731:C 05 Jul 2020 14:45:41.017 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:45:41.106 * Background saving terminated with success
+1:M 05 Jul 2020 14:50:42.085 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:50:42.085 * Background saving started by pid 1732
+1732:C 05 Jul 2020 14:50:42.096 * DB saved on disk
+1732:C 05 Jul 2020 14:50:42.096 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:50:42.185 * Background saving terminated with success
+1:M 05 Jul 2020 14:55:43.081 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 14:55:43.081 * Background saving started by pid 1733
+1733:C 05 Jul 2020 14:55:43.091 * DB saved on disk
+1733:C 05 Jul 2020 14:55:43.092 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 14:55:43.182 * Background saving terminated with success
+1:M 05 Jul 2020 15:00:44.004 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:00:44.004 * Background saving started by pid 1734
+1734:C 05 Jul 2020 15:00:44.014 * DB saved on disk
+1734:C 05 Jul 2020 15:00:44.015 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:00:44.105 * Background saving terminated with success
+1:M 05 Jul 2020 15:05:45.076 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:05:45.076 * Background saving started by pid 1735
+1735:C 05 Jul 2020 15:05:45.087 * DB saved on disk
+1735:C 05 Jul 2020 15:05:45.087 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:05:45.177 * Background saving terminated with success
+1:M 05 Jul 2020 15:10:46.063 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:10:46.063 * Background saving started by pid 1736
+1736:C 05 Jul 2020 15:10:46.074 * DB saved on disk
+1736:C 05 Jul 2020 15:10:46.075 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:10:46.163 * Background saving terminated with success
+1:M 05 Jul 2020 15:15:47.014 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:15:47.014 * Background saving started by pid 1737
+1737:C 05 Jul 2020 15:15:47.024 * DB saved on disk
+1737:C 05 Jul 2020 15:15:47.025 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:15:47.115 * Background saving terminated with success
+1:M 05 Jul 2020 15:20:48.078 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:20:48.078 * Background saving started by pid 1738
+1738:C 05 Jul 2020 15:20:48.089 * DB saved on disk
+1738:C 05 Jul 2020 15:20:48.089 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:20:48.178 * Background saving terminated with success
+1:M 05 Jul 2020 15:25:49.060 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:25:49.061 * Background saving started by pid 1739
+1739:C 05 Jul 2020 15:25:49.071 * DB saved on disk
+1739:C 05 Jul 2020 15:25:49.072 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:25:49.161 * Background saving terminated with success
+1:M 05 Jul 2020 15:30:50.041 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:30:50.041 * Background saving started by pid 1740
+1740:C 05 Jul 2020 15:30:50.060 * DB saved on disk
+1740:C 05 Jul 2020 15:30:50.061 * RDB: 0 MB of memory used by copy-on-write
+1050 -- 1:M 05 Jul 2020 15:30:50.141 * Background saving terminated with success
+1:M 05 Jul 2020 15:35:51.021 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:35:51.022 * Background saving started by pid 1741
+1741:C 05 Jul 2020 15:35:51.032 * DB saved on disk
+1741:C 05 Jul 2020 15:35:51.032 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:35:51.122 * Background saving terminated with success
+1:M 05 Jul 2020 15:40:52.020 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:40:52.020 * Background saving started by pid 1742
+1742:C 05 Jul 2020 15:40:52.032 * DB saved on disk
+1742:C 05 Jul 2020 15:40:52.032 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:40:52.121 * Background saving terminated with success
+1:M 05 Jul 2020 15:45:53.001 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:45:53.001 * Background saving started by pid 1743
+1743:C 05 Jul 2020 15:45:53.012 * DB saved on disk
+1743:C 05 Jul 2020 15:45:53.013 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:45:53.102 * Background saving terminated with success
+1:M 05 Jul 2020 15:50:54.006 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:50:54.006 * Background saving started by pid 1744
+1744:C 05 Jul 2020 15:50:54.016 * DB saved on disk
+1744:C 05 Jul 2020 15:50:54.017 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:50:54.107 * Background saving terminated with success
+1:M 05 Jul 2020 15:55:55.014 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 15:55:55.014 * Background saving started by pid 1745
+1745:C 05 Jul 2020 15:55:55.025 * DB saved on disk
+1745:C 05 Jul 2020 15:55:55.026 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 15:55:55.115 * Background saving terminated with success
+1:M 05 Jul 2020 16:00:56.065 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:00:56.066 * Background saving started by pid 1746
+1746:C 05 Jul 2020 16:00:56.076 * DB saved on disk
+1746:C 05 Jul 2020 16:00:56.077 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 16:00:56.166 * Background saving terminated with success
+1:M 05 Jul 2020 16:05:57.071 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:05:57.071 * Background saving started by pid 1747
+1747:C 05 Jul 2020 16:05:57.081 * DB saved on disk
+1747:C 05 Jul 2020 16:05:57.082 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 16:05:57.171 * Background saving terminated with success
+1:M 05 Jul 2020 16:10:58.043 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:10:58.044 * Background saving started by pid 1748
+1748:C 05 Jul 2020 16:10:58.055 * DB saved on disk
+1748:C 05 Jul 2020 16:10:58.056 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 16:10:58.144 * Background saving terminated with success
+1:M 05 Jul 2020 16:15:59.021 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:15:59.021 * Background saving started by pid 1749
+1749:C 05 Jul 2020 16:15:59.031 * DB saved on disk
+1749:C 05 Jul 2020 16:15:59.032 * RDB: 0 MB of memory used by copy-on-write
+1:M 05 Jul 2020 16:15:59.122 * Background saving terminated with success
+1:M 05 Jul 2020 16:21:00.029 * 100 changes in 300 seconds. Saving...
+1:M 05 Jul 2020 16:21:00.029 * Background saving started by pid 1750
+1750:C 05 Jul 2020 16:21:00.040 * DB saved on disk
+1750:C 05 Jul 2020 16:21:00.041 * RDB: 0 MB of memory used by copy-on-write
+1100 -- 1:M 05 Jul 2020 16:21:00.130 * Background saving terminated with success

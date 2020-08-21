@@ -18,6 +18,8 @@ import (
 	muxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
 )
 
+const DefaultPodContainerLogLines = 100
+
 type apiBase struct {
 	logger *log.Logger
 	wg     sync.WaitGroup

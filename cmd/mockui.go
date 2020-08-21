@@ -162,7 +162,7 @@ func mockui(cmd *cobra.Command, args []string) {
 		ServerConfig: serverConfig,
 		Logger:       logger,
 		EnvironmentSpawner: &spawner.FakeEnvironmentSpawner{UpdateFunc: uf},
-		KubernetesReporter: metahelm.FakeKubernetesReporter{},
+		KubernetesReporter: metahelm.FakeKubernetesReporter{FakePodLogFilePath: "pkg/nitro/metahelm/testdata/pod_logs.log"},
 	}
 
 	serverConfig.UIBaseURL = "http://" + listenAddr

@@ -22,7 +22,7 @@ import (
 	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-billy.v4/memfs"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -1286,7 +1286,7 @@ func TestTruncateLongDQAName(t *testing.T) {
 
 func TestMetahelmGetK8sEnvPodList(t *testing.T) {
 	ci := FakeKubernetesReporter{}
-	pl, err := ci.GetK8sEnvPodList(context.Background(), "foo")
+	pl, err := ci.GetPodList(context.Background(), "foo")
 	if err != nil {
 		t.Fatalf("should have succeeded: %v", err)
 	}
@@ -1297,5 +1297,53 @@ func TestMetahelmGetK8sEnvPodList(t *testing.T) {
 		if p.Ready != "1/1" && p.Status != "Running" {
 			t.Fatalf("expected Ready: 1/1 & Status: Running, got %v, %v", p.Ready, p.Status)
 		}
+	}
+}
+
+func TestMetahelmGetK8sEnvPodContainers(t *testing.T) {
+	ci := FakeKubernetesReporter{}
+	pc, err := ci.GetPodContainers(context.Background(), "foo", "foo-app-abc123")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if len(pc.Containers) != 2 {
+		t.Fatalf("expected 2, got %v", len(pc.Containers))
+	}
+	pc, err = ci.GetPodContainers(context.Background(), "foo", "bar-app-abc123")
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if len(pc.Containers) != 1 {
+		t.Fatalf("expected 1, got %v", len(pc.Containers))
+	}
+	pc, err = ci.GetPodContainers(context.Background(), "foo", "baz-app-abc123")
+	if err == nil {
+		t.Fatalf("should have failed: %v", err)
+	}
+}
+
+func TestMetahelmGetK8sEnvPodLogs(t *testing.T) {
+	ci := FakeKubernetesReporter{
+		FakePodLogFilePath: "testdata/pod_logs.log",
+	}
+	nLogLines := MaxPodContainerLogLines + 1
+	_, err := ci.GetPodLogs(context.Background(), "foo", "foo-app-abc123", "", uint(nLogLines))
+	if err != nil {
+		t.Fatalf("should have failed: %v", err)
+	}
+	nLogLines--
+	pl, err := ci.GetPodLogs(context.Background(), "foo", "foo-app-abc123", "", uint(nLogLines))
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	defer pl.Close()
+	buf := make([]byte, 68*1024)
+	_, err = pl.Read(buf)
+	if err != nil {
+		t.Fatalf("error reading pod logs: %v", err)
+	}
+	lineCount := bytes.Count(buf, []byte{'\n'})
+	if lineCount > nLogLines {
+		t.Fatalf("error lines returned exceeded expected %v, actual %v", nLogLines, lineCount)
 	}
 }

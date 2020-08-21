@@ -1,8 +1,14 @@
 package metahelm
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
@@ -88,11 +94,13 @@ func (fi FakeInstaller) DeleteNamespace(ctx context.Context, k8senv *models.Kube
 }
 
 // FakeKubernetesReporter satisfies the kubernetes reporter interface but does nothing
-type FakeKubernetesReporter struct {}
+type FakeKubernetesReporter struct {
+	FakePodLogFilePath string
+}
 
 var _ KubernetesReporter = &FakeKubernetesReporter{}
 
-func (fkr FakeKubernetesReporter) GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error) {
+func (fkr FakeKubernetesReporter) GetPodList(ctx context.Context, ns string) (out []K8sPod, err error) {
 	pl := stubPodData(ns)
 	for _, p := range pl.Items {
 		age := time.Since(p.CreationTimestamp.Time)
@@ -120,14 +128,25 @@ func stubPodData(ns string) *v1.PodList {
 		RestartCount: 0,
 		Ready:        true,
 	}
+	podContainerSidecarStatus := v1.ContainerStatus{
+		Name:         "foo-app-sidecar",
+		RestartCount: 0,
+		Ready:        true,
+	}
 	pod := v1.Pod{
 		Status: v1.PodStatus{
-			ContainerStatuses: []v1.ContainerStatus{podContainerStatus},
+			ContainerStatuses: []v1.ContainerStatus{
+				podContainerStatus,
+				podContainerSidecarStatus,
+			},
 			Phase: "Running",
 			PodIP: "10.0.0.1",
 		},
 		Spec: v1.PodSpec{
-			Containers: []v1.Container{{Name: podContainerStatus.Name}},
+			Containers: []v1.Container{
+				{Name: podContainerStatus.Name},
+				{Name: podContainerSidecarStatus.Name},
+			},
 		},
 	}
 	pod.Kind = "Pod"
@@ -145,7 +164,9 @@ func stubPodData(ns string) *v1.PodList {
 			PodIP: "10.0.0.2",
 		},
 		Spec: v1.PodSpec{
-			Containers: []v1.Container{{Name: podContainerStatus.Name}},
+			Containers: []v1.Container{
+				{Name: podContainerStatus.Name},
+			},
 		},
 	}
 	pod2.Kind = "Pod"
@@ -160,4 +181,79 @@ func stubPodData(ns string) *v1.PodList {
 			pod2,
 		},
 	}
+}
+
+func (fkr FakeKubernetesReporter) GetPodContainers(ctx context.Context, ns, podname string) (out K8sPodContainers, err error) {
+	pl := stubPodData(ns)
+	var pod v1.Pod
+	for _, p := range pl.Items {
+		if p.Name == podname {
+			pod = p
+		}
+	}
+	if pod.Name == "" {
+		return K8sPodContainers{}, errors.Errorf("error pod %v not found for namespace %v", podname, ns)
+	}
+	containers := []string{}
+	for _, c := range pod.Spec.Containers {
+		containers = append(containers, c.Name)
+	}
+	return K8sPodContainers{
+		Pod:        pod.Name,
+		Containers: containers,
+	}, nil
+}
+
+func (fkr FakeKubernetesReporter) GetPodLogs(ctx context.Context, ns, podname, container string, lines uint) (out io.ReadCloser, err error) {
+	rc := ioutil.NopCloser(strings.NewReader(""))
+	body, err := getFakePodLogs(fkr.FakePodLogFilePath, lines)
+	if err != nil {
+		return rc, errors.Wrap(err, "error getting logs")
+	}
+	lineCount := bytes.Count(body, []byte{'\n'})
+	if uint(lineCount) > lines {
+		return rc, errors.Errorf("error lines returned exceeded expected %v, actual %v", lines, lineCount)
+	}
+	plRC := ioutil.NopCloser(bytes.NewReader(body))
+	return plRC, nil
+}
+
+func getFakePodLogs(path string, lines uint) ([]byte, error) {
+	var bucket []string
+	var logs []string
+	var requestedLogs []byte
+	podlogs, err := ioutil.ReadFile(path)
+	if err != nil {
+		return []byte{}, errors.Wrapf(err,"error reading pod log test data file")
+	}
+	// return number of log lines equal to request to mimic corev1.PodLogOptions{ TailLines }
+	br := bytes.NewReader(podlogs)
+	scanner := bufio.NewScanner(br)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		bucket = append(bucket, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return []byte{}, errors.Wrapf(err, "error scanning log lines")
+	}
+	// create random value to vary logs returned for testing
+	rand.Seed(time.Now().UnixNano())
+	r := len(bucket) - (rand.Intn(50) + 1)
+	// reverse bucket of all logs to return most recent test logs
+	count := 0
+	for i := r; i >= 0; i-- {
+		if count == int(lines) {
+			break
+		}
+		logs = append(logs, bucket[i])
+		count++
+	}
+	// convert log string slice to byte slice
+	for i:=0; i<len(logs); i++{
+		b := []byte(logs[i]+"\n")
+		for j:=0; j<len(b); j++{
+			requestedLogs = append(requestedLogs,b[j])
+		}
+	}
+	return requestedLogs, nil
 }

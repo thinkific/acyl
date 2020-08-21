@@ -12,6 +12,10 @@ const pollingIntervalMilliseconds = 750;
 let done = false;
 let failures = 0;
 let updateInterval = setInterval(update, pollingIntervalMilliseconds);
+let env_name = "";
+let active_pod_name = "";
+let active_container = "";
+let pod_log_lines = 100;
 
 // https://stackoverflow.com/questions/21294302/converting-milliseconds-to-minutes-and-seconds-with-javascript
 function millisToMinutesAndSeconds(millis) {
@@ -552,18 +556,112 @@ function updateLogs(logs) {
     objDiv.scrollTop = objDiv.scrollHeight;
 }
 
-// podRow creates a table row from a pod object
-function podRow(podValues) {
-    let trPod = document.createElement("tr");
-    trPod.id = `tr-pod`;
-    for (let i = 0; i < podValues.length; i++) {
-        let td = document.createElement("td");
-        td.id = `td-pod-${podValues[0]}`;
-        td.className = "text-left"
-        td.innerHTML = podValues[i];
-        trPod.appendChild(td);
+// setContainerSelectMenu replaces the existing menu
+function setContainerSelectMenu(selectMenu) {
+    if (selectMenu === null) {
+        return;
     }
-    return trPod;
+    let oldMenu = document.getElementById("selectContainerMenu");
+    oldMenu.parentNode.replaceChild(selectMenu, oldMenu);
+}
+
+// renderContainerMenuOptions builds the container select menu from the containers array
+function renderContainerMenuOptions(containers) {
+    let selectMenu = document.createElement("select");
+    selectMenu.className = "form-control";
+    selectMenu.id = "selectContainerMenu";
+    if (containers.length > 0) {
+        for (let i = 0; i < containers.length; i++) {
+            if (containers[i] !== "") {
+                let opt = document.createElement("option");
+                opt.id = `opt-container-${containers[i]}`;
+                opt.value = containers[i];
+                opt.innerHTML = containers[i];
+                if (active_container === "") {
+                    // active container defaults to the first valid container listed
+                    active_container = containers[i];
+                }
+                selectMenu.appendChild(opt);
+            }
+        }
+    }
+    setContainerSelectMenu(selectMenu);
+}
+
+// getPodContainers gets a list of containers for specified pod
+function getPodContainers() {
+    let req = new XMLHttpRequest();
+
+    req.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pod/${active_pod_name}/containers`, true);
+    req.onload = function (e) {
+        if (req.status !== 200) {
+            console.log(`pod containers request failed: ${req.status}: ${req.responseText}`);
+            return;
+        }
+
+        let data = JSON.parse(req.response);
+        if (data !== null) {
+            renderContainerMenuOptions(data['containers']);
+        }
+    };
+    req.onerror = function (e) {
+        console.error(`error getting pod containers endpoint for ${env_name}: ${req.statusText}`);
+    };
+
+    req.send();
+}
+
+// setPodLogData replaces the existing logs
+function setPodLogs(logs) {
+    if (logs === null) {
+        return;
+    }
+    let oldLogs = document.getElementById("podLogsBody");
+    oldLogs.parentNode.replaceChild(logs, oldLogs);
+}
+
+// renderPodLogData replaces the logs
+function renderPodLogs(data) {
+    let logs = document.createElement('div');
+    logs.innerText = data;
+    logs.className = "container-body";
+    logs.id = "podLogsBody";
+    setPodLogs(logs);
+}
+
+// getPodLogs gets and renders the logs for the specified parameters
+function getPodLogs() {
+    let req = new XMLHttpRequest();
+
+    let url = `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pod/${active_pod_name}/logs?lines=${pod_log_lines}`;
+    if (active_container !== "") {
+        url.concat(`&container=${active_container}`)
+    }
+    req.open('GET', url, true);
+    req.onload = function (e) {
+        if (req.status !== 200) {
+            console.log(`pods logs request failed: ${req.status}: ${req.responseText}`);
+            return;
+        }
+
+        let data = req.response;
+        if (data !== null) {
+            renderPodLogs(data)
+        }
+    };
+    req.onerror = function (e) {
+        console.error(`error getting pod logs endpoint for ${env_name}: ${req.statusText}`);
+    };
+
+    req.send();
+}
+
+// podLogModalData manages the pod logs modal and fetches the containers and logs
+function podLogModalData(pod_name) {
+    active_pod_name = pod_name;
+    document.getElementById('podLogModalHeading').innerHTML = `Logs: ${active_pod_name}`;
+    getPodContainers();
+    getPodLogs();
 }
 
 // setPodList replaces the table body with tbody
@@ -576,17 +674,43 @@ function setPodList(tbody) {
     tbody.id = "k8sNamespacePodTableBody";
 }
 
+// podRow creates a table row from a pod object
+function podRow(podValues) {
+    let trPod = document.createElement("tr");
+    trPod.id = `tr-pod`;
+    for (let i = 0; i < podValues.length; i++) {
+        let td = document.createElement("td");
+        td.id = `td-pod-${podValues[0]}`;
+        td.className = "text-left";
+        if (i === 0) {
+            let a = document.createElement("a");
+            a.id = `a-pod-${podValues[0]}`;
+            a.innerHTML = podValues[0];
+            a.setAttribute("data-toggle", "modal");
+            a.setAttribute("data-target", "#podLogModal");
+            a.addEventListener('click', function () {
+                podLogModalData(a.innerHTML);
+            });
+            td.appendChild(a);
+        } else {
+            td.innerHTML = podValues[i];
+        }
+        trPod.appendChild(td);
+    }
+    return trPod;
+}
+
 // renderPodList renders the pod table rows with the pod data
 function renderPodList(pods) {
     let tbody = document.createElement("tbody");
-    const podHeadings = ["Name", "Ready", "Status", "Restarts", "Age"]
+    const podHeadings = Object.keys(pods[0]);
     let trHeading = document.createElement("tr");
     trHeading.id = "tr-pod-headings";
     for (let i = 0; i < podHeadings.length; i++) {
         let th = document.createElement("th");
-        th.id = `th-pod-${podHeadings[i].toLowerCase()}`;
+        th.id = `th-pod-${podHeadings[i]}`;
         th.className = "text-left";
-        th.innerHTML = podHeadings[i];
+        th.innerHTML = podHeadings[i].charAt(0).toUpperCase() + podHeadings[i].slice(1);
         trHeading.appendChild(th);
     }
     tbody.appendChild(trHeading);
@@ -596,15 +720,6 @@ function renderPodList(pods) {
         tbody.appendChild(row);
     }
     setPodList(tbody);
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// https://stackoverflow.com/questions/4959975/generate-random-number-between-two-numbers-in-javascript
-function randomIntFromInterval(min, max) { // min and max included
-    return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
 // getNamespacePods gets and renders the namespace pod list
@@ -630,6 +745,15 @@ function getNamespacePods(env_name) {
     req.send();
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// https://stackoverflow.com/questions/4959975/generate-random-number-between-two-numbers-in-javascript
+function randomIntFromInterval(min, max) { // min and max included
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
 async function update() {
     let req = new XMLHttpRequest(), req2 = new XMLHttpRequest();
 
@@ -649,12 +773,13 @@ async function update() {
 
         if (data.hasOwnProperty('config')) {
             if (data.config.env_name !== null) {
-                getNamespacePods(data.config.env_name);
+                env_name = data.config.env_name;
+                getNamespacePods(env_name);
             }
             updateConfig(data.config);
         } else {
             console.log("event status missing config element");
-            return
+            return;
         }
 
         if (data.hasOwnProperty('tree')) {
@@ -706,4 +831,23 @@ async function update() {
 document.addEventListener("DOMContentLoaded", function(){
     createTree();
     update();
+    if (document.getElementById('podLogModal') !== null) {
+        $("#podLogModal").on('shown.bs.modal', function (e) {
+            $("#selectContainerMenu").on('change', function (e) {
+                let containers = document.getElementById("selectContainerMenu");
+                active_container = containers.options[containers.selectedIndex].value;
+                getPodLogs();
+            });
+        }).on('hidden.bs.modal', function (e) {
+            active_pod_name = "";
+            active_container = "";
+            document.getElementById('podLogModalHeading').innerHTML = "Logs:";
+            renderContainerMenuOptions([]);
+            renderPodLogs("");
+        });
+        $("#podLogModalRefresh").on('click', function (e) {
+            e.preventDefault();
+            getPodLogs();
+        });
+    }
 });

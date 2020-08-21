@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -301,6 +302,8 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/userenvs/{name}", middlewareChain(api.userEnvDetailHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}/actions/rebuild", middlewareChain(api.userEnvActionsRebuildHandler, sessionAuthMiddleware.sessionAuth)).Methods("POST")
 	r.HandleFunc("/v2/userenvs/{name}/namespace/pods", middlewareChain(api.userEnvNamePodsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+	r.HandleFunc("/v2/userenvs/{name}/namespace/pod/{pod}/containers", middlewareChain(api.userEnvPodContainersHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
+	r.HandleFunc("/v2/userenvs/{name}/namespace/pod/{pod}/logs", middlewareChain(api.userEnvPodLogsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
@@ -887,12 +890,12 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 	if k8senv == nil {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
-			api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+			api.rlogger(r).Logf("error marshaling user env pod list: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 		return
 	}
-	pl, err := api.kr.GetK8sEnvPodList(r.Context(), k8senv.Namespace)
+	pl, err := api.kr.GetPodList(r.Context(), k8senv.Namespace)
 	if err != nil {
 		api.rlogger(r).Logf("error getting pod list for k8s env: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -902,23 +905,181 @@ func (api *v2api) userEnvNamePodsHandler(w http.ResponseWriter, r *http.Request)
 	if pl == nil {
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
-			api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+			api.rlogger(r).Logf("error marshaling user env pod list: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 		return
 	}
 	for _, p := range pl {
 		v2enp = append(v2enp, V2EnvNamePods{
-			Name: p.Name,
-			Ready: p.Ready,
-			Status: p.Status,
+			Name:     p.Name,
+			Ready:    p.Ready,
+			Status:   p.Status,
 			Restarts: strconv.Itoa(int(p.Restarts)),
-			Age: p.Age.Round(time.Second).String(),
+			Age:      p.Age.Round(time.Second).String(),
 		})
 	}
 	w.Header().Add("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(&v2enp); err != nil {
-		api.rlogger(r).Logf("error marshaling user env detail: %v", err)
+		api.rlogger(r).Logf("error marshaling user env pod list: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
+type V2EnvNamePodContainers struct {
+	Name       string   `json:"name"`
+	Containers []string `json:"containers"`
+}
+
+// userEnvPodContainersHandler returns list of container names for specified pod and environment name
+func (api *v2api) userEnvPodContainersHandler(w http.ResponseWriter, r *http.Request) {
+	v2enpc := V2EnvNamePodContainers{}
+	w.Header().Set("Content-Type", "application/json")
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("session missing from context")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	podname := mux.Vars(r)["pod"]
+	if podname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	envname := mux.Vars(r)["name"]
+	if envname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	qae, err := api.dl.GetQAEnvironment(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting qa env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if qae == nil {
+		api.rlogger(r).Logf("qa env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user visible repos: %v: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !repoInRepos(repos, qae.Repo) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	k8senv, err := api.dl.GetK8sEnv(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	// Return empty kubernetes environment if not found
+	if k8senv == nil {
+		if err := json.NewEncoder(w).Encode(&v2enpc); err != nil {
+			api.rlogger(r).Logf("error marshaling user env pod list: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+	podContainers, err := api.kr.GetPodContainers(r.Context(), k8senv.Namespace, podname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting pod containers: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	v2enpc = V2EnvNamePodContainers{
+		Name: podname,
+		Containers: podContainers.Containers,
+	}
+	if err := json.NewEncoder(w).Encode(&v2enpc); err != nil {
+		api.rlogger(r).Logf("error marshaling user env pod list: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
+// userEnvPodLogsHandler returns logs for the specified env and pod name
+func (api *v2api) userEnvPodLogsHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("session missing from context")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	podname := mux.Vars(r)["pod"]
+	if podname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	envname := mux.Vars(r)["name"]
+	if envname == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	qae, err := api.dl.GetQAEnvironment(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting qa env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if qae == nil {
+		api.rlogger(r).Logf("qa env not found")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	repos, err := userPermissionsClient(api.oauth).GetUserVisibleRepos(r.Context(), uis)
+	if err != nil {
+		api.rlogger(r).Logf("error getting user visible repos: %v: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !repoInRepos(repos, qae.Repo) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	k8senv, err := api.dl.GetK8sEnv(r.Context(), envname)
+	if err != nil {
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if k8senv == nil {
+		api.rlogger(r).Logf("error getting k8s env from db: %v", err)
+		w.WriteHeader(http.StatusPreconditionFailed)
+		return
+	}
+	lines := DefaultPodContainerLogLines
+	if l := r.URL.Query().Get("lines"); l != "" {
+		i, err := strconv.Atoi(l)
+		if err != nil {
+			api.rlogger(r).Logf("error converting line to integer: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		// return error if request violates limits
+		if i < 0 || i > metahelm.MaxPodContainerLogLines {
+			api.rlogger(r).Logf("error requested lines exceed limit: %v", i)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		lines = i
+	}
+	container := r.URL.Query().Get("container")
+	pl, err := api.kr.GetPodLogs(r.Context(), k8senv.Namespace, podname, container, uint(lines))
+	if err != nil {
+		api.rlogger(r).Logf("error getting container %v logs for pod %v: %v", container, podname, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer pl.Close()
+	w.Header().Set("Content-Type", "text/plain")
+	_, err = io.Copy(w, pl)
+	if err != nil {
+		api.rlogger(r).Logf("error copying pod logs output")
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }

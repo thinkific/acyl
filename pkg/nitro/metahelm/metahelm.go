@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"strings"
@@ -23,7 +24,7 @@ import (
 	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-	billy "gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-billy.v4"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -63,7 +64,9 @@ type Installer interface {
 
 // KubernetesReporter describes an object that returns k8s environment data
 type KubernetesReporter interface {
-	GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error)
+	GetPodList(ctx context.Context, ns string) (out []K8sPod, err error)
+	GetPodContainers(ctx context.Context, ns, podname string) (out K8sPodContainers, err error)
+	GetPodLogs(ctx context.Context, ns, podname, container string, lines uint) (out io.ReadCloser, err error)
 }
 
 // metrics prefix
@@ -79,6 +82,7 @@ const (
 	DefaultTillerDeploymentName          = "tiller-deploy"
 	DefaultTillerServerConnectRetryDelay = 10 * time.Second
 	DefaultTillerServerConnectRetries    = 40
+	MaxPodContainerLogLines              = 1000
 )
 
 // TillerConfig models the configuration parameters for Helm Tiller in namespaces
@@ -1118,7 +1122,7 @@ type K8sPod struct {
 }
 
 // GetK8sEnvPodList returns a kubernetes environment pod list for the namespace provided
-func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (out []K8sPod, err error) {
+func (ci ChartInstaller) GetPodList(ctx context.Context, ns string) (out []K8sPod, err error) {
 	pl, err := ci.kc.CoreV1().Pods(ns).List(meta.ListOptions{})
 	if err != nil {
 		return []K8sPod{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
@@ -1145,4 +1149,52 @@ func (ci ChartInstaller) GetK8sEnvPodList(ctx context.Context, ns string) (out [
 		})
 	}
 	return out, nil
+}
+
+type K8sPodContainers struct {
+	Pod        string
+	Containers []string
+}
+
+// GetK8sEnvPodContainers returns all container names for the specified pod
+func (ci ChartInstaller) GetPodContainers(ctx context.Context, ns, podname string) (out K8sPodContainers, err error) {
+	pod, err := ci.kc.CoreV1().Pods(ns).Get(podname, meta.GetOptions{})
+	if err != nil {
+		return K8sPodContainers{}, errors.Wrapf(err, "error unable to retrieve pods for namespace %v", ns)
+	}
+	if pod == nil {
+		return K8sPodContainers{}, nil
+	}
+	var containers []string
+	for _, c := range pod.Spec.Containers {
+		if c.Name != "" {
+			containers = append(containers, c.Name)
+		}
+	}
+	return K8sPodContainers{
+		Pod:        pod.Name,
+		Containers: containers,
+	}, nil
+}
+
+// GetK8sEnvPodLogs returns
+func (ci ChartInstaller) GetPodLogs(ctx context.Context, ns, podname, container string, lines uint) (out io.ReadCloser, err error) {
+	if lines > MaxPodContainerLogLines {
+		return nil, errors.Errorf("error line request exceeds limit")
+	}
+	tl := int64(lines)
+	plo := corev1.PodLogOptions{
+		Container: container,
+		TailLines: &tl,
+	}
+	req := ci.kc.CoreV1().Pods(ns).GetLogs(podname, &plo)
+	if req == nil {
+		return nil, errors.Errorf("pod logs request is nil")
+	}
+	req.BackOff(nil)
+	plRC, err := req.Stream()
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting request stream")
+	}
+	return plRC, nil
 }

@@ -5,6 +5,16 @@
             href="{{ .APIBaseURL }}/ui/static/status.css"
             rel="stylesheet"
     />
+    <style>
+      .pod-logs-heading {
+        font-weight: bold;
+      }
+
+      .pod-logs {
+        font-family: monospace;
+        font-size: small;
+      }
+    </style>
     <script type="text/javascript">
       const urlParams = new URLSearchParams(window.location.search);
       const event_id = urlParams.get("id");
@@ -96,6 +106,80 @@
                       <tbody id="k8sNamespacePodTableBody">
                       </tbody>
                     </table>
+                    <div id="podLogsGroup" class="btn-group btn-group-sm">
+                      <div
+                              class="modal fade"
+                              id="podLogModal"
+                              tabindex="-1"
+                              role="dialog"
+                              aria-labelledby="podLogModal"
+                              aria-hidden="true"
+                      >
+                        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+                          <div class="modal-content text-light bg-dark">
+                            <div class="modal-header">
+                              <div class="container">
+                                <div class="row">
+                                  <div class="col-sm">
+                                    <label id="podLogModalLabel">
+                                      <h6 class="modal-title overflow-auto pod-logs-heading" id="podLogModalHeading">
+                                        Logs:
+                                      </h6>
+                                    </label>
+                                  </div>
+                                  <div class="col-sm-2-push">
+                                    <label id="podContainerLabel">
+                                      <h6 class="modal-title overflow-auto pod-logs-heading" id="podContainerHeading">
+                                        Container:
+                                      </h6>
+                                    </label>
+                                  </div>
+                                  <div class="col-sm-4">
+                                    <form>
+                                      <div class="form-group" id="selectContainerGroup">
+                                        <select class="form-control" id="selectContainerMenu">
+                                        </select>
+                                      </div>
+                                    </form>
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                      type="button"
+                                      class="close text-light"
+                                      data-dismiss="modal"
+                                      aria-label="Close"
+                              >
+                                <span aria-hidden="true">&times;</span>
+                              </button>
+                            </div>
+                            <div class="modal-body overflow-auto pod-logs">
+                              <div
+                                      class="container-body pod-logs"
+                                      id="podLogsBody"
+                              >
+                              </div>
+                            </div>
+                            <div class="modal-footer">
+                              <button
+                                      type="button"
+                                      class="btn-sm btn-secondary"
+                                      data-dismiss="modal"
+                              >
+                                Close
+                              </button>
+                              <button
+                                      type="button"
+                                      class="btn-sm btn-primary"
+                                      id="podLogModalRefresh"
+                              >
+                                Refresh
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
