@@ -556,6 +556,13 @@ function updateLogs(logs) {
     objDiv.scrollTop = objDiv.scrollHeight;
 }
 
+// containerSelected calls get pod logs with the selected container
+function containerSelected() {
+    let containers = document.getElementById("selectContainerMenu");
+    let container = containers.options[containers.selectedIndex].value;
+    getPodLogs(container);
+}
+
 // setContainerSelectMenu replaces the existing menu
 function setContainerSelectMenu(selectMenu) {
     if (selectMenu === null) {
@@ -570,6 +577,7 @@ function renderContainerMenuOptions(containers) {
     let selectMenu = document.createElement("select");
     selectMenu.className = "form-control";
     selectMenu.id = "selectContainerMenu";
+    selectMenu.onchange = function(){containerSelected()};
     if (containers.length > 0) {
         for (let i = 0; i < containers.length; i++) {
             if (containers[i] !== "") {
@@ -580,6 +588,7 @@ function renderContainerMenuOptions(containers) {
                 if (active_container === "") {
                     // active container defaults to the first valid container listed
                     active_container = containers[i];
+                    getPodLogs(containers[i]);
                 }
                 selectMenu.appendChild(opt);
             }
@@ -630,9 +639,12 @@ function renderPodLogs(data) {
 }
 
 // getPodLogs gets and renders the logs for the specified parameters
-function getPodLogs() {
+function getPodLogs(container) {
     let req = new XMLHttpRequest();
 
+    if (container !== undefined) {
+        active_container = container;
+    }
     req.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pod/${active_pod_name}/logs?container=${active_container}&lines=${pod_log_lines}`, true);
     req.onload = function (e) {
         if (req.status !== 200) {
@@ -642,7 +654,7 @@ function getPodLogs() {
 
         let data = req.response;
         if (data !== null) {
-            renderPodLogs(data)
+            renderPodLogs(data);
         }
     };
     req.onerror = function (e) {
@@ -657,7 +669,6 @@ function podLogModalData(pod_name) {
     active_pod_name = pod_name;
     document.getElementById('podLogModalHeading').innerHTML = `Logs: ${active_pod_name}`;
     getPodContainers();
-    getPodLogs();
 }
 
 // setPodList replaces the table body with tbody
@@ -829,13 +840,7 @@ document.addEventListener("DOMContentLoaded", function(){
     createTree();
     update();
     if (document.getElementById('podLogModal') !== null) {
-        $("#podLogModal").on('shown.bs.modal', function (e) {
-            $("#selectContainerMenu").on('change', function (e) {
-                let containers = document.getElementById("selectContainerMenu");
-                active_container = containers.options[containers.selectedIndex].value;
-                getPodLogs();
-            });
-        }).on('hidden.bs.modal', function (e) {
+        $("#podLogModal").on('hidden.bs.modal', function (e) {
             active_pod_name = "";
             active_container = "";
             document.getElementById('podLogModalHeading').innerHTML = "Logs:";
