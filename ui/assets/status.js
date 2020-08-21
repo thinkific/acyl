@@ -633,11 +633,7 @@ function renderPodLogs(data) {
 function getPodLogs() {
     let req = new XMLHttpRequest();
 
-    let url = `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pod/${active_pod_name}/logs?lines=${pod_log_lines}`;
-    if (active_container !== "") {
-        url.concat(`&container=${active_container}`)
-    }
-    req.open('GET', url, true);
+    req.open('GET', `${apiBaseURL}/v2/userenvs/${env_name}/namespace/pod/${active_pod_name}/logs?container=${active_container}&lines=${pod_log_lines}`, true);
     req.onload = function (e) {
         if (req.status !== 200) {
             console.log(`pods logs request failed: ${req.status}: ${req.responseText}`);
@@ -684,6 +680,7 @@ function podRow(podValues) {
         td.className = "text-left";
         if (i === 0) {
             let a = document.createElement("a");
+            a.style.cursor = "pointer";
             a.id = `a-pod-${podValues[0]}`;
             a.innerHTML = podValues[0];
             a.setAttribute("data-toggle", "modal");
