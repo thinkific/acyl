@@ -2,7 +2,6 @@ package locker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -47,8 +47,9 @@ type NotificationPayload struct {
 type PreemptiveLocker struct {
 	lp         LockProvider
 	lock       PreemptableLock
-	opts       PreemptiveLockerOpts
+	conf       PreemptiveLockerConfig
 	key1, key2 int32
+	event      string
 }
 
 // PreemptableLock describes an object that acts as a Lock that can signal to peers that they should unlock
@@ -65,36 +66,77 @@ type PreemptableLock interface {
 	Notify(ctx context.Context) error
 }
 
-// PreemptiveLockerOpts contains options for the locks produced by PreemptiveLocker
-type PreemptiveLockerOpts struct {
-	// LockWait is how long a preemtive lock will block waiting for the lock to be acquired
-	LockWait time.Duration
+// PreemptiveLockerConfig contains values for adjusting how the PreemptiveLocker behaves
+type PreemptiveLockerConfig struct {
+	// lockWait is how long a preemtive lock will block waiting for the lock to be acquired
+	lockWait time.Duration
 
-	// LockDelay is how long the locker should wait before attempting to acquire the lock
+	// lockDelay is how long the locker should wait before attempting to acquire the lock
 	// This is an imperfect, but practical way of ensuring we don't perform operations before other lock holders have realized that their session has ended
-	LockDelay time.Duration
+	lockDelay time.Duration
 
-	// DatadogServiceName is the service name used for Datadog APM
-	DatadogServiceName string
+	// apmServiceName is the service name used for APM
+	apmServiceName string
 
-	// EnableTracing determines whether the Preemptive Locker should actually utilize Datadog APM
-	EnableTracing bool
+	// apmEnabled determines whether the Preemptive Locker should actually report APM
+	apmEnabled bool
 }
 
+type PreemptiveLockerOption func(*PreemptiveLockerConfig)
+
+func WithLockWait(lockWait time.Duration) PreemptiveLockerOption {
+	return func(config *PreemptiveLockerConfig) {
+		config.lockWait = lockWait
+	}
+}
+
+func WithLockDelay(lockDelay time.Duration) PreemptiveLockerOption {
+	return func(config *PreemptiveLockerConfig) {
+		config.lockDelay = lockDelay
+	}
+}
+
+func WithAPMServiceName(name string) PreemptiveLockerOption {
+	return func(config *PreemptiveLockerConfig) {
+		config.apmServiceName = name
+	}
+}
+
+func WithAPMEnabled(enabled bool) PreemptiveLockerOption {
+	return func(config *PreemptiveLockerConfig) {
+		config.apmEnabled = enabled
+	}
+}
+
+type PreemptiveLockerFactory func(key1, key2 int32, event string) *PreemptiveLocker
+
 // NewPreemptiveLocker returns a new preemptive locker or an error
-func NewPreemptiveLocker(provider LockProvider, key1, key2 int32, opts PreemptiveLockerOpts) *PreemptiveLocker {
-	if opts.LockWait == 0 {
-		opts.LockWait = defaultLockWaitTime
+func NewPreemptiveLockerFactory(provider LockProvider, opts ...PreemptiveLockerOption) (PreemptiveLockerFactory, error) {
+	if provider == nil {
+		return nil, errors.New("must provide non-nil LockProvider")
 	}
-	if opts.LockDelay == 0 {
-		opts.LockDelay = defaultLockDelay
+
+	config := PreemptiveLockerConfig{}
+	for _, opt := range opts {
+		opt(&config)
 	}
-	return &PreemptiveLocker{
-		lp:   provider,
-		opts: opts,
-		key1: key1,
-		key2: key2,
+	if config.lockWait == 0 {
+		config.lockWait = defaultLockWaitTime
 	}
+	if config.lockDelay == 0 {
+		config.lockDelay = defaultLockDelay
+	}
+	var plf PreemptiveLockerFactory
+	plf = func(key1, key2 int32, event string) *PreemptiveLocker {
+		return &PreemptiveLocker{
+			lp:    provider,
+			conf:  config,
+			key1:  key1,
+			key2:  key2,
+			event: event,
+		}
+	}
+	return plf, nil
 }
 
 func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interface{}) {
@@ -102,8 +144,8 @@ func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interfac
 }
 
 func (p *PreemptiveLocker) startSpanFromContext(ctx context.Context, operationName string) (tracer.Span, context.Context) {
-	if p.opts.EnableTracing {
-		return tracer.StartSpanFromContext(ctx, operationName, tracer.ServiceName(p.opts.DatadogServiceName))
+	if p.conf.apmEnabled {
+		return tracer.StartSpanFromContext(ctx, operationName, tracer.ServiceName(p.conf.apmServiceName))
 	}
 	// return no-op span if tracing is disabled
 	span, _ := tracer.SpanFromContext(context.Background())
@@ -112,7 +154,7 @@ func (p *PreemptiveLocker) startSpanFromContext(ctx context.Context, operationNa
 
 // Lock locks the lock and returns a channel used to signal if the lock should be released ASAP. If the lock is currently in use, this method will block until the lock is released. If caller is preempted while waiting for the lock to be released,
 // an error is returned.
-func (p *PreemptiveLocker) Lock(ctx context.Context, event string) (ch <-chan NotificationPayload, err error) {
+func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayload, err error) {
 	span, ctx := p.startSpanFromContext(ctx, "lock")
 	defer func() {
 		span.Finish(tracer.WithError(err))
@@ -128,7 +170,7 @@ func (p *PreemptiveLocker) Lock(ctx context.Context, event string) (ch <-chan No
 	if p.lock != nil {
 		return nil, errors.New("single use lock attempted to be reused")
 	}
-	lock, err := p.lp.AcquireLock(ctx, p.key1, p.key2, event)
+	lock, err := p.lp.AcquireLock(ctx, p.key1, p.key2, p.event)
 	if err != nil {
 		return nil, fmt.Errorf("unable to acquire lock")
 	}
@@ -139,13 +181,13 @@ func (p *PreemptiveLocker) Lock(ctx context.Context, event string) (ch <-chan No
 		return nil, fmt.Errorf("unable to notify other locks: %v", err)
 	}
 
-	ch, err = lock.Lock(ctx, p.opts.LockWait)
+	ch, err = lock.Lock(ctx, p.conf.lockWait)
 	if err != nil {
 		return nil, fmt.Errorf("unable to lock: %v", err)
 	}
 
 	// Wait for the specified LockDelay before returning
-	time.Sleep(p.opts.LockDelay)
+	time.Sleep(p.conf.lockDelay)
 	return ch, nil
 }
 

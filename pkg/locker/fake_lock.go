@@ -68,10 +68,23 @@ func (fls *fakeLockStore) lock(ctx context.Context, key1, key2 int32) error {
 func (fls *fakeLockStore) unlock(ctx context.Context, key1, key2 int32, id uuid.UUID) error {
 	fls.mutex.Lock()
 	defer fls.mutex.Unlock()
-	fls.delete(key1, key2, id)
 	key := [2]int32{key1, key2}
 	entry := fls.locks[key]
 	go func() { <-entry.lock }()
+
+	// remove the key from the slice of lock contenders
+	var index int
+	for i, lock := range fls.locks[key].contenders {
+		if lock.id == id {
+			index = i
+			break
+		}
+	}
+
+	length := len(fls.locks[key].contenders)
+	fls.locks[key].contenders[index] = fls.locks[key].contenders[length-1]
+	fls.locks[key].contenders[length-1] = nil
+	fls.locks[key].contenders = fls.locks[key].contenders[:length-1]
 	return nil
 }
 

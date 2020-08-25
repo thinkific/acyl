@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	mathrand "math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -38,23 +39,28 @@ import (
 
 func TestLockingOperation(t *testing.T) {
 	el := &eventlogger.Logger{DL: persistence.NewFakeDataLayer()}
-	m := Manager{
-		LP: locker.NewFakeLockProvider(),
-		MC: &metrics.FakeCollector{},
-		PLO: locker.PreemptiveLockerOpts{
-			LockDelay: 1 * time.Millisecond,
-			LockWait:  1 * time.Second,
-		},
+	plf, err := locker.NewPreemptiveLockerFactory(
+		locker.NewFakeLockProvider(),
+		locker.WithLockDelay(time.Millisecond),
+		locker.WithLockWait(time.Second),
+	)
+	if err != nil {
+		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
-	repoID := int32(1)
-	pr := int32(1)
+	m := Manager{
+		PLF: plf,
+		MC:  &metrics.FakeCollector{},
+	}
+	repoID := mathrand.Int31()
+	pr := mathrand.Int31()
 	repoName := "foo"
 	preemptedFunc := func(ctx context.Context) error {
 		timer := time.NewTimer(10 * time.Second)
-		pl := locker.NewPreemptiveLocker(m.LP, repoID, pr, m.PLO)
-
-		pl.Lock(ctx, "update")
-		defer pl.Release(context.Background())
+		pl := m.PLF(repoID, pr, "new operation")
+		pl.Lock(ctx)
+		releaseCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		defer pl.Release(releaseCtx)
 		select {
 		case <-timer.C:
 			return errors.New("timer expired")
@@ -80,7 +86,7 @@ func TestLockingOperation(t *testing.T) {
 	// New PR
 	pr++
 	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), el)
-	err := m.lockingOperation(ctx2, repoName, repoID, pr, longOpFunc)
+	err = m.lockingOperation(ctx2, repoName, repoID, pr, longOpFunc)
 	if err == nil {
 		t.Fatalf("should have timed out")
 	}
@@ -467,9 +473,17 @@ func TestCreate(t *testing.T) {
 				KC: k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "nitro-1234-some-random-name"}}),
 			}
 			nt := newNotificationTracker()
+			plf, err := locker.NewPreemptiveLockerFactory(
+				locker.NewFakeLockProvider(),
+				locker.WithLockDelay(time.Second),
+				locker.WithLockWait(2*time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new preemptive locker factory: %v", err)
+			}
 			m := Manager{
 				DL:               dl,
-				LP:               locker.NewFakeLockProvider(),
+				PLF:              plf,
 				NF:               nt.sender,
 				MC:               &metrics.FakeCollector{},
 				NG:               &namegen.FakeNameGenerator{},
@@ -479,10 +493,6 @@ func TestCreate(t *testing.T) {
 				CI:               ci,
 				GlobalLimit:      c.limit,
 				OperationTimeout: c.timeout,
-				PLO: locker.PreemptiveLockerOpts{
-					LockDelay: 1 * time.Second,
-					LockWait:  2 * time.Second,
-				},
 			}
 
 			el := &eventlogger.Logger{DL: dl}
@@ -734,9 +744,17 @@ func TestUpdate(t *testing.T) {
 				KC:           k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: c.inputK8sEnv.Namespace}}),
 			}
 			nt := newNotificationTracker()
+			plf, err := locker.NewPreemptiveLockerFactory(
+				locker.NewFakeLockProvider(),
+				locker.WithLockDelay(time.Millisecond),
+				locker.WithLockWait(time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new preemptive locker factory: %v", err)
+			}
 			m := Manager{
 				DL:               dl,
-				LP:               locker.NewFakeLockProvider(),
+				PLF:              plf,
 				NF:               nt.sender,
 				MC:               &metrics.FakeCollector{},
 				NG:               &namegen.FakeNameGenerator{},
@@ -745,16 +763,12 @@ func TestUpdate(t *testing.T) {
 				RC:               frc,
 				CI:               ci,
 				OperationTimeout: c.timeout,
-				PLO: locker.PreemptiveLockerOpts{
-					LockDelay: 1 * time.Millisecond,
-					LockWait:  1 * time.Second,
-				},
 			}
 
 			el := &eventlogger.Logger{DL: dl}
 			el.Init([]byte{}, c.inputRDD.Repo, c.inputRDD.PullRequest)
 			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
-			_, err := m.Update(ctx, c.inputRDD)
+			_, err = m.Update(ctx, c.inputRDD)
 			c.verifyFunc(err, dl, nt, t)
 		})
 	}
@@ -896,24 +910,28 @@ func TestDelete(t *testing.T) {
 				DL:           dl,
 				HelmReleases: releases,
 			}
+			plf, err := locker.NewPreemptiveLockerFactory(
+				locker.NewFakeLockProvider(),
+				locker.WithLockDelay(time.Millisecond),
+				locker.WithLockWait(time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new preemptive locker factory: %v", err)
+			}
 			m := Manager{
-				DL: dl,
-				LP: locker.NewFakeLockProvider(),
-				NF: testNF,
-				MC: &metrics.FakeCollector{},
-				MG: fg,
-				RC: frc,
-				CI: ci,
-				PLO: locker.PreemptiveLockerOpts{
-					LockDelay: 1 * time.Millisecond,
-					LockWait:  1 * time.Second,
-				},
+				DL:  dl,
+				PLF: plf,
+				NF:  testNF,
+				MC:  &metrics.FakeCollector{},
+				MG:  fg,
+				RC:  frc,
+				CI:  ci,
 			}
 
 			el := &eventlogger.Logger{DL: dl}
 			el.Init([]byte{}, c.inputRDD.Repo, c.inputRDD.PullRequest)
 			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
-			err := m.Delete(ctx, &c.inputRDD, models.DestroyApiRequest)
+			err = m.Delete(ctx, &c.inputRDD, models.DestroyApiRequest)
 			time.Sleep(10 * time.Millisecond) // give time for async delete to complete
 			c.verifyFunc(err, t)
 		})

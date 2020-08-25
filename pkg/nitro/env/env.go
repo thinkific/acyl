@@ -55,11 +55,10 @@ type Manager struct {
 	RC                   ghclient.RepoClient
 	MC                   metrics.Collector
 	NG                   namegen.NameGenerator
-	LP                   locker.LockProvider
-	PLO                  locker.PreemptiveLockerOpts
 	FS                   billy.Filesystem
 	MG                   meta.Getter
 	CI                   metahelm.Installer
+	PLF                  locker.PreemptiveLockerFactory
 	AWSCreds             config.AWSCreds
 	S3Config             config.S3Config
 	GlobalLimit          uint
@@ -220,8 +219,8 @@ func (m *Manager) lockingOperation(ctx context.Context, repoName string, repoID,
 	defer cf()
 
 	end := m.MC.Timing(mpfx+"lock_wait", "triggering_repo:"+repoName)
-	lock := locker.NewPreemptiveLocker(m.LP, repoID, pr, m.PLO)
-	preempt, err := lock.Lock(ctx, "event") // TODO: consider adding more detailed event information
+	lock := m.PLF(repoID, pr, "event") // TODO: consider adding more detailed event information
+	preempt, err := lock.Lock(ctx)
 	if err != nil {
 		end("success:false")
 		return errors.Wrap(err, "error getting lock")

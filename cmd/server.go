@@ -162,6 +162,11 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error creating Postgres lock provider: %v", err)
 	}
 
+	plf, err := locker.NewPreemptiveLockerFactory(lp)
+	if err != nil {
+		log.Fatalf("error creating preemptive locker factory: %v", err)
+	}
+
 	slackapi := slack.New(slackConfig.Token)
 	mapper := slacknotifier.NewRepoBackedSlackUsernameMapper(rc, slackConfig.MapperRepo, slackConfig.MapperMapPath, slackConfig.MapperRepoRef, time.Duration(slackConfig.MapperUpdateIntervalSeconds)*time.Second)
 
@@ -231,10 +236,10 @@ func server(cmd *cobra.Command, args []string) {
 		RC:                   rc,
 		MC:                   nmc,
 		NG:                   ng,
-		LP:                   lp,
 		FS:                   fs,
 		MG:                   mg,
 		CI:                   ci,
+		PLF:                  plf,
 		AWSCreds:             awsCreds,
 		S3Config:             s3config,
 		GlobalLimit:          serverConfig.GlobalEnvironmentLimit,

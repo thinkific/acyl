@@ -370,6 +370,10 @@ func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Conte
 		return nil, nil, nil, errors.Wrap(err, "error getting name generator")
 	}
 	mc := &metrics.FakeCollector{}
+	plf, err := locker.NewPreemptiveLockerFactory(locker.NewFakeLockProvider())
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "error creating preemptive locker factory")
+	}
 	mg, ri, _, ctx := generateLocalMetaGetter(dl, getStatusCallback())
 	ibb, err := getImageBackend(dl, mg.RC, testEnvCfg.dockerCfg.AuthConfigs)
 	if err != nil {
@@ -404,7 +408,7 @@ func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Conte
 			RC:                   mg.RC,
 			MC:                   mc,
 			NG:                   ng,
-			LP:                   locker.NewFakeLockProvider(),
+			PLF:                  plf,
 			FS:                   fs,
 			MG:                   mg,
 			CI:                   ci,
