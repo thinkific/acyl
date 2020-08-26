@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/api"
-
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
@@ -35,7 +34,7 @@ import (
 	"gopkg.in/src-d/go-billy.v4/osfs"
 
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
-	homedir "github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/go-homedir"
 
 	dockerconfig "github.com/docker/cli/cli/config"
 	dockerconfigfile "github.com/docker/cli/cli/config/configfile"
@@ -426,7 +425,7 @@ func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Conte
 		}, nil
 }
 
-func runUI(dl persistence.DataLayer, repo string) (*http.Server, error) {
+func runUI(dl persistence.DataLayer, nitromgr *nitroenv.Manager, repo string) (*http.Server, error) {
 	if !testEnvCfg.enableUI {
 		return nil, nil
 	}
@@ -438,17 +437,23 @@ func runUI(dl persistence.DataLayer, repo string) (*http.Server, error) {
 	uilogger := log.New(os.Stderr, "ui server: ", log.LstdFlags)
 	server := &http.Server{}
 	httpapi := api.NewDispatcher(server)
+	ci, ok := nitromgr.CI.(*metahelm.ChartInstaller)
+	if !ok {
+		return nil, fmt.Errorf("unexpected type for ChartInstaller: %T", nitromgr.CI)
+	}
 	deps := &api.Dependencies{
 		DataLayer:    dl,
 		ServerConfig: serverConfig,
 		Logger:       uilogger,
+		EnvironmentSpawner: nitromgr,
+		KubernetesReporter: ci,
 	}
 	setDummyGHConfig()
 	httpapi.AppGHClientFactoryFunc = func(_ string) ghclient.GitHubAppInstallationClient {
 		return &ghclient.FakeRepoClient{
 			GetUserAppRepoPermissionsFunc: func(_ context.Context, instID int64) (map[string]ghclient.AppRepoPermissions, error) {
 				return map[string]ghclient.AppRepoPermissions{
-					repo: ghclient.AppRepoPermissions{Repo: repo, Pull: true},
+					repo: ghclient.AppRepoPermissions{Repo: repo, Pull: true, Push: true},
 				}, nil
 			},
 		}
@@ -500,7 +505,7 @@ func configTestCreate(cmd *cobra.Command, args []string) {
 		perr(err)
 		return
 	}
-	uisrv, err := runUI(dl, rrd.Repo)
+	uisrv, err := runUI(dl, nitromgr, rrd.Repo)
 	if err != nil {
 		perr(err)
 		return
@@ -544,7 +549,7 @@ func configTestUpdate(cmd *cobra.Command, args []string) {
 		perr(err)
 		return
 	}
-	uisrv, err := runUI(dl, rrd.Repo)
+	uisrv, err := runUI(dl, nitromgr, rrd.Repo)
 	if err != nil {
 		perr(err)
 		return
@@ -598,7 +603,7 @@ func configTestDelete(cmd *cobra.Command, args []string) {
 		perr(err)
 		return
 	}
-	uisrv, err := runUI(dl, rrd.Repo)
+	uisrv, err := runUI(dl, nitromgr, rrd.Repo)
 	if err != nil {
 		perr(err)
 		return

@@ -14,6 +14,7 @@ application:
 #    - "ingress.traefik.enabled=false"
 # uncomment to use in-environment Furan
 #    - "app.furan_addr=furan:4001"
+#    - "image.pullPolicy=IfNotPresent"
 # local:
 #    - "app.dogstatsd_addr=1.2.3.4:8125"
 #    - "app.secrets_backend=env"
