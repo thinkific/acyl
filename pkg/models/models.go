@@ -77,7 +77,6 @@ type RepoRevisionData struct {
 	BaseBranch   string `json:"base_branch"`
 	SourceRef    string `json:"source_ref"` // if environment is not based on a PR
 	IsFork       bool   `json:"is_fork"`    // set if PR head is from a different repo (fork) from base
-	RepoID       int32  `json:"repo_id"`
 }
 
 // QAEnvironment describes an individual QA environment
@@ -374,4 +373,19 @@ type EnvSearchParameters struct {
 	Statuses     []EnvironmentStatus // include all these statuses (mutually exclusive with Status)
 	CreatedSince time.Duration       // Duration prior to time.Now().UTC()
 	TrackingRef  string
+}
+
+// EnvLock models the lock
+type EnvLock struct {
+	LockKey     int64
+	Repo        string
+	PullRequest uint
+}
+
+func (el EnvLock) Columns() string {
+	return "lock_key, repo, pull_request"
+}
+
+func (el EnvLock) ScanValues() []interface{} {
+	return []interface{}{&el.LockKey, &el.Repo, &el.PullRequest}
 }

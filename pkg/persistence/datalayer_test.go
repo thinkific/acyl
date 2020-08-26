@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1768,5 +1769,30 @@ func TestDataLayerDeleteExpiredUISessions(t *testing.T) {
 	}
 	if uis, err := dl.GetUISession(id3); err != nil || uis != nil {
 		t.Fatalf("error getting ui session or session not deleted: %v: %+v", err, *uis)
+	}
+}
+
+func TestDataLayerCreateEnvLockIfNotExists(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	lock, err := dl.CreateEnvLockIfNotExists(ctx, "foo/bar", uint(1))
+	if err != nil {
+		t.Fatalf("error creating env lock if not exists: %v", err)
+	}
+
+	// subsequent calls should return the same lock, since it already exists
+	lock2, err := dl.CreateEnvLockIfNotExists(context.Background(), "foo/bar", uint(1))
+	if err != nil {
+		t.Fatalf("error creating env lock if not exists: %v", err)
+	}
+	t.Logf("%v", lock)
+	t.Logf("%v", lock2)
+	if !reflect.DeepEqual(lock, lock2) {
+		t.Fatalf("expected the locks to be the same")
 	}
 }

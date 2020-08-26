@@ -2,6 +2,7 @@ package locker
 
 import (
 	"context"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -45,7 +46,7 @@ func runTests(t *testing.T, plfunc pLFactoryFunc) {
 			tfunc: testLockAndUnlock,
 		},
 		{
-			name:  "prememption",
+			name:  "preememption",
 			tfunc: testPreemption,
 		},
 	}
@@ -61,7 +62,8 @@ func runTests(t *testing.T, plfunc pLFactoryFunc) {
 }
 
 func testLockAndUnlock(t *testing.T, lp LockProvider) {
-	lock, err := lp.AcquireLock(context.Background(), 0, 0, "some-event")
+	key := rand.Int63()
+	lock, err := lp.NewLock(context.Background(), key, "some-event")
 	if err != nil {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}
@@ -77,7 +79,7 @@ func testLockAndUnlock(t *testing.T, lp LockProvider) {
 		}
 	}()
 
-	newLock, err := lp.AcquireLock(context.Background(), 0, 0, "new-event")
+	newLock, err := lp.NewLock(context.Background(), key, "new-event")
 	if err != nil {
 		t.Fatalf("unable to lock: %v", err)
 	}
@@ -97,12 +99,13 @@ func testLockAndUnlock(t *testing.T, lp LockProvider) {
 }
 
 func testPreemption(t *testing.T, lp LockProvider) {
-	lock, err := lp.AcquireLock(context.Background(), 0, 0, "some-event")
+	key := rand.Int63()
+	lock, err := lp.NewLock(context.Background(), key, "some-event")
 	if err != nil {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}
 
-	lock2, err := lp.AcquireLock(context.Background(), 0, 0, "new-event")
+	lock2, err := lp.NewLock(context.Background(), key, "new-event")
 	if err != nil {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}
@@ -142,13 +145,13 @@ func testPreemption(t *testing.T, lp LockProvider) {
 func testContextCancellation(t *testing.T, lp LockProvider) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := lp.AcquireLock(ctx, 0, 0, "some-event")
+	_, err := lp.NewLock(ctx, rand.Int63(), "some-event")
 	if err == nil {
 		t.Fatalf("expected canceled context to prevent the ability to acquire the lock")
 	}
 
 	ctx, cancel = context.WithCancel(context.Background())
-	lock, err := lp.AcquireLock(ctx, 0, 0, "some-event")
+	lock, err := lp.NewLock(ctx, rand.Int63(), "some-event")
 	if err != nil {
 		t.Fatalf("unable to acquire the lock")
 	}

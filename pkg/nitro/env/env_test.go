@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	mathrand "math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -50,13 +49,17 @@ func TestLockingOperation(t *testing.T) {
 	m := Manager{
 		PLF: plf,
 		MC:  &metrics.FakeCollector{},
+		DL:  persistence.NewFakeDataLayer(),
 	}
-	repoID := mathrand.Int31()
-	pr := mathrand.Int31()
-	repoName := "foo"
+	repo := "foo"
+	pr := uint(1)
 	preemptedFunc := func(ctx context.Context) error {
 		timer := time.NewTimer(10 * time.Second)
-		pl := m.PLF(repoID, pr, "new operation")
+		lock, err := m.DL.CreateEnvLockIfNotExists(ctx, repo, pr)
+		if err != nil {
+			t.Fatalf("unable to create env lock key: %v", err)
+		}
+		pl := m.PLF(lock.LockKey, "new operation")
 		pl.Lock(ctx)
 		releaseCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
@@ -79,14 +82,14 @@ func TestLockingOperation(t *testing.T) {
 		}
 	}
 	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
-	if err := m.lockingOperation(ctx, repoName, repoID, pr, preemptedFunc); err != nil {
+	if err := m.lockingOperation(ctx, repo, pr, preemptedFunc); err != nil {
 		t.Fatalf("should have been preempted: %v", err)
 	}
 
 	// New PR
 	pr++
 	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), el)
-	err = m.lockingOperation(ctx2, repoName, repoID, pr, longOpFunc)
+	err = m.lockingOperation(ctx2, repo, pr, longOpFunc)
 	if err == nil {
 		t.Fatalf("should have timed out")
 	}

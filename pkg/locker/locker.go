@@ -14,12 +14,12 @@ import (
 
 var (
 	defaultLockWaitTime = (30 * time.Minute) + (30 * time.Second) // global async timeout is 30 minutes
-	defaultLockDelay    = 15 * time.Second
+	defaultLockDelay    = 10 * time.Second
 )
 
 // LockProvider describes an object capable of creating locks
 type LockProvider interface {
-	AcquireLock(ctx context.Context, key1, key2 int32, event string) (PreemptableLock, error)
+	NewLock(ctx context.Context, key int64, event string) (PreemptableLock, error)
 }
 
 // NotificationPayload represents the content of messages sent to the lock holder.
@@ -31,8 +31,8 @@ type NotificationPayload struct {
 	// Useful for logging purposes.
 	Message string `json:"event"`
 
-	//Preempted represents if this notification was instigated because the lock holder has been preempted.
-	Preempted bool `json:"preempted"`
+	// The key that this Notification Payload pertains to
+	LockKey int64
 }
 
 // PreemptiveLocker represents a distributed lock where callers can be preempted while waiting for the lock to be released or while holding the lock. High level, the algorithm is as follows:
@@ -45,11 +45,11 @@ type NotificationPayload struct {
 // - Client C's invocation of Lock() returns successfully
 //
 type PreemptiveLocker struct {
-	lp         LockProvider
-	lock       PreemptableLock
-	conf       PreemptiveLockerConfig
-	key1, key2 int32
-	event      string
+	lp    LockProvider
+	lock  PreemptableLock
+	conf  PreemptiveLockerConfig
+	key   int64
+	event string
 }
 
 // PreemptableLock describes an object that acts as a Lock that can signal to peers that they should unlock
@@ -59,7 +59,6 @@ type PreemptableLock interface {
 	Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error)
 
 	// Unlock unlocks the preemptable lock. It should clean up any underlying resources
-	// Typically, you should pass context.Background() to this function.
 	Unlock(ctx context.Context) error
 
 	// Notify informs the current lock holder that they should unlock the lock
@@ -75,11 +74,11 @@ type PreemptiveLockerConfig struct {
 	// This is an imperfect, but practical way of ensuring we don't perform operations before other lock holders have realized that their session has ended
 	lockDelay time.Duration
 
-	// apmServiceName is the service name used for APM
-	apmServiceName string
+	// tracingServiceName is the service name used for APM
+	tracingServiceName string
 
-	// apmEnabled determines whether the Preemptive Locker should actually report APM
-	apmEnabled bool
+	// tracingEnabled determines whether the Preemptive Locker should actually report APM
+	tracingEnabled bool
 }
 
 type PreemptiveLockerOption func(*PreemptiveLockerConfig)
@@ -96,19 +95,19 @@ func WithLockDelay(lockDelay time.Duration) PreemptiveLockerOption {
 	}
 }
 
-func WithAPMServiceName(name string) PreemptiveLockerOption {
+func WithTracingServiceName(name string) PreemptiveLockerOption {
 	return func(config *PreemptiveLockerConfig) {
-		config.apmServiceName = name
+		config.tracingServiceName = name
 	}
 }
 
-func WithAPMEnabled(enabled bool) PreemptiveLockerOption {
+func WithTracingEnabled(enabled bool) PreemptiveLockerOption {
 	return func(config *PreemptiveLockerConfig) {
-		config.apmEnabled = enabled
+		config.tracingEnabled = enabled
 	}
 }
 
-type PreemptiveLockerFactory func(key1, key2 int32, event string) *PreemptiveLocker
+type PreemptiveLockerFactory func(key int64, event string) *PreemptiveLocker
 
 // NewPreemptiveLocker returns a new preemptive locker or an error
 func NewPreemptiveLockerFactory(provider LockProvider, opts ...PreemptiveLockerOption) (PreemptiveLockerFactory, error) {
@@ -127,12 +126,11 @@ func NewPreemptiveLockerFactory(provider LockProvider, opts ...PreemptiveLockerO
 		config.lockDelay = defaultLockDelay
 	}
 	var plf PreemptiveLockerFactory
-	plf = func(key1, key2 int32, event string) *PreemptiveLocker {
+	plf = func(key int64, event string) *PreemptiveLocker {
 		return &PreemptiveLocker{
 			lp:    provider,
 			conf:  config,
-			key1:  key1,
-			key2:  key2,
+			key:   key,
 			event: event,
 		}
 	}
@@ -144,11 +142,15 @@ func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interfac
 }
 
 func (p *PreemptiveLocker) startSpanFromContext(ctx context.Context, operationName string) (tracer.Span, context.Context) {
-	if p.conf.apmEnabled {
-		return tracer.StartSpanFromContext(ctx, operationName, tracer.ServiceName(p.conf.apmServiceName))
+	if !p.conf.tracingEnabled {
+		// return no-op span if tracing is disabled
+		span, _ := tracer.SpanFromContext(context.Background())
+		return span, ctx
 	}
-	// return no-op span if tracing is disabled
-	span, _ := tracer.SpanFromContext(context.Background())
+
+	span, ctx := tracer.StartSpanFromContext(ctx, operationName, tracer.ServiceName(p.conf.tracingServiceName))
+	span.SetTag("lock_key", p.key)
+	span.SetTag("event", p.event)
 	return span, ctx
 }
 
@@ -170,7 +172,7 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 	if p.lock != nil {
 		return nil, errors.New("single use lock attempted to be reused")
 	}
-	lock, err := p.lp.AcquireLock(ctx, p.key1, p.key2, p.event)
+	lock, err := p.lp.NewLock(ctx, p.key, p.event)
 	if err != nil {
 		return nil, fmt.Errorf("unable to acquire lock")
 	}

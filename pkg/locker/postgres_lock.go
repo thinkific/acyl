@@ -18,16 +18,16 @@ import (
 )
 
 const (
-	defaultKeepAlivePeriod  = 5 * time.Second
+	defaultKeepAlivePeriod  = 3 * time.Second
 	defaultFailureThreshold = 2
 )
 
 type postgresSessionController struct {
 	// failureThreshold is the number of consecutive failures before marking connection as failed
-	failureThreshold int
+	failureThreshold uint
 
 	// failreCount is the current count of consecutive failures
-	failureCount int
+	failureCount uint
 
 	// keepAlivePeriod determines how often we will ping Postgres to ensure the connection is still working
 	keepAlivePeriod time.Duration
@@ -39,7 +39,7 @@ type postgresSessionController struct {
 	conn *sql.Conn
 }
 
-func newPostgresSessionController(ctx context.Context, keepAlivePeriod time.Duration, conn *sql.Conn, failureThreshold int) *postgresSessionController {
+func newPostgresSessionController(ctx context.Context, keepAlivePeriod time.Duration, conn *sql.Conn, failureThreshold uint) *postgresSessionController {
 	if keepAlivePeriod == time.Duration(0) {
 		keepAlivePeriod = defaultKeepAlivePeriod
 	}
@@ -50,7 +50,7 @@ func newPostgresSessionController(ctx context.Context, keepAlivePeriod time.Dura
 	return &postgresSessionController{
 		keepAlivePeriod: keepAlivePeriod,
 		conn:            conn,
-		sessionErr:      make(chan error),
+		sessionErr:      make(chan error, 1),
 	}
 }
 
@@ -60,7 +60,6 @@ func (psc *postgresSessionController) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			psc.sessionErr <- ctx.Err()
 			return
 		case <-t.C:
 			err := psc.sendKeepAlive(ctx)
@@ -89,8 +88,8 @@ type postgresLock struct {
 	// psc allows the lock to determine if there are any issues with the underlying postgres connection
 	psc *postgresSessionController
 
-	// 2 keys used to obtain a lock
-	key1, key2 int32
+	// key used to obtain the lock
+	key int64
 
 	// We want to use a single connection as the Advisory Lock we will be using will be a session-level lock
 	// This means that the lock is released in 2 conditions:
@@ -109,45 +108,39 @@ type postgresLock struct {
 	// preempted is a channel which contains payloads from the Postgres Listener.
 	preempted chan NotificationPayload
 
-	// message represents a message to use when notifying other lock holders that their operation has been preempted
+	// message represents a descriptive reason to communicate to other lock holders why their operation was preempted, optional
 	message string
-
-	// notificationChannel is the listen/notify channel for this lock
-	notificationChannel string
 }
 
-func newPostgresLock(ctx context.Context, db *sqlx.DB, key1, key2 int32, connInfo, message string) (pl *postgresLock, err error) {
+func newPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, message string) (pl *postgresLock, err error) {
 	id, err := uuid.NewUUID()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unable to create new UUID")
+	}
+	if db == nil {
+		return nil, errors.New("db must not be nil")
 	}
 
 	conn, err := db.Conn(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to obtain connection from pool: %v", err)
+		return nil, errors.Wrap(err, "unable to obtain connection from pool")
 	}
 	defer func() {
-		if err != nil {
+		if err != nil && conn != nil {
 			conn.Close()
 		}
 	}()
 
 	psc := newPostgresSessionController(ctx, defaultKeepAlivePeriod, conn, defaultFailureThreshold)
-
-	go func() {
-		psc.run(ctx)
-	}()
-
+	go psc.run(ctx)
 	pl = &postgresLock{
-		id:                  id,
-		psc:                 psc,
-		key1:                key1,
-		key2:                key2,
-		conn:                conn,
-		postgresURI:         connInfo,
-		preempted:           make(chan NotificationPayload),
-		message:             message,
-		notificationChannel: fmt.Sprintf("%d,%d", key1, key2),
+		id:          id,
+		psc:         psc,
+		key:         key,
+		conn:        conn,
+		postgresURI: connInfo,
+		preempted:   make(chan NotificationPayload, 1),
+		message:     message,
 	}
 	return pl, nil
 }
@@ -155,12 +148,15 @@ func newPostgresLock(ctx context.Context, db *sqlx.DB, key1, key2 int32, connInf
 // handleEvents is a blocking function.
 // It checks the multiple different channels to determine how to proceed
 func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener) {
+	ctx, cancel := context.WithTimeout(ctx, time.Hour)
+	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
 			pl.preempted <- NotificationPayload{
 				ID:      pl.id,
 				Message: ctx.Err().Error(),
+				LockKey: pl.key,
 			}
 			return
 		case err := <-pl.psc.sessionErr:
@@ -168,6 +164,7 @@ func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener)
 				pl.preempted <- NotificationPayload{
 					ID:      pl.id,
 					Message: err.Error(),
+					LockKey: pl.key,
 				}
 			}
 			return
@@ -186,34 +183,37 @@ func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener)
 				pl.preempted <- NotificationPayload{
 					ID:      pl.id,
 					Message: "received unknown notification payload",
+					LockKey: pl.key,
 				}
 				return
 			}
-			if np.ID == pl.id {
-				pl.log(ctx, "received our own notification, ignoring")
-				continue
+
+			// If we have received a notification that is not our own, send it over the channel and return
+			if np.ID != pl.id {
+				pl.preempted <- np
+				return
 			}
-			// We have received a legimate notification and the lock has been preempted.
-			pl.preempted <- np
-			return
 		}
 	}
 }
 
+// Notify lets other processes know that they should release the lock.
+// In this case, we use the Postgres NOTIFY command to let the other processes know.
+// It is up to the other locks to LISTEN and release the lock accordingly.
 func (pl *postgresLock) Notify(ctx context.Context) error {
 	np := NotificationPayload{
-		ID:        pl.id,
-		Message:   pl.message,
-		Preempted: true,
+		ID:      pl.id,
+		Message: pl.message,
+		LockKey: pl.key,
 	}
 	b, err := json.Marshal(np)
 	if err != nil {
-		return fmt.Errorf("unable to encode NotificationPayload: %v", err)
+		return errors.Wrap(err, "unable to encode NotificationPayload")
 	}
-	q := fmt.Sprintf("NOTIFY  %s, %s", pq.QuoteIdentifier(pl.notificationChannel), pq.QuoteLiteral(string(b)))
+	q := fmt.Sprintf("NOTIFY  %s, %s", pq.QuoteIdentifier(notificationChannel(pl.key)), pq.QuoteLiteral(string(b)))
 	_, err = pl.conn.ExecContext(ctx, q)
 	if err != nil {
-		return fmt.Errorf("unable to execute postgres notify command: %v", err)
+		return errors.Wrap(err, "unable to execute postgres notify command")
 	}
 	return nil
 }
@@ -222,26 +222,27 @@ func (pl *postgresLock) Unlock(ctx context.Context) error {
 	defer func() {
 		// Even if we fail to unlock via Postgres properly, destroying the lock should close the underlying sql.Conn.
 		// At that point, Postgres should clean up the connection.
-		// TODO (mk): Should we use the passed context or protect users from passing in canceled contexts?
-		pl.destroy(context.Background())
+		destroyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pl.destroy(destroyCtx)
+		cancel()
 	}()
 
-	q := `SELECT pg_advisory_unlock($1, $2)`
+	q := `SELECT pg_advisory_unlock($1)`
 	// TODO (mk): Should we use the passed context or protect users from passing in canceled contexts?
-	_, err := pl.conn.ExecContext(context.Background(), q, pl.key1, pl.key2)
+	_, err := pl.conn.ExecContext(context.Background(), q, pl.key)
 	if err != nil {
-		return fmt.Errorf("unable to unlock advisory lock: %v", err)
+		return errors.Wrap(err, "unable to unlock advisory lock")
 	}
 	return nil
 }
 
 func (pl *postgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error) {
-	query := `SELECT pg_advisory_lock($1, $2)`
+	query := `SELECT pg_advisory_lock($1)`
 	advLockContext, cancel := context.WithTimeout(ctx, lockWait)
 	defer cancel()
-	_, err := pl.conn.ExecContext(advLockContext, query, pl.key1, pl.key2)
+	_, err := pl.conn.ExecContext(advLockContext, query, pl.key)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create pg advisory lock: %v", err)
+		return nil, errors.Wrap(err, "unable to create pg advisory lock")
 	}
 
 	handleEvents := func(event pq.ListenerEventType, err error) {
@@ -252,9 +253,9 @@ func (pl *postgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-cha
 	}
 
 	listener := pq.NewListener(pl.postgresURI, 10*time.Second, time.Minute, handleEvents)
-	err = listener.Listen(pl.notificationChannel)
+	err = listener.Listen(notificationChannel(pl.key))
 	if err != nil {
-		return nil, fmt.Errorf("unable to establish listener: %v", err)
+		return nil, errors.Wrap(err, "unable to establish listener")
 	}
 	pl.listener = listener
 	go func() {
@@ -277,6 +278,11 @@ func (pl *postgresLock) destroy(ctx context.Context) {
 			pl.log(ctx, "unable to close the connection")
 		}
 	}
+}
+
+// notificationChannel returns the channel to listen/notify on given a key
+func notificationChannel(key int64) string {
+	return fmt.Sprintf("%d", key)
 }
 
 func (pl *postgresLock) log(ctx context.Context, msg string, args ...interface{}) {
@@ -305,6 +311,6 @@ func NewPostgresLockProvider(postgresURI, datadogServiceName string, enableTraci
 	return &PostgresLockProvider{db: db, connInfo: postgresURI}, nil
 }
 
-func (plp *PostgresLockProvider) AcquireLock(ctx context.Context, key1, key2 int32, event string) (PreemptableLock, error) {
-	return newPostgresLock(ctx, plp.db, key1, key2, plp.connInfo, event)
+func (plp *PostgresLockProvider) NewLock(ctx context.Context, key int64, event string) (PreemptableLock, error) {
+	return newPostgresLock(ctx, plp.db, key, plp.connInfo, event)
 }

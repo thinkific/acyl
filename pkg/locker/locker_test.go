@@ -2,17 +2,18 @@ package locker
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 	"time"
 )
 
 func TestPreemptiveLockerReleaseBeforeLock(t *testing.T) {
-	testKey1, testKey2 := int32(0), int32(0)
+	testKey := rand.Int63()
 	plf, err := NewPreemptiveLockerFactory(NewFakeLockProvider())
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
-	pl := plf(testKey1, testKey2, "update")
+	pl := plf(testKey, "update")
 
 	// Attempting to Release before calling Lock should fail
 	err = pl.Release(context.Background())
@@ -22,7 +23,7 @@ func TestPreemptiveLockerReleaseBeforeLock(t *testing.T) {
 }
 
 func TestPreemptLockerLocksOnlyOnce(t *testing.T) {
-	testKey1, testKey2 := int32(0), int32(0)
+	testKey := rand.Int63()
 	plf, err := NewPreemptiveLockerFactory(
 		NewFakeLockProvider(),
 		WithLockDelay(time.Second),
@@ -31,7 +32,7 @@ func TestPreemptLockerLocksOnlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
-	pl := plf(testKey1, testKey2, "update")
+	pl := plf(testKey, "update")
 	_, err = pl.Lock(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error when locking: %v", err)
@@ -45,7 +46,7 @@ func TestPreemptLockerLocksOnlyOnce(t *testing.T) {
 }
 
 func TestPreemptiveLockerLockAndRelease(t *testing.T) {
-	testKey1, testKey2 := int32(0), int32(0)
+	testKey := rand.Int63()
 	plf, err := NewPreemptiveLockerFactory(
 		NewFakeLockProvider(),
 		WithLockDelay(time.Second),
@@ -55,7 +56,7 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
 	// Should be able to lock
-	pl := plf(testKey1, testKey2, "update")
+	pl := plf(testKey, "update")
 	preempt, err := pl.Lock(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error when locking: %v", err)
@@ -69,7 +70,7 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 		break
 	}
 
-	pl2 := plf(testKey1, testKey2, "update")
+	pl2 := plf(testKey, "update")
 	// New PreemptiveLocker should fail to lock (due to LockWait timeout)
 	_, err = pl2.Lock(context.Background())
 	if err == nil {
@@ -89,14 +90,14 @@ func TestPreemptiveLockerLockAndRelease(t *testing.T) {
 	}
 
 	// New PreemptiveLocker should be able to acquire lock now
-	pl3 := plf(testKey1, testKey2, "update")
+	pl3 := plf(testKey, "update")
 	_, err = pl3.Lock(context.Background())
 	if err != nil {
 		t.Fatalf("should have been able to lock the key: %v", err)
 	}
 }
 func TestPreemptiveLockerLockDelay(t *testing.T) {
-	testKey1, testKey2 := int32(0), int32(0)
+	testKey := rand.Int63()
 	lockDelay := time.Second
 	plf, err := NewPreemptiveLockerFactory(
 		NewFakeLockProvider(),
@@ -106,7 +107,7 @@ func TestPreemptiveLockerLockDelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
-	pl := plf(testKey1, testKey2, "update")
+	pl := plf(testKey, "update")
 	start := time.Now()
 	_, err = pl.Lock(context.Background())
 	if err != nil {
@@ -119,7 +120,7 @@ func TestPreemptiveLockerLockDelay(t *testing.T) {
 }
 
 func TestNewPreemptiveLockerCancelledContext(t *testing.T) {
-	testKey1, testKey2 := int32(0), int32(0)
+	testKey := rand.Int63()
 	plf, err := NewPreemptiveLockerFactory(
 		NewFakeLockProvider(),
 		WithLockDelay(time.Second),
@@ -128,7 +129,7 @@ func TestNewPreemptiveLockerCancelledContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
-	pl := plf(testKey1, testKey2, "update")
+	pl := plf(testKey, "update")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err = pl.Lock(ctx)

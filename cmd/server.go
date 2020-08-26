@@ -54,6 +54,7 @@ var s3config config.S3Config
 var failureTemplatePath string
 var dogstatsdAddr, dogstatsdTags string
 var datadogServiceName, datadogTracingAgentAddr string
+var reaperLockKey int64
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
@@ -100,6 +101,8 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&datadogTracingAgentAddr, "datadog-tracing-agent-addr", "127.0.0.1:8126", "Address of datadog tracing agent")
 	serverCmd.PersistentFlags().StringVar(&datadogServiceName, "datadog-service-name", "acyl", "Default service name to be used for Datadog APM")
 	serverCmd.PersistentFlags().DurationVar(&serverConfig.OperationTimeoutOverride, "operation-timeout-override", 0, "Override for operation timeout (ex: 10m)")
+	serverCmd.PersistentFlags().Int64Var(&reaperLockKey, "reaper-lock-key", 0, "Lock key that the reaper process should attempt to obtain")
+
 	addUIFlags(serverCmd)
 	RootCmd.AddCommand(serverCmd)
 }
@@ -162,7 +165,7 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error creating Postgres lock provider: %v", err)
 	}
 
-	plf, err := locker.NewPreemptiveLockerFactory(lp)
+	plf, err := locker.NewPreemptiveLockerFactory(lp, locker.WithTracingEnabled(true), locker.WithTracingServiceName("postgres_lock"))
 	if err != nil {
 		log.Fatalf("error creating preemptive locker factory: %v", err)
 	}
@@ -251,7 +254,7 @@ func server(cmd *cobra.Command, args []string) {
 
 	if serverConfig.ReaperIntervalSecs > 0 {
 		log.Printf("starting reaper: %v sec interval", serverConfig.ReaperIntervalSecs)
-		reaper := reap.NewReaper(lp, dl, nitromgr, rc, mc, serverConfig.GlobalEnvironmentLimit, logger)
+		reaper := reap.NewReaper(lp, dl, nitromgr, rc, mc, serverConfig.GlobalEnvironmentLimit, logger, reaperLockKey)
 		ticker := time.NewTicker(time.Duration(serverConfig.ReaperIntervalSecs) * time.Second)
 		go func() {
 			var delta int64
