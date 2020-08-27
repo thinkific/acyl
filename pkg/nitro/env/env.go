@@ -220,7 +220,7 @@ func (m *Manager) lockingOperation(ctx context.Context, repo string, pr uint, f 
 
 	el, err := m.DL.CreateEnvLockIfNotExists(ctx, repo, pr)
 	if err != nil || el == nil {
-		return errors.Wrap(err, "unable to get environment lock")
+		return errors.Wrap(err, "unable to create environment lock")
 	}
 
 	end := m.MC.Timing(mpfx+"lock_wait", "triggering_repo:"+repo)

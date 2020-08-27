@@ -109,6 +109,8 @@ func WithTracingEnabled(enabled bool) PreemptiveLockerOption {
 
 type PreemptiveLockerFactory func(key int64, event string) *PreemptiveLocker
 
+var ErrLockPreempted = errors.New("lock was preemptepd while waiting for the lock")
+
 // NewPreemptiveLocker returns a new preemptive locker or an error
 func NewPreemptiveLockerFactory(provider LockProvider, opts ...PreemptiveLockerOption) (PreemptiveLockerFactory, error) {
 	if provider == nil {
@@ -154,7 +156,7 @@ func (p *PreemptiveLocker) startSpanFromContext(ctx context.Context, operationNa
 	return span, ctx
 }
 
-// Lock locks the lock and returns a channel used to signal if the lock should be released ASAP. If the lock is currently in use, this method will block until the lock is released. If caller is preempted while waiting for the lock to be released,
+// Lock locks the lock and returns a channel used to signal if the lock should be released ASAP. If the lock is currently in use, this method will block until the lock is released. If the caller is preempted while waiting for the lock to be released,
 // an error is returned.
 func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayload, err error) {
 	span, ctx := p.startSpanFromContext(ctx, "lock")
@@ -162,7 +164,7 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 		span.Finish(tracer.WithError(err))
 	}()
 
-	// Ensure context is hasn't been deleted before beginning an expensive operation
+	// Ensure context hasn't been canceled before beginning an expensive operation
 	select {
 	case <-ctx.Done():
 		return nil, fmt.Errorf("context was canceled before acquiring lock: %v", ctx.Err())
@@ -189,11 +191,15 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 	}
 
 	// Wait for the specified LockDelay before returning
-	time.Sleep(p.conf.lockDelay)
-	return ch, nil
+	select {
+	case <-ch:
+		return nil, ErrLockPreempted
+	case <-time.After(p.conf.lockDelay):
+		return ch, nil
+	}
 }
 
-// Release releases the lock. Should likely pass context.Background()
+// Release releases the lock. It is recommended to pass in a different context than the one provided for Lock, since that context could be canceled.
 func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
 	span, ctx := p.startSpanFromContext(ctx, "release")
 	defer func() {

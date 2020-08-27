@@ -79,9 +79,9 @@ func (psc *postgresSessionController) sendKeepAlive(ctx context.Context) error {
 	return psc.conn.PingContext(ctx)
 }
 
-var _ PreemptableLock = &postgresLock{}
+var _ PreemptableLock = &PostgresLock{}
 
-type postgresLock struct {
+type PostgresLock struct {
 	// id is a unique identifier for this lock. This way, we can determine if the notifications we receive are from other locks
 	id uuid.UUID
 
@@ -112,7 +112,7 @@ type postgresLock struct {
 	message string
 }
 
-func newPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, message string) (pl *postgresLock, err error) {
+func NewPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, message string) (pl *PostgresLock, err error) {
 	id, err := uuid.NewUUID()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create new UUID")
@@ -133,7 +133,7 @@ func newPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, mess
 
 	psc := newPostgresSessionController(ctx, defaultKeepAlivePeriod, conn, defaultFailureThreshold)
 	go psc.run(ctx)
-	pl = &postgresLock{
+	pl = &PostgresLock{
 		id:          id,
 		psc:         psc,
 		key:         key,
@@ -147,7 +147,7 @@ func newPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, mess
 
 // handleEvents is a blocking function.
 // It checks the multiple different channels to determine how to proceed
-func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener) {
+func (pl *PostgresLock) handleEvents(ctx context.Context, listener *pq.Listener) {
 	ctx, cancel := context.WithTimeout(ctx, time.Hour)
 	defer cancel()
 	for {
@@ -200,7 +200,7 @@ func (pl *postgresLock) handleEvents(ctx context.Context, listener *pq.Listener)
 // Notify lets other processes know that they should release the lock.
 // In this case, we use the Postgres NOTIFY command to let the other processes know.
 // It is up to the other locks to LISTEN and release the lock accordingly.
-func (pl *postgresLock) Notify(ctx context.Context) error {
+func (pl *PostgresLock) Notify(ctx context.Context) error {
 	np := NotificationPayload{
 		ID:      pl.id,
 		Message: pl.message,
@@ -218,7 +218,7 @@ func (pl *postgresLock) Notify(ctx context.Context) error {
 	return nil
 }
 
-func (pl *postgresLock) Unlock(ctx context.Context) error {
+func (pl *PostgresLock) Unlock(ctx context.Context) error {
 	defer func() {
 		// Even if we fail to unlock via Postgres properly, destroying the lock should close the underlying sql.Conn.
 		// At that point, Postgres should clean up the connection.
@@ -236,7 +236,7 @@ func (pl *postgresLock) Unlock(ctx context.Context) error {
 	return nil
 }
 
-func (pl *postgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error) {
+func (pl *PostgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error) {
 	query := `SELECT pg_advisory_lock($1)`
 	advLockContext, cancel := context.WithTimeout(ctx, lockWait)
 	defer cancel()
@@ -265,7 +265,7 @@ func (pl *postgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-cha
 	return pl.preempted, nil
 }
 
-func (pl *postgresLock) destroy(ctx context.Context) {
+func (pl *PostgresLock) destroy(ctx context.Context) {
 	if pl.listener != nil {
 		err := pl.listener.Close()
 		if err != nil {
@@ -285,7 +285,7 @@ func notificationChannel(key int64) string {
 	return fmt.Sprintf("%d", key)
 }
 
-func (pl *postgresLock) log(ctx context.Context, msg string, args ...interface{}) {
+func (pl *PostgresLock) log(ctx context.Context, msg string, args ...interface{}) {
 	eventlogger.GetLogger(ctx).Printf("postgres lock: "+msg, args...)
 }
 
@@ -312,5 +312,5 @@ func NewPostgresLockProvider(postgresURI, datadogServiceName string, enableTraci
 }
 
 func (plp *PostgresLockProvider) NewLock(ctx context.Context, key int64, event string) (PreemptableLock, error) {
-	return newPostgresLock(ctx, plp.db, key, plp.connInfo, event)
+	return NewPostgresLock(ctx, plp.db, key, plp.connInfo, event)
 }
