@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -23,7 +22,6 @@ type lockingDataMap struct {
 	sync.RWMutex
 	// each field below represents a table
 	d          map[string]*models.QAEnvironment
-	envlocks   map[string]*models.EnvLock
 	helm       map[string][]models.HelmRelease
 	k8s        map[string]*models.KubernetesEnvironment
 	elogs      map[uuid.UUID]*models.EventLog
@@ -42,7 +40,6 @@ var _ DataLayer = &FakeDataLayer{}
 func newLockingDataMap() *lockingDataMap {
 	return &lockingDataMap{
 		d:          make(map[string]*models.QAEnvironment),
-		envlocks:   make(map[string]*models.EnvLock),
 		helm:       make(map[string][]models.HelmRelease),
 		k8s:        make(map[string]*models.KubernetesEnvironment),
 		elogs:      make(map[uuid.UUID]*models.EventLog),
@@ -187,26 +184,6 @@ func (fdl *FakeDataLayer) Load(dir string) error {
 		return errors.Wrap(err, "error unmarshaling elogs.json")
 	}
 	return nil
-}
-
-func (fdl *FakeDataLayer) CreateEnvLockIfNotExists(ctx context.Context, repo string, pullRequest uint) (*EnvLock, error) {
-	if isCancelled(ctx) {
-		return nil, ctx.Err()
-	}
-	fdl.doDelay()
-	fdl.data.Lock()
-	defer fdl.data.Unlock()
-	key := fmt.Sprintf("%s/%d", repo, pullRequest)
-	if l, ok := fdl.data.envlocks[key]; ok {
-		return l, nil
-	}
-	l := &models.EnvLock{
-		LockKey:     rand.Int63(),
-		Repo:        repo,
-		PullRequest: pullRequest,
-	}
-	fdl.data.envlocks[key] = l
-	return l, nil
 }
 
 func (fdl *FakeDataLayer) CreateQAEnvironment(ctx context.Context, qa *QAEnvironment) error {

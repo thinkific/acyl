@@ -65,7 +65,7 @@ func (r *Reaper) Reap() {
 	defer func() {
 		reapSpan.Finish(tracer.WithError(err))
 	}()
-	lock, err := r.lp.NewLock(ctx, r.lockKey, "reap")
+	lock, err := r.lp.New(ctx, r.lockKey, "reap")
 	if err != nil || lock == nil {
 		r.logger.Printf("error trying to acquire lock: %v", err)
 		return

@@ -57,6 +57,7 @@ func newPostgresSessionController(ctx context.Context, keepAlivePeriod time.Dura
 // run is a blocking function that periodically checks the health of the connection
 func (psc *postgresSessionController) run(ctx context.Context) {
 	t := time.NewTicker(psc.keepAlivePeriod)
+	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -228,8 +229,9 @@ func (pl *PostgresLock) Unlock(ctx context.Context) error {
 	}()
 
 	q := `SELECT pg_advisory_unlock($1)`
-	// TODO (mk): Should we use the passed context or protect users from passing in canceled contexts?
-	_, err := pl.conn.ExecContext(context.Background(), q, pl.key)
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := pl.conn.ExecContext(releaseCtx, q, pl.key)
 	if err != nil {
 		return errors.Wrap(err, "unable to unlock advisory lock")
 	}
@@ -311,6 +313,65 @@ func NewPostgresLockProvider(postgresURI, datadogServiceName string, enableTraci
 	return &PostgresLockProvider{db: db, connInfo: postgresURI}, nil
 }
 
-func (plp *PostgresLockProvider) NewLock(ctx context.Context, key int64, event string) (PreemptableLock, error) {
+func (plp *PostgresLockProvider) New(ctx context.Context, key int64, event string) (PreemptableLock, error) {
 	return NewPostgresLock(ctx, plp.db, key, plp.connInfo, event)
+}
+
+// PostgresEnvLock models a distributed lock associated with a unique repo/PR combination
+type PostgresEnvLock struct {
+	LockKey     int64
+	Repo        string
+	PullRequest uint
+}
+
+func (el PostgresEnvLock) Columns() string {
+	return "lock_key, repo, pull_request"
+}
+
+func (el PostgresEnvLock) ScanValues() []interface{} {
+	return []interface{}{&el.LockKey, &el.Repo, &el.PullRequest}
+}
+
+func (plp *PostgresLockProvider) LockKey(ctx context.Context, repo string, pullRequest uint) (int64, error) {
+	txn, err := plp.db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return 0, errors.Wrap(err, "unable to begin transaction")
+	}
+
+	defer func() {
+		if err != nil {
+			rerr := txn.Rollback()
+			if rerr != nil {
+				plp.log(ctx, "error rolling back: %v", rerr)
+			}
+		}
+	}()
+
+	_, err = txn.ExecContext(ctx, `LOCK TABLE env_locks`)
+	if err != nil {
+		return 0, errors.Wrap(err, "unable to lock table env_locks")
+	}
+	el := &PostgresEnvLock{}
+	q := `SELECT ` + el.Columns() + ` FROM env_locks WHERE repo = $1 AND pull_request = $2;`
+	err = txn.QueryRowContext(ctx, q, repo, pullRequest).Scan(el.ScanValues()...)
+	switch err {
+	case nil:
+	case sql.ErrNoRows:
+		insertErr := txn.QueryRowContext(ctx, `INSERT INTO env_locks(`+el.Columns()+`) VALUES (random_bigint(), $1, $2)  RETURNING `+el.Columns()+`;`, repo, pullRequest).Scan(el.ScanValues()...)
+		if insertErr != nil {
+			return 0, errors.Wrap(insertErr, "unable to insert new data")
+		}
+	default:
+		return 0, errors.Wrap(err, "unable to select from env_locks")
+	}
+
+	err = txn.Commit()
+	if err != nil {
+		return 0, errors.Wrap(err, "unable to commit transaction")
+	}
+	return el.LockKey, nil
+}
+
+func (plp *PostgresLockProvider) log(ctx context.Context, msg string, args ...interface{}) {
+	eventlogger.GetLogger(ctx).Printf("postgres lock provider: "+msg, args...)
 }

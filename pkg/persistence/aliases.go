@@ -14,7 +14,6 @@ type RepoRevisionData = models.RepoRevisionData
 type RefMap = models.RefMap
 type QADestroyReason = models.QADestroyReason
 type QAEnvironmentEvent = models.QAEnvironmentEvent
-type EnvLock = models.EnvLock
 
 type ServerConfig = config.ServerConfig
 type MetricsCollector = metrics.Collector

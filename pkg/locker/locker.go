@@ -2,12 +2,12 @@ package locker
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
@@ -17,9 +17,10 @@ var (
 	defaultLockDelay    = 10 * time.Second
 )
 
-// LockProvider describes an object capable of creating locks
+// LockProvider describes an object capable of creating distributed locks. You may provide your own int64 key or obtain one for a given Repo/PR.
 type LockProvider interface {
-	NewLock(ctx context.Context, key int64, event string) (PreemptableLock, error)
+	New(ctx context.Context, key int64, event string) (PreemptableLock, error)
+	LockKey(ctx context.Context, repo string, pr uint) (int64, error)
 }
 
 // NotificationPayload represents the content of messages sent to the lock holder.
@@ -48,6 +49,8 @@ type PreemptiveLocker struct {
 	lp    LockProvider
 	lock  PreemptableLock
 	conf  PreemptiveLockerConfig
+	repo  string
+	pr    uint
 	key   int64
 	event string
 }
@@ -107,7 +110,7 @@ func WithTracingEnabled(enabled bool) PreemptiveLockerOption {
 	}
 }
 
-type PreemptiveLockerFactory func(key int64, event string) *PreemptiveLocker
+type PreemptiveLockerFactory func(repo string, pr uint, event string) *PreemptiveLocker
 
 var ErrLockPreempted = errors.New("lock was preemptepd while waiting for the lock")
 
@@ -128,11 +131,12 @@ func NewPreemptiveLockerFactory(provider LockProvider, opts ...PreemptiveLockerO
 		config.lockDelay = defaultLockDelay
 	}
 	var plf PreemptiveLockerFactory
-	plf = func(key int64, event string) *PreemptiveLocker {
+	plf = func(repo string, pr uint, event string) *PreemptiveLocker {
 		return &PreemptiveLocker{
 			lp:    provider,
 			conf:  config,
-			key:   key,
+			pr:    pr,
+			repo:  repo,
 			event: event,
 		}
 	}
@@ -167,27 +171,33 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 	// Ensure context hasn't been canceled before beginning an expensive operation
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("context was canceled before acquiring lock: %v", ctx.Err())
+		return nil, errors.Wrap(ctx.Err(), "context was canceled before acquiring lock")
 	default:
 	}
-
 	if p.lock != nil {
 		return nil, errors.New("single use lock attempted to be reused")
 	}
-	lock, err := p.lp.NewLock(ctx, p.key, p.event)
+
+	key, err := p.lp.LockKey(ctx, p.repo, p.pr)
 	if err != nil {
-		return nil, fmt.Errorf("unable to acquire lock")
+		return nil, errors.Wrap(err, "unable to obtain lock key")
+	}
+
+	p.key = key
+	lock, err := p.lp.New(ctx, p.key, p.event)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to instantiate a preemptable lock")
 	}
 
 	p.lock = lock
 	err = p.lock.Notify(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to notify other locks: %v", err)
+		return nil, errors.Wrap(err, "unable to notify other locks")
 	}
 
 	ch, err = lock.Lock(ctx, p.conf.lockWait)
 	if err != nil {
-		return nil, fmt.Errorf("unable to lock: %v", err)
+		return nil, errors.Wrap(err, "unable to lock")
 	}
 
 	// Wait for the specified LockDelay before returning

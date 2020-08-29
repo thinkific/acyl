@@ -374,18 +374,3 @@ type EnvSearchParameters struct {
 	CreatedSince time.Duration       // Duration prior to time.Now().UTC()
 	TrackingRef  string
 }
-
-// EnvLock models the lock
-type EnvLock struct {
-	LockKey     int64
-	Repo        string
-	PullRequest uint
-}
-
-func (el EnvLock) Columns() string {
-	return "lock_key, repo, pull_request"
-}
-
-func (el EnvLock) ScanValues() []interface{} {
-	return []interface{}{&el.LockKey, &el.Repo, &el.PullRequest}
-}

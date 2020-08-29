@@ -55,11 +55,7 @@ func TestLockingOperation(t *testing.T) {
 	pr := uint(1)
 	preemptedFunc := func(ctx context.Context) error {
 		timer := time.NewTimer(10 * time.Second)
-		lock, err := m.DL.CreateEnvLockIfNotExists(ctx, repo, pr)
-		if err != nil {
-			t.Fatalf("unable to create env lock key: %v", err)
-		}
-		pl := m.PLF(lock.LockKey, "new operation")
+		pl := m.PLF(repo, pr, "new operation")
 		pl.Lock(ctx)
 		releaseCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()

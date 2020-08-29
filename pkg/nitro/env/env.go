@@ -217,21 +217,19 @@ func (m *Manager) setGithubCommitStatus(ctx context.Context, rd *models.RepoRevi
 func (m *Manager) lockingOperation(ctx context.Context, repo string, pr uint, f func(ctx context.Context) error) (err error) {
 	ctx, cf := context.WithCancel(ctx)
 	defer cf()
-
-	el, err := m.DL.CreateEnvLockIfNotExists(ctx, repo, pr)
-	if err != nil || el == nil {
-		return errors.Wrap(err, "unable to create environment lock")
-	}
-
 	end := m.MC.Timing(mpfx+"lock_wait", "triggering_repo:"+repo)
-	lock := m.PLF(el.LockKey, "event") // TODO: consider adding more detailed event information
+	lock := m.PLF(repo, pr, "event") // TODO: consider adding more detailed event information
 	preempt, err := lock.Lock(ctx)
 	if err != nil {
 		end("success:false")
 		return errors.Wrap(err, "error getting lock")
 	}
 	end("success:true")
-	defer lock.Release(context.Background())
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		lock.Release(releaseCtx)
+		cancel()
+	}()
 	stop := make(chan struct{})
 	defer close(stop)
 	go func() {

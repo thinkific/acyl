@@ -72,52 +72,6 @@ func (p *PGLayer) DB() *sqlx.DB {
 	return p.db
 }
 
-// CreateEnvLockIfNotExists will create a new env lock if it doesn't exist
-func (p *PGLayer) CreateEnvLockIfNotExists(ctx context.Context, repo string, pullRequest uint) (el *EnvLock, err error) {
-	if isCancelled(ctx) {
-		return nil, errors.Wrap(ctx.Err(), "error getting environment lock ID")
-	}
-	txn, err := p.db.Begin()
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to begin transaction")
-	}
-
-	defer func() {
-		if err != nil {
-			rerr := txn.Rollback()
-			if rerr != nil {
-				p.logger.Printf("error rolling back: %v", rerr)
-			}
-		}
-	}()
-
-	// We don't actually know if the row exists, so we can't rely upon row-level locks to perform this transaction safely
-	_, err = txn.ExecContext(ctx, `LOCK TABLE env_locks`)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to lock table")
-	}
-
-	el = &EnvLock{}
-	q := `SELECT ` + el.Columns() + ` FROM env_locks WHERE repo = $1 AND pull_request = $2;`
-	err = txn.QueryRowContext(ctx, q, repo, pullRequest).Scan(el.ScanValues()...)
-	switch err {
-	case nil:
-	case sql.ErrNoRows:
-		insertErr := txn.QueryRowContext(ctx, `INSERT INTO env_locks(`+el.Columns()+`) VALUES (random_bigint(), $1, $2)  RETURNING `+el.Columns()+`;`, repo, pullRequest).Scan(el.ScanValues()...)
-		if insertErr != nil {
-			return nil, errors.Wrap(insertErr, "unable to insert new data")
-		}
-	default:
-		return nil, errors.Wrap(err, "unable to select from env_locks")
-	}
-
-	err = txn.Commit()
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to commit transaction")
-	}
-	return el, nil
-}
-
 // CreateQAEnvironment persists a new QA record.
 func (p *PGLayer) CreateQAEnvironment(ctx context.Context, qae *QAEnvironment) error {
 	if isCancelled(ctx) {

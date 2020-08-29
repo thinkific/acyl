@@ -3,6 +3,7 @@ package locker
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -16,8 +17,9 @@ type fakeLockStoreEntry struct {
 
 // fakeLockStore stores all of the local preemptable locks
 type fakeLockStore struct {
-	locks map[int64]*fakeLockStoreEntry
-	mutex sync.Mutex
+	envToLockKey map[string]int64
+	locks        map[int64]*fakeLockStoreEntry
+	mutex        sync.Mutex
 }
 
 func (fls *fakeLockStore) store(key int64, lock *FakePreemptableLock) {
@@ -106,6 +108,8 @@ func (fls *fakeLockStore) notify(ctx context.Context, key int64, id uuid.UUID) e
 	return nil
 }
 
+var _ LockProvider = &FakeLockProvider{}
+
 // FakeLockProvider can serve as a lock provider with no external dependencies
 type FakeLockProvider struct {
 	store *fakeLockStore
@@ -114,12 +118,25 @@ type FakeLockProvider struct {
 func NewFakeLockProvider() *FakeLockProvider {
 	return &FakeLockProvider{
 		store: &fakeLockStore{
-			locks: make(map[int64]*fakeLockStoreEntry),
+			locks:        make(map[int64]*fakeLockStoreEntry),
+			envToLockKey: make(map[string]int64),
 		},
 	}
 }
 
-func (flp *FakeLockProvider) NewLock(ctx context.Context, key int64, event string) (PreemptableLock, error) {
+func (flp *FakeLockProvider) LockKey(ctx context.Context, repo string, pr uint) (int64, error) {
+	flp.store.mutex.Lock()
+	defer flp.store.mutex.Unlock()
+	envKey := fmt.Sprintf("%s/%d", repo, pr)
+	lockKey, ok := flp.store.envToLockKey[envKey]
+	if !ok {
+		lockKey = rand.Int63()
+		flp.store.envToLockKey[envKey] = lockKey
+	}
+	return lockKey, nil
+}
+
+func (flp *FakeLockProvider) New(ctx context.Context, key int64, event string) (PreemptableLock, error) {
 	id, err := uuid.NewUUID()
 	if err != nil {
 		return nil, err

@@ -14,7 +14,6 @@ type LogFunc func(string, ...interface{})
 
 // DataLayer describes an object that interacts with the persistant data store
 type DataLayer interface {
-	CreateEnvLockIfNotExists(ctx context.Context, repo string, pullRequest uint) (el *EnvLock, err error)
 	CreateQAEnvironment(context.Context, *QAEnvironment) error
 	GetQAEnvironment(context.Context, string) (*QAEnvironment, error)
 	GetQAEnvironmentConsistently(context.Context, string) (*QAEnvironment, error)

@@ -1,5 +1,5 @@
 CREATE TABLE env_locks (
-  lock_key bigint NOT NULL,
+  lock_key bigint UNIQUE,
   repo text,
   pull_request integer,
   PRIMARY KEY(repo, pull_request)
