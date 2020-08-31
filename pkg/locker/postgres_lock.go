@@ -39,19 +39,21 @@ type postgresSessionController struct {
 	conn *sql.Conn
 }
 
-func newPostgresSessionController(ctx context.Context, keepAlivePeriod time.Duration, conn *sql.Conn, failureThreshold uint) *postgresSessionController {
+func newPostgresSessionController(ctx context.Context, keepAlivePeriod time.Duration, conn *sql.Conn, failureThreshold uint) (*postgresSessionController, error) {
 	if keepAlivePeriod == time.Duration(0) {
 		keepAlivePeriod = defaultKeepAlivePeriod
 	}
-
 	if failureThreshold == 0 {
 		failureThreshold = defaultFailureThreshold
+	}
+	if conn == nil {
+		return nil, errors.New("must provide non-nil connection")
 	}
 	return &postgresSessionController{
 		keepAlivePeriod: keepAlivePeriod,
 		conn:            conn,
 		sessionErr:      make(chan error, 1),
-	}
+	}, nil
 }
 
 // run is a blocking function that periodically checks the health of the connection
@@ -132,7 +134,10 @@ func NewPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, mess
 		}
 	}()
 
-	psc := newPostgresSessionController(ctx, defaultKeepAlivePeriod, conn, defaultFailureThreshold)
+	psc, err := newPostgresSessionController(ctx, defaultKeepAlivePeriod, conn, defaultFailureThreshold)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create postgres session controller")
+	}
 	go psc.run(ctx)
 	pl = &PostgresLock{
 		id:          id,
@@ -357,6 +362,8 @@ func (plp *PostgresLockProvider) LockKey(ctx context.Context, repo string, pullR
 			return 0, errors.Wrap(err, "unable to select env lock")
 		}
 	default:
+		// Since there is no returning clause, we expect to receive a ErrNoRows error
+		// So if we get here (err is nil or err != sq.ErrNoRows), we should return an error
 		return 0, errors.Wrap(err, "unable to insert env lock")
 	}
 

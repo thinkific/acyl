@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"sync"
@@ -101,8 +102,8 @@ func runPreemptableLockTests(t *testing.T, plfunc pLFactoryFunc) {
 			tfunc: testPreemption,
 		},
 		{
-			name:  "obtains a lock key",
-			tfunc: testLockKey,
+			name:  "obtains correct lock key with concurrent goroutines",
+			tfunc: testLockKeyConcurrent,
 		},
 	}
 
@@ -218,9 +219,9 @@ func testContextCancellation(t *testing.T, lp LockProvider) {
 	}
 }
 
-func testLockKey(t *testing.T, lp LockProvider) {
+func testLockKeyConcurrent(t *testing.T, lp LockProvider) {
 	testRepo := "foo/bar"
-	pr := uint(1)
+	pr := uint(rand.Intn(math.MaxInt32))
 	ch := make(chan int64, 5)
 	wg := &sync.WaitGroup{}
 

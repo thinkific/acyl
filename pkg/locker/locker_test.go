@@ -2,6 +2,7 @@ package locker
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"os"
 	"testing"
@@ -88,7 +89,7 @@ func testPreemptiveLockerReleaseBeforeLock(t *testing.T, lp LockProvider) {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
 	repo := "foo/bar"
-	pr := uint(rand.Uint32())
+	pr := uint(rand.Intn(math.MaxInt32))
 	pl := plf(repo, pr, "update")
 
 	// Attempting to Release before calling Lock should fail
@@ -108,7 +109,7 @@ func testPreemptiveLockerLocksOnlyOnce(t *testing.T, lp LockProvider) {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
 	repo := "foo/bar"
-	pr := uint(rand.Uint32())
+	pr := uint(rand.Intn(math.MaxInt32))
 	pl := plf(repo, pr, "update")
 	_, err = pl.Lock(context.Background())
 	if err != nil {
@@ -134,7 +135,7 @@ func testPreemptiveLockerLockAndRelease(t *testing.T, lp LockProvider) {
 	}
 	// Should be able to lock
 	repo := "foo/bar"
-	pr := uint(rand.Uint32())
+	pr := uint(rand.Intn(math.MaxInt32))
 	pl := plf(repo, pr, "update")
 	ctx, cancel := context.WithTimeout(context.Background(), defaultPostgresLockWaitTime)
 	defer cancel()
@@ -190,7 +191,7 @@ func testPreemptiveLockerLockDelay(t *testing.T, lp LockProvider) {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
 	repo := "foo/bar"
-	pr := uint(rand.Uint32())
+	pr := uint(rand.Intn(math.MaxInt32))
 	pl := plf(repo, pr, "update")
 	start := time.Now()
 	_, err = pl.Lock(context.Background())
@@ -216,7 +217,7 @@ func testNewPreemptiveLockerCancelledContext(t *testing.T, lp LockProvider) {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
 	repo := "foo/bar"
-	pr := uint(rand.Uint32())
+	pr := uint(rand.Intn(math.MaxInt32))
 	pl := plf(repo, pr, "update")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	cancel()

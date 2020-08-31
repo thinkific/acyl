@@ -90,3 +90,14 @@ func TestPostgresContextCancelationDetection(t *testing.T) {
 		t.Fatalf("expected to get preempted due to session error")
 	}
 }
+
+func TestPostgresLockNilDB(t *testing.T) {
+	if os.Getenv("POSTGRES_ALREADY_RUNNING") == "" {
+		t.Skip()
+	}
+
+	_, err := NewPostgresLock(context.Background(), nil, rand.Int63(), testpostgresURI, "some-event")
+	if err == nil {
+		t.Fatalf("expected error creating a postgres lock with no db")
+	}
+}
