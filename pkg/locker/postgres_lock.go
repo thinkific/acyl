@@ -277,7 +277,7 @@ func (pl *PostgresLock) destroy(ctx context.Context) {
 	if pl.conn != nil {
 		err := pl.conn.Close()
 		if err != nil {
-			pl.log(ctx, "unable to close the connection")
+			pl.log(ctx, "unable to close the connection %v", err)
 		}
 	}
 }
@@ -347,18 +347,22 @@ func (plp *PostgresLockProvider) LockKey(ctx context.Context, repo string, pullR
 		}
 	}()
 
+	_, err = txn.ExecContext(ctx, `LOCK TABLE env_locks`)
+	if err != nil {
+		return 0, errors.Wrap(err, "unable to lock table env_locks")
+	}
 	el := &PostgresEnvLock{}
-	err = txn.QueryRowContext(ctx, `INSERT INTO env_locks(`+el.Columns()+`) VALUES (random_bigint(), $1, $2) ON CONFLICT DO NOTHING RETURNING `+el.Columns()+`;`, repo, pullRequest).Scan(el.ScanValues()...)
+	q := `SELECT ` + el.Columns() + ` FROM env_locks WHERE repo = $1 AND pull_request = $2;`
+	err = txn.QueryRowContext(ctx, q, repo, pullRequest).Scan(el.ScanValues()...)
 	switch err {
+	case nil:
 	case sql.ErrNoRows:
-		// There already exists an env lock for this repo/pr combination
-		q := `SELECT ` + el.Columns() + ` FROM env_locks WHERE repo = $1 AND pull_request = $2;`
-		selectErr := txn.QueryRowContext(ctx, q, repo, pullRequest).Scan(el.ScanValues()...)
-		if selectErr != nil {
-			return 0, errors.Wrap(err, "unable to select env lock")
+		insertErr := txn.QueryRowContext(ctx, `INSERT INTO env_locks(`+el.Columns()+`) VALUES (random_bigint(), $1, $2)  RETURNING `+el.Columns()+`;`, repo, pullRequest).Scan(el.ScanValues()...)
+		if insertErr != nil {
+			return 0, errors.Wrap(insertErr, "unable to insert env lock")
 		}
 	default:
-		return 0, errors.Wrap(err, "unable to insert env lock")
+		return 0, errors.Wrap(err, "unable to select env lock")
 	}
 
 	err = txn.Commit()

@@ -229,7 +229,9 @@ func testLockKey(t *testing.T, lp LockProvider) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			key, err := lp.LockKey(context.Background(), testRepo, pr)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			key, err := lp.LockKey(ctx, testRepo, pr)
 			ch <- key
 			if err != nil {
 				t.Errorf("error getting lock key: %v", err)

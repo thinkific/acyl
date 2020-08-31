@@ -36,22 +36,6 @@ func (fls *fakeLockStore) store(key int64, lock *FakePreemptableLock) {
 	fls.locks[key].contenders = append(fls.locks[key].contenders, lock)
 }
 
-func (fls *fakeLockStore) delete(key int64, id uuid.UUID) {
-	// assumes the mutex is already held
-	var index int
-	for i, lock := range fls.locks[key].contenders {
-		if lock.id == id {
-			index = i
-			break
-		}
-	}
-
-	length := len(fls.locks[key].contenders)
-	fls.locks[key].contenders[index] = fls.locks[key].contenders[length-1]
-	fls.locks[key].contenders[length-1] = nil
-	fls.locks[key].contenders = fls.locks[key].contenders[:length-1]
-}
-
 func (fls *fakeLockStore) lock(ctx context.Context, key int64) error {
 	fls.mutex.Lock()
 	defer fls.mutex.Unlock()
@@ -68,7 +52,10 @@ func (fls *fakeLockStore) unlock(ctx context.Context, key int64, id uuid.UUID) e
 	fls.mutex.Lock()
 	defer fls.mutex.Unlock()
 	entry := fls.locks[key]
-	go func() { <-entry.lock }()
+	length := len(fls.locks[key].contenders)
+	if length == 0 {
+		return nil
+	}
 
 	// remove the key from the slice of lock contenders
 	var index int
@@ -79,10 +66,10 @@ func (fls *fakeLockStore) unlock(ctx context.Context, key int64, id uuid.UUID) e
 		}
 	}
 
-	length := len(fls.locks[key].contenders)
 	fls.locks[key].contenders[index] = fls.locks[key].contenders[length-1]
 	fls.locks[key].contenders[length-1] = nil
 	fls.locks[key].contenders = fls.locks[key].contenders[:length-1]
+	go func() { <-entry.lock }()
 	return nil
 }
 
