@@ -8,12 +8,12 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/DavidHuie/gomigrate"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 var testpostgresURI = "postgres://acyl:acyl@localhost:5432/acyl?sslmode=disable"
@@ -223,23 +223,22 @@ func testLockKeyConcurrent(t *testing.T, lp LockProvider) {
 	testRepo := "foo/bar"
 	pr := uint(rand.Intn(math.MaxInt32))
 	ch := make(chan int64, 5)
-	wg := &sync.WaitGroup{}
+	errGroupCtx, errGroupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer errGroupCancel()
+	g, ctx := errgroup.WithContext(errGroupCtx)
 
 	// All goroutines should receive the same key
 	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
+		g.Go(func() error {
 			key, err := lp.LockKey(ctx, testRepo, pr)
 			ch <- key
-			if err != nil {
-				t.Errorf("error getting lock key: %v", err)
-			}
-		}()
+			return err
+		})
 	}
-	wg.Wait()
+
+	if err := g.Wait(); err != nil {
+		t.Fatalf("error from lock key: %v", err)
+	}
 	close(ch)
 
 	keys := []int64{}
@@ -248,6 +247,9 @@ func testLockKeyConcurrent(t *testing.T, lp LockProvider) {
 	}
 
 	first := keys[0]
+	if first == 0 {
+		t.Fatalf("lock key is the default value for int64, which likely indicates the value is not being set properly")
+	}
 	for _, key := range keys {
 		if first != key {
 			t.Fatalf("expected all keys to be the same. 2 differ: %d, %d", first, key)
