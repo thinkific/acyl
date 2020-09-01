@@ -202,8 +202,8 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 
 	// Wait for the specified LockDelay before returning
 	select {
-	case <-ch:
-		return nil, ErrLockPreempted
+	case np := <-ch:
+		return nil, errors.Wrap(ErrLockPreempted, np.Message)
 	case <-time.After(p.conf.lockDelay):
 		return ch, nil
 	}
