@@ -37,16 +37,29 @@ import (
 )
 
 func TestLockingOperation(t *testing.T) {
-	c := make(chan struct{})
-	close(c)
-	m := Manager{
-		LP: &locker.FakePreemptiveLockProvider{
-			ChannelFactory: func() chan struct{} { return c },
-		},
-		MC: &metrics.FakeCollector{},
+	el := &eventlogger.Logger{DL: persistence.NewFakeDataLayer()}
+	plf, err := locker.NewPreemptiveLockerFactory(
+		locker.NewFakeLockProvider(),
+		locker.WithLockDelay(time.Millisecond),
+		locker.WithLockWait(time.Second),
+	)
+	if err != nil {
+		t.Fatalf("error creating new preemptive locker factory: %v", err)
 	}
-	f := func(ctx context.Context) error {
-		timer := time.NewTimer(10 * time.Millisecond)
+	m := Manager{
+		PLF: plf,
+		MC:  &metrics.FakeCollector{},
+		DL:  persistence.NewFakeDataLayer(),
+	}
+	repo := "foo"
+	pr := uint(1)
+	preemptedFunc := func(ctx context.Context) error {
+		timer := time.NewTimer(10 * time.Second)
+		pl := m.PLF(repo, pr, "new operation")
+		pl.Lock(ctx)
+		releaseCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		defer pl.Release(releaseCtx)
 		select {
 		case <-timer.C:
 			return errors.New("timer expired")
@@ -54,11 +67,25 @@ func TestLockingOperation(t *testing.T) {
 			return nil
 		}
 	}
-	if err := m.lockingOperation(context.Background(), "foo", "1", f); err != nil {
-		t.Fatalf("should have been preempted")
+
+	longOpFunc := func(ctx context.Context) error {
+		timer := time.NewTimer(1 * time.Second)
+		select {
+		case <-timer.C:
+			return errors.New("timer expired")
+		case <-ctx.Done():
+			return nil
+		}
 	}
-	c = make(chan struct{})
-	err := m.lockingOperation(context.Background(), "foo", "1", f)
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
+	if err := m.lockingOperation(ctx, repo, pr, preemptedFunc); err != nil {
+		t.Fatalf("should have been preempted: %v", err)
+	}
+
+	// New PR
+	pr++
+	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), el)
+	err = m.lockingOperation(ctx2, repo, pr, longOpFunc)
 	if err == nil {
 		t.Fatalf("should have timed out")
 	}
@@ -310,16 +337,18 @@ func TestCreate(t *testing.T) {
 		Created:     time.Now().UTC(),
 		Name:        "some-other-random-name",
 		Repo:        rdd.Repo,
-		PullRequest: rdd.PullRequest,
+		PullRequest: rdd.PullRequest + 1,
 		Status:      models.Success,
 	})
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: "some-other-random-name"})
 	dl.CreateQAEnvironment(context.Background(), &models.QAEnvironment{
 		Created:     time.Now().UTC().Add(10 * time.Millisecond),
 		Name:        "some-other-random-name2",
 		Repo:        rdd.Repo,
-		PullRequest: rdd.PullRequest,
+		PullRequest: rdd.PullRequest + 2,
 		Status:      models.Success,
 	})
+	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{EnvName: "some-other-random-name2"})
 	cases := []struct {
 		name               string
 		inputRRD           models.RepoRevisionData
@@ -443,15 +472,17 @@ func TestCreate(t *testing.T) {
 				KC: k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "nitro-1234-some-random-name"}}),
 			}
 			nt := newNotificationTracker()
+			plf, err := locker.NewPreemptiveLockerFactory(
+				locker.NewFakeLockProvider(),
+				locker.WithLockDelay(time.Second),
+				locker.WithLockWait(2*time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new preemptive locker factory: %v", err)
+			}
 			m := Manager{
-				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
+				DL:               dl,
+				PLF:              plf,
 				NF:               nt.sender,
 				MC:               &metrics.FakeCollector{},
 				NG:               &namegen.FakeNameGenerator{},
@@ -712,15 +743,17 @@ func TestUpdate(t *testing.T) {
 				KC:           k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: c.inputK8sEnv.Namespace}}),
 			}
 			nt := newNotificationTracker()
+			plf, err := locker.NewPreemptiveLockerFactory(
+				locker.NewFakeLockProvider(),
+				locker.WithLockDelay(time.Millisecond),
+				locker.WithLockWait(time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new preemptive locker factory: %v", err)
+			}
 			m := Manager{
-				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
+				DL:               dl,
+				PLF:              plf,
 				NF:               nt.sender,
 				MC:               &metrics.FakeCollector{},
 				NG:               &namegen.FakeNameGenerator{},
@@ -734,7 +767,7 @@ func TestUpdate(t *testing.T) {
 			el := &eventlogger.Logger{DL: dl}
 			el.Init([]byte{}, c.inputRDD.Repo, c.inputRDD.PullRequest)
 			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
-			_, err := m.Update(ctx, c.inputRDD)
+			_, err = m.Update(ctx, c.inputRDD)
 			c.verifyFunc(err, dl, nt, t)
 		})
 	}
@@ -876,26 +909,28 @@ func TestDelete(t *testing.T) {
 				DL:           dl,
 				HelmReleases: releases,
 			}
+			plf, err := locker.NewPreemptiveLockerFactory(
+				locker.NewFakeLockProvider(),
+				locker.WithLockDelay(time.Millisecond),
+				locker.WithLockWait(time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new preemptive locker factory: %v", err)
+			}
 			m := Manager{
-				DL: dl,
-				LP: &locker.FakePreemptiveLockProvider{
-					ChannelFactory: func() chan struct{} {
-						lch := make(chan struct{})
-						//close(lch)
-						return lch
-					},
-				},
-				NF: testNF,
-				MC: &metrics.FakeCollector{},
-				MG: fg,
-				RC: frc,
-				CI: ci,
+				DL:  dl,
+				PLF: plf,
+				NF:  testNF,
+				MC:  &metrics.FakeCollector{},
+				MG:  fg,
+				RC:  frc,
+				CI:  ci,
 			}
 
 			el := &eventlogger.Logger{DL: dl}
 			el.Init([]byte{}, c.inputRDD.Repo, c.inputRDD.PullRequest)
 			ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
-			err := m.Delete(ctx, &c.inputRDD, models.DestroyApiRequest)
+			err = m.Delete(ctx, &c.inputRDD, models.DestroyApiRequest)
 			time.Sleep(10 * time.Millisecond) // give time for async delete to complete
 			c.verifyFunc(err, t)
 		})

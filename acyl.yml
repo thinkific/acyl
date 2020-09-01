@@ -39,8 +39,6 @@ dependencies:
         - "postgresqlDatabase=acyl"
         - "persistence.enabled=false"
         - "fullnameOverride=postgresql-postgresql"
-    - chart_path: '.helm/charts/consul'
-      chart_vars_path: './.helm/charts/consul/values.yaml'
 
 notifications:
   github:

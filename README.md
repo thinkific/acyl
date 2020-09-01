@@ -54,7 +54,6 @@ For more details, see [Local Development](https://github.com/dollarshaveclub/acy
 
 - Acyl: This is the server application which listens for GitHub webhook events and performs operations to create, update or destroy environments within your Kubernetes cluster. The server is intended to run within the same cluster, with ClusterAdmin permissions. The Acyl binary also can be used as a local CLI utility for local environment development and debugging.
 - Postgres: This is the primary datastore for Acyl.
-- Consul: This is used for event concurrency control/locking.
 - [Furan](https://github.com/dollarshaveclub/furan): This is used to build and push application Docker images on demand.
 - (*OPTIONAL*) Notifications can be sent to Slack channels or individual users when environments are created or altered.
 - (*OPTIONAL*) [Vault](https://www.vaultproject.io/) can be used for Acyl secrets like GitHub tokens and database credentials.
@@ -62,4 +61,3 @@ For more details, see [Local Development](https://github.com/dollarshaveclub/acy
 ## Further Reading
 - [User Guide](https://github.com/dollarshaveclub/acyl/wiki/User-Guide)
 - [acyl.yml v2 Specification](https://github.com/dollarshaveclub/acyl/wiki/Acyl.yml-V2-Specification)
-

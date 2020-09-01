@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	lockName                  = "reaper/lock"
-	lockTTL                   = "10m"
+	lockWait                  = 5 * time.Second
 	deleteMaxCount            = 100
 	destroyedMaxDurationHours = 730 // one month
 	failedMaxDurationSecs     = 3600
@@ -42,10 +41,11 @@ type Reaper struct {
 	mc          ReaperMetricsCollector
 	globalLimit uint
 	logger      *log.Logger
+	lockKey     int64
 }
 
 // NewReaper returns a Reaper object using the supplied dependencies
-func NewReaper(lp locker.LockProvider, dl persistence.DataLayer, es spawner.EnvironmentSpawner, rc ghclient.RepoClient, mc ReaperMetricsCollector, globalLimit uint, logger *log.Logger) *Reaper {
+func NewReaper(lp locker.LockProvider, dl persistence.DataLayer, es spawner.EnvironmentSpawner, rc ghclient.RepoClient, mc ReaperMetricsCollector, globalLimit uint, logger *log.Logger, lockKey int64) *Reaper {
 	return &Reaper{
 		lp:          lp,
 		dl:          dl,
@@ -53,6 +53,7 @@ func NewReaper(lp locker.LockProvider, dl persistence.DataLayer, es spawner.Envi
 		rc:          rc,
 		mc:          mc,
 		globalLimit: globalLimit,
+		lockKey:     lockKey,
 		logger:      logger,
 	}
 }
@@ -64,15 +65,21 @@ func (r *Reaper) Reap() {
 	defer func() {
 		reapSpan.Finish(tracer.WithError(err))
 	}()
-	lock, err := r.lp.AcquireNamedLock(lockName, lockTTL)
-	if err != nil {
+	lock, err := r.lp.New(ctx, r.lockKey, "reap")
+	if err != nil || lock == nil {
 		r.logger.Printf("error trying to acquire lock: %v", err)
 		return
 	}
-	if lock == nil {
+	_, err = lock.Lock(ctx, lockWait)
+	if err != nil {
+		r.logger.Printf("error locking: %v", err)
 		return
 	}
-	defer lock.Release()
+	defer func() {
+		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), lockWait)
+		lock.Unlock(unlockCtx)
+		unlockCancel()
+	}()
 
 	err = r.pruneDestroyedRecords(ctx)
 	if err != nil {

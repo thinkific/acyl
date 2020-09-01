@@ -43,7 +43,6 @@ import (
 
 var serverConfig config.ServerConfig
 var githubConfig config.GithubConfig
-var consulConfig config.ConsulConfig
 var slackConfig config.SlackConfig
 
 var k8sConfig config.K8sConfig
@@ -55,6 +54,7 @@ var s3config config.S3Config
 var failureTemplatePath string
 var dogstatsdAddr, dogstatsdTags string
 var datadogServiceName, datadogTracingAgentAddr string
+var reaperLockKey int64
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
@@ -74,9 +74,7 @@ func init() {
 	serverCmd.PersistentFlags().BoolVar(&serverConfig.DisableTLS, "disable-tls", false, "Disable TLS for the REST HTTP(S) server")
 	serverCmd.PersistentFlags().StringVar(&githubConfig.TypePath, "repo-type-path", "acyl.yml", "Relative path within the target repo to look for the type definition")
 	serverCmd.PersistentFlags().StringVar(&serverConfig.WordnetPath, "wordnet-path", "/opt/words.json.gz", "Path to gzip-compressed JSON wordnet file")
-	serverCmd.PersistentFlags().StringSliceVar(&serverConfig.FuranAddrs, "furan-addrs", []string{}, "Furan hosts (optional, otherwise use Consul discovery)")
-	serverCmd.PersistentFlags().StringVar(&consulConfig.Addr, "consul-addr", "127.0.0.1:8500", "Consul agent address")
-	serverCmd.PersistentFlags().StringVar(&consulConfig.LockPrefix, "consul-lock-prefix", "acyl/", "Consul lock name prefix")
+	serverCmd.PersistentFlags().StringSliceVar(&serverConfig.FuranAddrs, "furan-addrs", []string{}, "Furan hosts")
 	serverCmd.PersistentFlags().StringVar(&slackConfig.Channel, "slack-channel", "dyn-qa-notifications", "Slack channel for notifications")
 	serverCmd.PersistentFlags().StringVar(&slackConfig.Username, "slack-username", "Acyl Environment Notifier", "Slack username for notifications")
 	serverCmd.PersistentFlags().StringVar(&slackConfig.IconURL, "slack-icon-url", "https://picsum.photos/48/48", "Slack user avatar icon for notifications")
@@ -103,6 +101,8 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&datadogTracingAgentAddr, "datadog-tracing-agent-addr", "127.0.0.1:8126", "Address of datadog tracing agent")
 	serverCmd.PersistentFlags().StringVar(&datadogServiceName, "datadog-service-name", "acyl", "Default service name to be used for Datadog APM")
 	serverCmd.PersistentFlags().DurationVar(&serverConfig.OperationTimeoutOverride, "operation-timeout-override", 0, "Override for operation timeout (ex: 10m)")
+	serverCmd.PersistentFlags().Int64Var(&reaperLockKey, "reaper-lock-key", 0, "Lock key that the reaper process should attempt to obtain")
+
 	addUIFlags(serverCmd)
 	RootCmd.AddCommand(serverCmd)
 }
@@ -160,9 +160,14 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error opening wordnet file: %v", err)
 	}
 
-	lp, err := locker.NewConsulLocker(consulConfig.Addr, consulConfig.LockPrefix, datadogServiceName, true)
+	lp, err := locker.NewPostgresLockProvider(pgConfig.PostgresURI, datadogServiceName+".postgres_locker", pgConfig.EnableTracing)
 	if err != nil {
-		log.Fatalf("error creating Consul lock service: %v", err)
+		log.Fatalf("error creating Postgres lock provider: %v", err)
+	}
+
+	plf, err := locker.NewPreemptiveLockerFactory(lp, locker.WithTracingEnabled(true), locker.WithTracingServiceName("postgres_lock"))
+	if err != nil {
+		log.Fatalf("error creating preemptive locker factory: %v", err)
 	}
 
 	slackapi := slack.New(slackConfig.Token)
@@ -172,7 +177,7 @@ func server(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("error setting up nitro metrics collector: %v", err)
 	}
-	fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, consulConfig.Addr, dl, mc, os.Stderr, datadogServiceName)
+	fbb, err := images.NewFuranBuilderBackend(serverConfig.FuranAddrs, dl, mc, os.Stderr, datadogServiceName)
 	if err != nil {
 		log.Fatalf("error getting Furan image builder backend: %v", err)
 	}
@@ -234,10 +239,10 @@ func server(cmd *cobra.Command, args []string) {
 		RC:                   rc,
 		MC:                   nmc,
 		NG:                   ng,
-		LP:                   lp,
 		FS:                   fs,
 		MG:                   mg,
 		CI:                   ci,
+		PLF:                  plf,
 		AWSCreds:             awsCreds,
 		S3Config:             s3config,
 		GlobalLimit:          serverConfig.GlobalEnvironmentLimit,
@@ -249,7 +254,7 @@ func server(cmd *cobra.Command, args []string) {
 
 	if serverConfig.ReaperIntervalSecs > 0 {
 		log.Printf("starting reaper: %v sec interval", serverConfig.ReaperIntervalSecs)
-		reaper := reap.NewReaper(lp, dl, nitromgr, rc, mc, serverConfig.GlobalEnvironmentLimit, logger)
+		reaper := reap.NewReaper(lp, dl, nitromgr, rc, mc, serverConfig.GlobalEnvironmentLimit, logger, reaperLockKey)
 		ticker := time.NewTicker(time.Duration(serverConfig.ReaperIntervalSecs) * time.Second)
 		go func() {
 			var delta int64

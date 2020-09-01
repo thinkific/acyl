@@ -308,7 +308,7 @@ func getImageBackend(dl persistence.DataLayer, rc ghclient.RepoClient, auths map
 	case testEnvCfg.buildMode == "none":
 		return &images.NoneBackend{}, nil
 	case strings.HasPrefix(testEnvCfg.buildMode, "furan://"):
-		fb, err := images.NewFuranBuilderBackend([]string{testEnvCfg.buildMode[8:len(testEnvCfg.buildMode)]}, "", dl, &oldmetrics.FakeCollector{}, ioutil.Discard, "furan.test-client")
+		fb, err := images.NewFuranBuilderBackend([]string{testEnvCfg.buildMode[8:len(testEnvCfg.buildMode)]}, dl, &oldmetrics.FakeCollector{}, ioutil.Discard, "furan.test-client")
 		if err != nil {
 			return nil, errors.Wrap(err, "error getting furan backend")
 		}
@@ -370,6 +370,10 @@ func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Conte
 		return nil, nil, nil, errors.Wrap(err, "error getting name generator")
 	}
 	mc := &metrics.FakeCollector{}
+	plf, err := locker.NewPreemptiveLockerFactory(locker.NewFakeLockProvider())
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "error creating preemptive locker factory")
+	}
 	mg, ri, _, ctx := generateLocalMetaGetter(dl, getStatusCallback())
 	ibb, err := getImageBackend(dl, mg.RC, testEnvCfg.dockerCfg.AuthConfigs)
 	if err != nil {
@@ -404,16 +408,10 @@ func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Conte
 			RC:                   mg.RC,
 			MC:                   mc,
 			NG:                   ng,
-			LP: &locker.FakePreemptiveLockProvider{
-				ChannelFactory: func() chan struct{} {
-					lch := make(chan struct{})
-					//close(lch)
-					return lch
-				},
-			},
-			FS: fs,
-			MG: mg,
-			CI: ci,
+			PLF:                  plf,
+			FS:                   fs,
+			MG:                   mg,
+			CI:                   ci,
 		}, ctx, &models.RepoRevisionData{
 			PullRequest:  testEnvCfg.pullRequest,
 			Repo:         ri.GitHubRepoName,

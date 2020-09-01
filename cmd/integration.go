@@ -281,10 +281,9 @@ func setupNitro(dl persistence.DataLayer, useGHToken bool) (spawner.EnvironmentS
 	rc := ghclient.NewGitHubClient(ghtkn)
 	ng := &namegen.FakeNameGenerator{Unique: true}
 	mc := &metrics.FakeCollector{}
-	lp := &locker.FakePreemptiveLockProvider{
-		ChannelFactory: func() chan struct{} {
-			return make(chan struct{})
-		},
+	plf, err := locker.NewPreemptiveLockerFactory(locker.NewFakeLockProvider())
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "error creating preemptive locker factory")
 	}
 	nf := func(lf func(string, ...interface{}), notifications models.Notifications, user string) notifier.Router {
 		sb := &notifier.SlackBackend{
@@ -301,15 +300,15 @@ func setupNitro(dl persistence.DataLayer, useGHToken bool) (spawner.EnvironmentS
 		return nil, nil, errors.Wrap(err, "error getting metahelm chart installer")
 	}
 	return &nitroenv.Manager{
-		NF: nf,
-		DL: dl,
-		RC: rc,
-		MC: mc,
-		NG: ng,
-		LP: lp,
-		FS: fs,
-		MG: mg,
-		CI: ci,
+		NF:  nf,
+		DL:  dl,
+		RC:  rc,
+		MC:  mc,
+		NG:  ng,
+		FS:  fs,
+		MG:  mg,
+		CI:  ci,
+		PLF: plf,
 	}, rc, nil
 }
 
