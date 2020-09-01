@@ -353,25 +353,19 @@ func (plp *PostgresLockProvider) LockKey(ctx context.Context, repo string, pullR
 	}()
 
 	el := &PostgresEnvLock{}
-	err = txn.QueryRowContext(ctx, `INSERT INTO env_locks(`+el.Columns()+`) VALUES (random_bigint(), $1, $2) ON CONFLICT DO NOTHING;`, repo, pullRequest).Scan(el.ScanValues()...)
-	switch err {
-	case sql.ErrNoRows:
-		q := `SELECT ` + el.Columns() + ` FROM env_locks WHERE repo = $1 AND pull_request = $2;`
-		selectErr := txn.QueryRowContext(ctx, q, repo, pullRequest).Scan(el.ScanValues()...)
-		if selectErr != nil {
-			return 0, errors.Wrap(err, "unable to select env lock")
-		}
-	default:
-		// Since there is no returning clause, we expect to receive a ErrNoRows error
-		// So if we get here (err is nil or err != sq.ErrNoRows), we should return an error
-		return 0, errors.Wrap(err, "unable to insert env lock")
+	var lockKey int64
+	// We do a pseudo update on conflict in order to get a row to be returned from INSERT
+	query := `INSERT INTO env_locks(` + el.Columns() + `) VALUES (random_bigint(), $1, $2) ON CONFLICT ON CONSTRAINT env_locks_pkey DO UPDATE set repo = $1 RETURNING (lock_key);`
+	err = txn.QueryRowContext(ctx, query, repo, pullRequest).Scan(&lockKey)
+	if err != nil {
+		return 0, errors.Wrap(err, "unable to get env lock")
 	}
 
 	err = txn.Commit()
 	if err != nil {
 		return 0, errors.Wrap(err, "unable to commit transaction")
 	}
-	return el.LockKey, nil
+	return lockKey, nil
 }
 
 func (plp *PostgresLockProvider) log(ctx context.Context, msg string, args ...interface{}) {
