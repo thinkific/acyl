@@ -184,6 +184,7 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 
 	p.key = key
 	span.SetTag("lock_key", p.key)
+	p.log(ctx, "locking key: %d for repo: %s, pr: %d", p.key, p.repo, p.pr)
 	lock, err := p.lp.New(ctx, p.key, p.event)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to instantiate a preemptable lock")
