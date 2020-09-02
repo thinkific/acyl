@@ -284,7 +284,9 @@ func (p *PGLayer) GetQAEnvironmentsByUser(ctx context.Context, user string) ([]Q
 }
 
 // SetQAEnvironmentStatus sets a specific QAEnvironment's status.
-// Note that this will bail if the context was canceled. It is often recommended to pass the background context to this function.
+// This method is unique in that callers often call this in cases where a root operation context is likely to be canceled.
+// Because of this, it often makes sense to pass the background context, or a newly created child of the background context, to this function.
+// For convenience, we set a default operation timeout to make sure that even if the caller passed the background context, we can prevent this function from waiting indefinitely.
 func (p *PGLayer) SetQAEnvironmentStatus(ctx context.Context, name string, status EnvironmentStatus) error {
 	if isCancelled(ctx) {
 		return errors.Wrap(ctx.Err(), "error setting qa environment status")
