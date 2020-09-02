@@ -202,7 +202,6 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 	}
 
 	select {
-	// TODO (mk): Might be simpler to just let the user recognize that this operation has already been preempted, since they will be reading from the channel anyways.
 	case np := <-ch:
 		releaseCtx, cancel := context.WithTimeout(context.Background(), p.conf.lockWait)
 		releaseErr := p.Release(releaseCtx)
