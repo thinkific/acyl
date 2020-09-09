@@ -201,10 +201,16 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 		return nil, errors.Wrap(err, "unable to lock")
 	}
 
-	// Wait for the specified LockDelay before returning
 	select {
 	case np := <-ch:
+		releaseCtx, cancel := context.WithTimeout(context.Background(), p.conf.lockWait)
+		releaseErr := p.Release(releaseCtx)
+		if releaseErr != nil {
+			p.log(ctx, "error releasing lock: %v", releaseErr)
+		}
+		cancel()
 		return nil, errors.Wrap(ErrLockPreempted, np.Message)
+	// Wait for the specified LockDelay before returning
 	case <-time.After(p.conf.lockDelay):
 		return ch, nil
 	}
