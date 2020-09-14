@@ -2,6 +2,7 @@ package locker
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -12,15 +13,105 @@ import (
 	"github.com/pkg/errors"
 )
 
+type LockProviderConfig struct {
+	// lockWait is how long the lock will block before giving up
+	lockWait time.Duration
+
+	// forceUnlock is the duration in which the lock will wait before automatically getting unlocked, no matter what the holder does.
+	// This provides a fallback for ensuring the lock gets unlocked.
+	forceUnlock time.Duration
+
+	// forcePreemption is the duration in which the lock will wait for the holder to respect a notification and release the lock.
+	// If a notification is sent to the lock, the lock will be released after this duration no matter what the holder does.
+	// This provides a mechanism for releasing the lock quickly in scenarios where the holder of the lock may be blocked indefinitely.
+	forcePreemption time.Duration
+
+	// postgresURI is used to connect to Postgres for a Postgres Lock Provider
+	postgresURI string
+
+	// enableTracing will allow the lock to send traces when applicable
+	enableTracing bool
+
+	// apmServiceName is the service name the traces will use
+	apmServiceName string
+}
+
+type LockProviderOption func(*LockProviderConfig)
+
 var (
-	defaultLockWaitTime = (30 * time.Minute) + (30 * time.Second) // global async timeout is 30 minutes
-	defaultLockDelay    = 10 * time.Second
+	defaultForcePreemption = 10 * time.Second
+	defaultLockWait        = 20 * time.Second
+	defaultLockDelay       = 10 * time.Second
+	defaultForceUnlock     = 30*time.Minute + 30*time.Second // global async timeout is 30 minutes
 )
+
+func WithForceUnlock(duration time.Duration) LockProviderOption {
+	return func(config *LockProviderConfig) {
+		config.forceUnlock = duration
+	}
+}
+
+func WithForcePreemption(duration time.Duration) LockProviderOption {
+	return func(config *LockProviderConfig) {
+		config.forcePreemption = duration
+	}
+}
+
+func WithLockWait(lockWait time.Duration) LockProviderOption {
+	return func(config *LockProviderConfig) {
+		config.lockWait = lockWait
+	}
+}
+
+func WithPostgresBackend(postgresURI string, enableTracing bool, apmServiceName string) LockProviderOption {
+	return func(config *LockProviderConfig) {
+		config.postgresURI = postgresURI
+		config.apmServiceName = apmServiceName
+		config.enableTracing = enableTracing
+	}
+}
 
 // LockProvider describes an object capable of creating distributed locks. You may provide your own int64 key or obtain one for a given Repo/PR.
 type LockProvider interface {
 	New(ctx context.Context, key int64, event string) (PreemptableLock, error)
 	LockKey(ctx context.Context, repo string, pr uint) (int64, error)
+}
+
+type LockProviderKind int
+
+const (
+	PostgresLockProviderKind LockProviderKind = iota
+	FakeLockProviderKind
+)
+
+func NewLockProvider(kind LockProviderKind, options ...LockProviderOption) (LockProvider, error) {
+	config := &LockProviderConfig{}
+	for _, opt := range options {
+		opt(config)
+	}
+	if config.lockWait == 0 {
+		config.lockWait = defaultLockWait
+	}
+	if config.forceUnlock == 0 {
+		config.forceUnlock = defaultForceUnlock
+	}
+	if config.forcePreemption == 0 {
+		config.forcePreemption = defaultForcePreemption
+	}
+	if config.apmServiceName == "" {
+		config.apmServiceName = "lock_provider"
+	}
+	switch kind {
+	case PostgresLockProviderKind:
+		if config.postgresURI == "" {
+			return nil, errors.New("must provide postgres uri for postgres lock provider")
+		}
+		return newPostgresLockProvider(*config)
+	case FakeLockProviderKind:
+		return newFakeLockProvider(*config), nil
+	default:
+		return nil, fmt.Errorf("lock provider kind not implemented: %v", kind)
+	}
 }
 
 // NotificationPayload represents the content of messages sent to the lock holder.
@@ -33,7 +124,7 @@ type NotificationPayload struct {
 	Message string `json:"event"`
 
 	// The key that this Notification Payload pertains to
-	LockKey int64
+	LockKey int64 `json:lockKey`
 }
 
 // PreemptiveLocker represents a distributed lock where callers can be preempted while waiting for the lock to be released or while holding the lock. High level, the algorithm is as follows:
@@ -58,8 +149,8 @@ type PreemptiveLocker struct {
 // PreemptableLock describes an object that acts as a Lock that can signal to peers that they should unlock
 // Preemptable locks are single use. Once you unlock the lock, underlying resources will be cleaned up
 type PreemptableLock interface {
-	// Lock locks the preemptable lock. If it's unable to obtain the lock after that timeout period, it should return an error
-	Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error)
+	// Lock locks the preemptable lock. If it fails to lock, or is preempted before locking, it should return an error
+	Lock(ctx context.Context) (<-chan NotificationPayload, error)
 
 	// Unlock unlocks the preemptable lock. It should clean up any underlying resources
 	Unlock(ctx context.Context) error
@@ -70,10 +161,8 @@ type PreemptableLock interface {
 
 // PreemptiveLockerConfig contains values for adjusting how the PreemptiveLocker behaves
 type PreemptiveLockerConfig struct {
-	// lockWait is how long a preemtive lock will block waiting for the lock to be acquired
-	lockWait time.Duration
 
-	// lockDelay is how long the locker should wait before attempting to acquire the lock
+	// lockDelay is how long the locker should wait before returning the lock
 	// This is an imperfect, but practical way of ensuring we don't perform operations before other lock holders have realized that their session has ended
 	lockDelay time.Duration
 
@@ -85,12 +174,6 @@ type PreemptiveLockerConfig struct {
 }
 
 type PreemptiveLockerOption func(*PreemptiveLockerConfig)
-
-func WithLockWait(lockWait time.Duration) PreemptiveLockerOption {
-	return func(config *PreemptiveLockerConfig) {
-		config.lockWait = lockWait
-	}
-}
 
 func WithLockDelay(lockDelay time.Duration) PreemptiveLockerOption {
 	return func(config *PreemptiveLockerConfig) {
@@ -123,9 +206,6 @@ func NewPreemptiveLockerFactory(provider LockProvider, opts ...PreemptiveLockerO
 	config := PreemptiveLockerConfig{}
 	for _, opt := range opts {
 		opt(&config)
-	}
-	if config.lockWait == 0 {
-		config.lockWait = defaultLockWaitTime
 	}
 	if config.lockDelay == 0 {
 		config.lockDelay = defaultLockDelay
@@ -196,19 +276,17 @@ func (p *PreemptiveLocker) Lock(ctx context.Context) (ch <-chan NotificationPayl
 		return nil, errors.Wrap(err, "unable to notify other locks")
 	}
 
-	ch, err = lock.Lock(ctx, p.conf.lockWait)
+	ch, err = lock.Lock(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to lock")
 	}
 
 	select {
 	case np := <-ch:
-		releaseCtx, cancel := context.WithTimeout(context.Background(), p.conf.lockWait)
-		releaseErr := p.Release(releaseCtx)
+		releaseErr := p.Release(context.Background())
 		if releaseErr != nil {
 			p.log(ctx, "error releasing lock: %v", releaseErr)
 		}
-		cancel()
 		return nil, errors.Wrap(ErrLockPreempted, np.Message)
 	// Wait for the specified LockDelay before returning
 	case <-time.After(p.conf.lockDelay):
@@ -222,7 +300,6 @@ func (p *PreemptiveLocker) Release(ctx context.Context) (err error) {
 	defer func() {
 		span.Finish(tracer.WithError(err))
 	}()
-
 	if p.lock == nil {
 		return errors.New("attempting to Release before the lock has been locked")
 	}

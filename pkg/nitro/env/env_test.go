@@ -38,10 +38,16 @@ import (
 
 func TestLockingOperation(t *testing.T) {
 	el := &eventlogger.Logger{DL: persistence.NewFakeDataLayer()}
-	plf, err := locker.NewPreemptiveLockerFactory(
-		locker.NewFakeLockProvider(),
-		locker.WithLockDelay(time.Millisecond),
+	lp, err := locker.NewLockProvider(
+		locker.FakeLockProviderKind,
 		locker.WithLockWait(time.Second),
+	)
+	if err != nil {
+		t.Fatalf("error creating new lock provider: %v", err)
+	}
+	plf, err := locker.NewPreemptiveLockerFactory(
+		lp,
+		locker.WithLockDelay(time.Millisecond),
 	)
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
@@ -472,10 +478,16 @@ func TestCreate(t *testing.T) {
 				KC: k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "nitro-1234-some-random-name"}}),
 			}
 			nt := newNotificationTracker()
-			plf, err := locker.NewPreemptiveLockerFactory(
-				locker.NewFakeLockProvider(),
-				locker.WithLockDelay(time.Second),
+			lp, err := locker.NewLockProvider(
+				locker.FakeLockProviderKind,
 				locker.WithLockWait(2*time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new lock provider: %v", err)
+			}
+			plf, err := locker.NewPreemptiveLockerFactory(
+				lp,
+				locker.WithLockDelay(time.Second),
 			)
 			if err != nil {
 				t.Fatalf("error creating new preemptive locker factory: %v", err)
@@ -743,10 +755,16 @@ func TestUpdate(t *testing.T) {
 				KC:           k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: c.inputK8sEnv.Namespace}}),
 			}
 			nt := newNotificationTracker()
-			plf, err := locker.NewPreemptiveLockerFactory(
-				locker.NewFakeLockProvider(),
-				locker.WithLockDelay(time.Millisecond),
+			lp, err := locker.NewLockProvider(
+				locker.FakeLockProviderKind,
 				locker.WithLockWait(time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new lock provider: %v", err)
+			}
+			plf, err := locker.NewPreemptiveLockerFactory(
+				lp,
+				locker.WithLockDelay(time.Millisecond),
 			)
 			if err != nil {
 				t.Fatalf("error creating new preemptive locker factory: %v", err)
@@ -909,10 +927,16 @@ func TestDelete(t *testing.T) {
 				DL:           dl,
 				HelmReleases: releases,
 			}
-			plf, err := locker.NewPreemptiveLockerFactory(
-				locker.NewFakeLockProvider(),
-				locker.WithLockDelay(time.Millisecond),
+			lp, err := locker.NewLockProvider(
+				locker.FakeLockProviderKind,
 				locker.WithLockWait(time.Second),
+			)
+			if err != nil {
+				t.Fatalf("error creating new lock provider: %v", err)
+			}
+			plf, err := locker.NewPreemptiveLockerFactory(
+				lp,
+				locker.WithLockDelay(time.Millisecond),
 			)
 			if err != nil {
 				t.Fatalf("error creating new preemptive locker factory: %v", err)

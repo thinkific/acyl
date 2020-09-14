@@ -370,7 +370,11 @@ func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Conte
 		return nil, nil, nil, errors.Wrap(err, "error getting name generator")
 	}
 	mc := &metrics.FakeCollector{}
-	plf, err := locker.NewPreemptiveLockerFactory(locker.NewFakeLockProvider())
+	lp, err := locker.NewLockProvider(locker.FakeLockProviderKind)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "error creating lock provider")
+	}
+	plf, err := locker.NewPreemptiveLockerFactory(lp)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error creating preemptive locker factory")
 	}
@@ -440,9 +444,9 @@ func runUI(dl persistence.DataLayer, nitromgr *nitroenv.Manager, repo string) (*
 		return nil, fmt.Errorf("unexpected type for ChartInstaller: %T", nitromgr.CI)
 	}
 	deps := &api.Dependencies{
-		DataLayer:    dl,
-		ServerConfig: serverConfig,
-		Logger:       uilogger,
+		DataLayer:          dl,
+		ServerConfig:       serverConfig,
+		Logger:             uilogger,
 		EnvironmentSpawner: nitromgr,
 		KubernetesReporter: ci,
 	}

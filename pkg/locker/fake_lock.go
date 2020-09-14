@@ -83,16 +83,20 @@ func (fls *fakeLockStore) notify(ctx context.Context, key int64, id uuid.UUID) e
 		if lock.id == id {
 			continue
 		}
-		go func(l *FakePreemptableLock) {
-			l.preempt <- NotificationPayload{
-				LockKey: key,
-				ID:      l.id,
-				Message: l.event,
-			}
-		}(lock)
-
+		np := NotificationPayload{
+			LockKey: key,
+			ID:      lock.id,
+			Message: lock.event,
+		}
+		go fls.handleNotification(lock, np)
 	}
 	return nil
+}
+
+func (fls *fakeLockStore) handleNotification(lock *FakePreemptableLock, np NotificationPayload) {
+	go func() { lock.preempt <- np }()
+	time.Sleep(lock.conf.forcePreemption)
+	lock.Unlock(context.Background())
 }
 
 var _ LockProvider = &FakeLockProvider{}
@@ -100,14 +104,16 @@ var _ LockProvider = &FakeLockProvider{}
 // FakeLockProvider can serve as a lock provider with no external dependencies
 type FakeLockProvider struct {
 	store *fakeLockStore
+	conf  LockProviderConfig
 }
 
-func NewFakeLockProvider() *FakeLockProvider {
+func newFakeLockProvider(conf LockProviderConfig) *FakeLockProvider {
 	return &FakeLockProvider{
 		store: &fakeLockStore{
 			locks:        make(map[int64]*fakeLockStoreEntry),
 			envToLockKey: make(map[string]int64),
 		},
+		conf: conf,
 	}
 }
 
@@ -134,6 +140,7 @@ func (flp *FakeLockProvider) New(ctx context.Context, key int64, event string) (
 		store:   flp.store,
 		event:   event,
 		key:     key,
+		conf:    flp.conf,
 	}
 	flp.store.store(key, l)
 	return l, nil
@@ -147,15 +154,21 @@ type FakePreemptableLock struct {
 	event   string
 	key     int64
 	preempt chan NotificationPayload
+	conf    LockProviderConfig
 }
 
-func (fpl *FakePreemptableLock) Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error) {
-	lockCtx, cancel := context.WithTimeout(ctx, lockWait)
+func (fpl *FakePreemptableLock) Lock(ctx context.Context) (<-chan NotificationPayload, error) {
+	lockCtx, cancel := context.WithTimeout(ctx, fpl.conf.lockWait)
 	defer cancel()
 	err := fpl.store.lock(lockCtx, fpl.key)
 	if err != nil {
 		return nil, fmt.Errorf("unable to lock fake preemptable lock: %v", err)
 	}
+	go func() {
+		time.Sleep(fpl.conf.forceUnlock)
+		fpl.store.unlock(context.Background(), fpl.key, fpl.id)
+	}()
+
 	return fpl.preempt, nil
 }
 

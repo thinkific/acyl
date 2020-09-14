@@ -160,7 +160,7 @@ func server(cmd *cobra.Command, args []string) {
 		log.Fatalf("error opening wordnet file: %v", err)
 	}
 
-	lp, err := locker.NewPostgresLockProvider(pgConfig.PostgresURI, datadogServiceName+".postgres_locker", pgConfig.EnableTracing)
+	lp, err := locker.NewLockProvider(locker.PostgresLockProviderKind, locker.WithPostgresBackend(pgConfig.PostgresURI, pgConfig.EnableTracing, datadogServiceName+".postgres_locker"))
 	if err != nil {
 		log.Fatalf("error creating Postgres lock provider: %v", err)
 	}
