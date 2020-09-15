@@ -95,27 +95,27 @@ func runPreemptableLockTests(t *testing.T, lpFunc lpFactoryFunc) {
 		{
 			name:    "lock and unlock",
 			tfunc:   testLockAndUnlock,
-			options: []LockProviderOption{WithLockWait(5 * time.Second)},
+			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "preememption",
 			tfunc:   testPreemption,
-			options: []LockProviderOption{WithLockWait(time.Second)},
+			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "obtains correct lock key with concurrent goroutines",
 			tfunc:   testLockKeyConcurrent,
-			options: []LockProviderOption{WithLockWait(time.Second)},
+			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "force unlock is respected",
 			tfunc:   testForceUnlock,
-			options: []LockProviderOption{WithForceUnlock(2 * time.Second), WithLockWait(time.Second)},
+			options: []LockProviderOption{WithForceUnlock(2 * time.Second), WithLockWait(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "force preemption is respected",
 			tfunc:   testForcePreemption,
-			options: []LockProviderOption{WithForcePreemption(1 * time.Second), WithLockWait(5 * time.Second)},
+			options: []LockProviderOption{WithForcePreemption(1 * time.Second), WithLockWait(defaultPostgresLockWaitTime)},
 		},
 	}
 

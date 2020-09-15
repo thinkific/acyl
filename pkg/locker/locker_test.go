@@ -65,12 +65,14 @@ func runPreemptiveLockerTests(t *testing.T, lpFunc lpFactoryFunc) {
 			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
 		},
 		{
-			name:  "configurable lock delay",
-			tfunc: testPreemptiveLockerLockDelay,
+			name:    "configurable lock delay",
+			tfunc:   testPreemptiveLockerLockDelay,
+			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
 		},
 		{
-			name:  "new preemptive locker should respect canceled context",
-			tfunc: testNewPreemptiveLockerCancelledContext,
+			name:    "new preemptive locker should respect canceled context",
+			tfunc:   testNewPreemptiveLockerCancelledContext,
+			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
 		},
 	}
 

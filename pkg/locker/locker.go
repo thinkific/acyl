@@ -13,29 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type LockProviderConfig struct {
-	// lockWait is how long the lock will block before giving up
-	lockWait time.Duration
-
-	// forceUnlock is the duration in which the lock will wait before automatically getting unlocked, no matter what the holder does.
-	// This provides a fallback for ensuring the lock gets unlocked.
-	forceUnlock time.Duration
-
-	// forcePreemption is the duration in which the lock will wait for the holder to respect a notification and release the lock.
-	// If a notification is sent to the lock, the lock will be released after this duration no matter what the holder does.
-	// This provides a mechanism for releasing the lock quickly in scenarios where the holder of the lock may be blocked indefinitely.
-	forcePreemption time.Duration
-
-	// postgresURI is used to connect to Postgres for a Postgres Lock Provider
-	postgresURI string
-
-	// enableTracing will allow the lock to send traces when applicable
-	enableTracing bool
-
-	// apmServiceName is the service name the traces will use
-	apmServiceName string
-}
-
+// LockProviderOptions allows clients to configure different aspects for the LockProvider return from NewLockProvider
 type LockProviderOption func(*LockProviderConfig)
 
 var (
@@ -45,24 +23,32 @@ var (
 	defaultForceUnlock     = 30*time.Minute + 30*time.Second // global async timeout is 30 minutes
 )
 
+// WithForceUnlock sets the duration for which the lock will wait before forceably unlocking the lock.
+// This can be used to protect against the holder of the lock getting blocked or not being able to unlock the lock.
 func WithForceUnlock(duration time.Duration) LockProviderOption {
 	return func(config *LockProviderConfig) {
 		config.forceUnlock = duration
 	}
 }
 
+// WithForcePreemption sets the duration for which the lock will wait for the holder to respect a notification and release the lock.
+// If a notification is sent to the lock, the lock will be released after this duration no matter what the holder does.
+// This provides a mechanism for releasing the lock quickly in scenarios where the holder of the lock may be blocked indefinitely.
 func WithForcePreemption(duration time.Duration) LockProviderOption {
 	return func(config *LockProviderConfig) {
 		config.forcePreemption = duration
 	}
 }
 
+// WithLockWait sets the duration for which the lock will block while attempting to lock, before it gives up and returns an error.
 func WithLockWait(lockWait time.Duration) LockProviderOption {
 	return func(config *LockProviderConfig) {
 		config.lockWait = lockWait
 	}
 }
 
+// WithPostgresBackend allows for a distributed lock provider backed by Postgres.
+// APM traces can also be enabled with the configured service name.
 func WithPostgresBackend(postgresURI string, enableTracing bool, apmServiceName string) LockProviderOption {
 	return func(config *LockProviderConfig) {
 		config.postgresURI = postgresURI
@@ -71,19 +57,35 @@ func WithPostgresBackend(postgresURI string, enableTracing bool, apmServiceName 
 	}
 }
 
+// LockProviderConfig sets configuration values that can be shared between LockProvider implementations.
+type LockProviderConfig struct {
+	lockWait        time.Duration
+	forceUnlock     time.Duration
+	forcePreemption time.Duration
+	postgresURI     string
+	enableTracing   bool
+	apmServiceName  string
+}
+
 // LockProvider describes an object capable of creating distributed locks. You may provide your own int64 key or obtain one for a given Repo/PR.
 type LockProvider interface {
 	New(ctx context.Context, key int64, event string) (PreemptableLock, error)
 	LockKey(ctx context.Context, repo string, pr uint) (int64, error)
 }
 
+// LockProviderKind enumerates the different LockProvider implementations
 type LockProviderKind int
 
 const (
+	// PostgresLockProviderKind represents an implementation of the LockProvider interface that uses Postgres as the underlying store
 	PostgresLockProviderKind LockProviderKind = iota
+
+	// FakeLockProviderKind represents an implementation of the LockProvider interfaces that uses an in-memory store, suitable for tests
 	FakeLockProviderKind
 )
 
+// NewLockProvider returns an implementation of the LockProvider interface.
+// It accepts an arbitrary number of LockProviderOptions and sets some opinonated default values if the option is not explicitly set.
 func NewLockProvider(kind LockProviderKind, options ...LockProviderOption) (LockProvider, error) {
 	config := &LockProviderConfig{}
 	for _, opt := range options {
