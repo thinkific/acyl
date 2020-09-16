@@ -17,54 +17,53 @@ import (
 type LockProviderOption func(*LockProviderConfig)
 
 var (
-	defaultForcePreemption = 10 * time.Second
-	defaultLockWait        = 20 * time.Second
-	defaultLockDelay       = 10 * time.Second
-	defaultForceUnlock     = 30*time.Minute + 30*time.Second // global async timeout is 30 minutes
+	defaultPreemptionTimeout = 10 * time.Second
+	defaultLockTimeout       = 20 * time.Second
+	defaultLockDelay         = 10 * time.Second
+	defaultMaxLockDuration   = 30*time.Minute + 30*time.Second // global async timeout is 30 minutes
 )
 
-// WithForceUnlock sets the duration for which the lock will wait before forceably unlocking the lock.
+// WithMaxLockDuration sets the duration for which the lock will wait before automatically unlocking the lock.
 // This can be used to protect against the holder of the lock getting blocked or not being able to unlock the lock.
-func WithForceUnlock(duration time.Duration) LockProviderOption {
+func WithMaxLockDuration(duration time.Duration) LockProviderOption {
 	return func(config *LockProviderConfig) {
-		config.forceUnlock = duration
+		config.maxLockDuration = duration
 	}
 }
 
-// WithForcePreemption sets the duration for which the lock will wait for the holder to respect a notification and release the lock.
+// WithPreemptionTimeout sets the duration for which the lock will wait for the holder to respect a notification and release the lock.
 // If a notification is sent to the lock, the lock will be released after this duration no matter what the holder does.
 // This provides a mechanism for releasing the lock quickly in scenarios where the holder of the lock may be blocked indefinitely.
-func WithForcePreemption(duration time.Duration) LockProviderOption {
+func WithPreemptionTimeout(duration time.Duration) LockProviderOption {
 	return func(config *LockProviderConfig) {
-		config.forcePreemption = duration
+		config.preemptionTimeout = duration
 	}
 }
 
-// WithLockWait sets the duration for which the lock will block while attempting to lock, before it gives up and returns an error.
-func WithLockWait(lockWait time.Duration) LockProviderOption {
+// WithLockTimeout sets the duration for which the lock will block while attempting to lock, before it gives up and returns an error.
+func WithLockTimeout(lockWait time.Duration) LockProviderOption {
 	return func(config *LockProviderConfig) {
-		config.lockWait = lockWait
+		config.lockTimeout = lockWait
 	}
 }
 
 // WithPostgresBackend allows for a distributed lock provider backed by Postgres.
 // APM traces can also be enabled with the configured service name.
-func WithPostgresBackend(postgresURI string, enableTracing bool, apmServiceName string) LockProviderOption {
+func WithPostgresBackend(postgresURI string, apmServiceName string) LockProviderOption {
 	return func(config *LockProviderConfig) {
 		config.postgresURI = postgresURI
 		config.apmServiceName = apmServiceName
-		config.enableTracing = enableTracing
 	}
 }
 
 // LockProviderConfig sets configuration values that can be shared between LockProvider implementations.
 type LockProviderConfig struct {
-	lockWait        time.Duration
-	forceUnlock     time.Duration
-	forcePreemption time.Duration
-	postgresURI     string
-	enableTracing   bool
-	apmServiceName  string
+	lockTimeout       time.Duration
+	maxLockDuration   time.Duration
+	preemptionTimeout time.Duration
+	postgresURI       string
+	enableTracing     bool
+	apmServiceName    string
 }
 
 // LockProvider describes an object capable of creating distributed locks. You may provide your own int64 key or obtain one for a given Repo/PR.
@@ -91,17 +90,17 @@ func NewLockProvider(kind LockProviderKind, options ...LockProviderOption) (Lock
 	for _, opt := range options {
 		opt(config)
 	}
-	if config.lockWait == 0 {
-		config.lockWait = defaultLockWait
+	if config.lockTimeout == 0 {
+		config.lockTimeout = defaultLockTimeout
 	}
-	if config.forceUnlock == 0 {
-		config.forceUnlock = defaultForceUnlock
+	if config.maxLockDuration == 0 {
+		config.maxLockDuration = defaultMaxLockDuration
 	}
-	if config.forcePreemption == 0 {
-		config.forcePreemption = defaultForcePreemption
+	if config.preemptionTimeout == 0 {
+		config.preemptionTimeout = defaultPreemptionTimeout
 	}
-	if config.apmServiceName == "" {
-		config.apmServiceName = "lock_provider"
+	if config.apmServiceName != "" {
+		config.enableTracing = true
 	}
 	switch kind {
 	case PostgresLockProviderKind:
@@ -114,6 +113,27 @@ func NewLockProvider(kind LockProviderKind, options ...LockProviderOption) (Lock
 	default:
 		return nil, fmt.Errorf("lock provider kind not implemented: %v", kind)
 	}
+}
+
+// NewFakePreemptiveLockerFactory will create a PreemptiveLockerFactory that makes use of a FakeLockProvider.
+// This is suitable for tests, where postgres might not be available or wanted.
+func NewFakePreemptiveLockerFactory(providerOpts []LockProviderOption, lockerOpts ...PreemptiveLockerOption) (PreemptiveLockerFactory, error) {
+	lp, err := NewLockProvider(FakeLockProviderKind, providerOpts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create fake lock provider")
+	}
+	return NewPreemptiveLockerFactory(lp, lockerOpts...)
+}
+
+// NewPostgresPreemptiveLockerFactory will create a PreemptiveLockerFactory that makes use of a PostgresLockProvider.
+func NewPostgresPreemptiveLockerFactory(postgresURI, apmServiceName string, providerOpts []LockProviderOption, lockerOpts ...PreemptiveLockerOption) (PreemptiveLockerFactory, error) {
+	providerOpts = append([]LockProviderOption{WithPostgresBackend(postgresURI, apmServiceName)}, providerOpts...)
+	lp, err := NewLockProvider(PostgresLockProviderKind, providerOpts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create postgres lock provider")
+	}
+	lockerOpts = append([]PreemptiveLockerOption{WithAPMServiceName(apmServiceName)}, lockerOpts...)
+	return NewPreemptiveLockerFactory(lp, lockerOpts...)
 }
 
 // NotificationPayload represents the content of messages sent to the lock holder.
@@ -168,11 +188,11 @@ type PreemptiveLockerConfig struct {
 	// This is an imperfect, but practical way of ensuring we don't perform operations before other lock holders have realized that their session has ended
 	lockDelay time.Duration
 
-	// tracingServiceName is the service name used for APM
-	tracingServiceName string
+	// apmServiceName is the service name used for APM
+	apmServiceName string
 
-	// tracingEnabled determines whether the Preemptive Locker should actually report APM
-	tracingEnabled bool
+	// apmEnabled determines whether the Preemptive Locker should actually report APM
+	apmEnabled bool
 }
 
 type PreemptiveLockerOption func(*PreemptiveLockerConfig)
@@ -183,15 +203,9 @@ func WithLockDelay(lockDelay time.Duration) PreemptiveLockerOption {
 	}
 }
 
-func WithTracingServiceName(name string) PreemptiveLockerOption {
+func WithAPMServiceName(name string) PreemptiveLockerOption {
 	return func(config *PreemptiveLockerConfig) {
-		config.tracingServiceName = name
-	}
-}
-
-func WithTracingEnabled(enabled bool) PreemptiveLockerOption {
-	return func(config *PreemptiveLockerConfig) {
-		config.tracingEnabled = enabled
+		config.apmServiceName = name
 	}
 }
 
@@ -199,18 +213,20 @@ type PreemptiveLockerFactory func(repo string, pr uint, event string) *Preemptiv
 
 var ErrLockPreempted = errors.New("lock was preemptepd while waiting for the lock")
 
-// NewPreemptiveLocker returns a new preemptive locker or an error
+// NewPreemptiveLockerFactory
 func NewPreemptiveLockerFactory(provider LockProvider, opts ...PreemptiveLockerOption) (PreemptiveLockerFactory, error) {
 	if provider == nil {
 		return nil, errors.New("must provide non-nil LockProvider")
 	}
-
 	config := PreemptiveLockerConfig{}
 	for _, opt := range opts {
 		opt(&config)
 	}
 	if config.lockDelay == 0 {
 		config.lockDelay = defaultLockDelay
+	}
+	if config.apmServiceName != "" {
+		config.apmEnabled = true
 	}
 	var plf PreemptiveLockerFactory
 	plf = func(repo string, pr uint, event string) *PreemptiveLocker {
@@ -230,13 +246,13 @@ func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interfac
 }
 
 func (p *PreemptiveLocker) startSpanFromContext(ctx context.Context, operationName string) (tracer.Span, context.Context) {
-	if !p.conf.tracingEnabled {
+	if !p.conf.apmEnabled {
 		// return no-op span if tracing is disabled
 		span, _ := tracer.SpanFromContext(context.Background())
 		return span, ctx
 	}
 
-	span, ctx := tracer.StartSpanFromContext(ctx, operationName, tracer.ServiceName(p.conf.tracingServiceName))
+	span, ctx := tracer.StartSpanFromContext(ctx, operationName, tracer.ServiceName(p.conf.apmServiceName))
 	span.SetTag("event", p.event)
 	return span, ctx
 }

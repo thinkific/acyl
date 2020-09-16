@@ -29,7 +29,7 @@ func TestPostgresPreemptiveLocker(t *testing.T) {
 		}
 	}()
 	runPreemptiveLockerTests(t, func(t *testing.T, options ...LockProviderOption) (LockProvider, error) {
-		opts := []LockProviderOption{WithPostgresBackend(testPostgresURI, false, "")}
+		opts := []LockProviderOption{WithPostgresBackend(testPostgresURI, "")}
 		opts = append(opts, options...)
 		return NewLockProvider(PostgresLockProviderKind, opts...)
 	})
@@ -57,22 +57,22 @@ func runPreemptiveLockerTests(t *testing.T, lpFunc lpFactoryFunc) {
 		{
 			name:    "locking more than once should return an error",
 			tfunc:   testPreemptiveLockerLocksOnlyOnce,
-			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "lock and release",
 			tfunc:   testPreemptiveLockerLockAndRelease,
-			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "configurable lock delay",
 			tfunc:   testPreemptiveLockerLockDelay,
-			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "new preemptive locker should respect canceled context",
 			tfunc:   testNewPreemptiveLockerCancelledContext,
-			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 	}
 

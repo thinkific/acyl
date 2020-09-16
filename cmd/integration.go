@@ -281,13 +281,11 @@ func setupNitro(dl persistence.DataLayer, useGHToken bool) (spawner.EnvironmentS
 	rc := ghclient.NewGitHubClient(ghtkn)
 	ng := &namegen.FakeNameGenerator{Unique: true}
 	mc := &metrics.FakeCollector{}
-	lp, err := locker.NewLockProvider(locker.FakeLockProviderKind, locker.WithLockWait(1*time.Second))
+	plf, err := locker.NewFakePreemptiveLockerFactory([]locker.LockProviderOption{
+		locker.WithLockTimeout(1 * time.Second),
+	})
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "error creating lock provider")
-	}
-	plf, err := locker.NewPreemptiveLockerFactory(lp)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error creating preemptive locker factory")
+		return nil, nil, errors.Wrap(err, "unable to create new fake preeemptive locker factory")
 	}
 	nf := func(lf func(string, ...interface{}), notifications models.Notifications, user string) notifier.Router {
 		sb := &notifier.SlackBackend{

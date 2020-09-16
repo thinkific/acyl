@@ -88,15 +88,9 @@ func (fls *fakeLockStore) notify(ctx context.Context, key int64, id uuid.UUID) e
 			ID:      lock.id,
 			Message: lock.event,
 		}
-		go fls.handleNotification(lock, np)
+		go lock.handleNotification(np)
 	}
 	return nil
-}
-
-func (fls *fakeLockStore) handleNotification(lock *FakePreemptableLock, np NotificationPayload) {
-	go func() { lock.preempt <- np }()
-	time.Sleep(lock.conf.forcePreemption)
-	lock.Unlock(context.Background())
 }
 
 var _ LockProvider = &FakeLockProvider{}
@@ -136,7 +130,7 @@ func (flp *FakeLockProvider) New(ctx context.Context, key int64, event string) (
 	}
 	l := &FakePreemptableLock{
 		id:      id,
-		preempt: make(chan NotificationPayload, 1000),
+		preempt: make(chan NotificationPayload),
 		store:   flp.store,
 		event:   event,
 		key:     key,
@@ -158,15 +152,20 @@ type FakePreemptableLock struct {
 }
 
 func (fpl *FakePreemptableLock) Lock(ctx context.Context) (<-chan NotificationPayload, error) {
-	lockCtx, cancel := context.WithTimeout(ctx, fpl.conf.lockWait)
+	lockCtx, cancel := context.WithTimeout(ctx, fpl.conf.lockTimeout)
 	defer cancel()
 	err := fpl.store.lock(lockCtx, fpl.key)
 	if err != nil {
 		return nil, fmt.Errorf("unable to lock fake preemptable lock: %v", err)
 	}
 	go func() {
-		time.Sleep(fpl.conf.forceUnlock)
-		fpl.store.unlock(context.Background(), fpl.key, fpl.id)
+		time.Sleep(fpl.conf.maxLockDuration)
+		np := NotificationPayload{
+			ID:      fpl.id,
+			Message: "reached max lock duration",
+			LockKey: fpl.key,
+		}
+		fpl.handleNotification(np)
 	}()
 
 	return fpl.preempt, nil
@@ -178,4 +177,13 @@ func (fpl *FakePreemptableLock) Unlock(ctx context.Context) error {
 
 func (fpl *FakePreemptableLock) Notify(ctx context.Context) error {
 	return fpl.store.notify(ctx, fpl.key, fpl.id)
+}
+
+func (fpl *FakePreemptableLock) handleNotification(np NotificationPayload) {
+	select {
+	case fpl.preempt <- np:
+		return
+	case <-time.After(fpl.conf.preemptionTimeout):
+		fpl.Unlock(context.Background())
+	}
 }

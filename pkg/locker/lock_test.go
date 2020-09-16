@@ -73,7 +73,7 @@ func TestPostgresPreemptableLock(t *testing.T) {
 		}
 	}()
 	runPreemptableLockTests(t, func(t *testing.T, options ...LockProviderOption) (LockProvider, error) {
-		opts := []LockProviderOption{WithPostgresBackend(testPostgresURI, false, "")}
+		opts := []LockProviderOption{WithPostgresBackend(testPostgresURI, "")}
 		opts = append(opts, options...)
 		return NewLockProvider(PostgresLockProviderKind, opts...)
 	})
@@ -95,27 +95,27 @@ func runPreemptableLockTests(t *testing.T, lpFunc lpFactoryFunc) {
 		{
 			name:    "lock and unlock",
 			tfunc:   testLockAndUnlock,
-			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "preememption",
 			tfunc:   testPreemption,
-			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
 			name:    "obtains correct lock key with concurrent goroutines",
 			tfunc:   testLockKeyConcurrent,
-			options: []LockProviderOption{WithLockWait(defaultPostgresLockWaitTime)},
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
-			name:    "force unlock is respected",
-			tfunc:   testForceUnlock,
-			options: []LockProviderOption{WithForceUnlock(2 * time.Second), WithLockWait(defaultPostgresLockWaitTime)},
+			name:    "max lock duration is respected",
+			tfunc:   testMaxLockDuration,
+			options: []LockProviderOption{WithMaxLockDuration(1 * time.Second), WithLockTimeout(defaultPostgresLockWaitTime), WithPreemptionTimeout(100 * time.Millisecond)},
 		},
 		{
-			name:    "force preemption is respected",
-			tfunc:   testForcePreemption,
-			options: []LockProviderOption{WithForcePreemption(1 * time.Second), WithLockWait(defaultPostgresLockWaitTime)},
+			name:    "preemption timeout is respected",
+			tfunc:   testPreemptionTimeout,
+			options: []LockProviderOption{WithPreemptionTimeout(100 * time.Millisecond), WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 	}
 
@@ -264,7 +264,7 @@ func testLockKeyConcurrent(t *testing.T, lp LockProvider) {
 	}
 }
 
-func testForceUnlock(t *testing.T, lp LockProvider) {
+func testMaxLockDuration(t *testing.T, lp LockProvider) {
 	key := rand.Int63()
 	lock, err := lp.New(context.Background(), key, "some-event")
 	if err != nil {
@@ -288,7 +288,7 @@ func testForceUnlock(t *testing.T, lp LockProvider) {
 	}
 }
 
-func testForcePreemption(t *testing.T, lp LockProvider) {
+func testPreemptionTimeout(t *testing.T, lp LockProvider) {
 	key := rand.Int63()
 	lock, err := lp.New(context.Background(), key, "some-event")
 	if err != nil {
@@ -307,7 +307,7 @@ func testForcePreemption(t *testing.T, lp LockProvider) {
 	// After waiting for a forcePreemption period, the lock should automatically be unlocked.
 	// So we should be able to lock.
 	lock2.Notify(context.Background())
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	_, err = lock2.Lock(context.Background())
 	if err != nil {

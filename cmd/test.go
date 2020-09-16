@@ -370,11 +370,9 @@ func testConfigSetup(dl persistence.DataLayer) (*nitroenv.Manager, context.Conte
 		return nil, nil, nil, errors.Wrap(err, "error getting name generator")
 	}
 	mc := &metrics.FakeCollector{}
-	lp, err := locker.NewLockProvider(locker.FakeLockProviderKind)
-	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "error creating lock provider")
-	}
-	plf, err := locker.NewPreemptiveLockerFactory(lp)
+	plf, err := locker.NewFakePreemptiveLockerFactory([]locker.LockProviderOption{
+		locker.WithLockTimeout(1 * time.Second),
+	})
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error creating preemptive locker factory")
 	}

@@ -65,8 +65,8 @@ func TestPostgresContextCancelationDetection(t *testing.T) {
 		t.Skip()
 	}
 	opts := []LockProviderOption{
-		WithPostgresBackend(testPostgresURI, false, ""),
-		WithLockWait(time.Second),
+		WithPostgresBackend(testPostgresURI, ""),
+		WithLockTimeout(time.Second),
 	}
 	lp, err := NewLockProvider(PostgresLockProviderKind, opts...)
 	if err != nil {

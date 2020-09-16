@@ -147,7 +147,7 @@ func NewPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, mess
 		key:         key,
 		conn:        conn,
 		postgresURI: connInfo,
-		preempted:   make(chan NotificationPayload, 1),
+		preempted:   make(chan NotificationPayload),
 		message:     message,
 		conf:        conf,
 	}
@@ -207,9 +207,12 @@ func (pl *PostgresLock) handleEvents(ctx context.Context, listener *pq.Listener)
 }
 
 func (pl *PostgresLock) handleNotification(np NotificationPayload) {
-	go func() { pl.preempted <- np }()
-	time.Sleep(pl.conf.forcePreemption)
-	pl.Unlock(context.Background())
+	select {
+	case pl.preempted <- np:
+		return
+	case <-time.After(pl.conf.preemptionTimeout):
+		pl.Unlock(context.Background())
+	}
 }
 
 // Notify lets other processes know that they should release the lock.
@@ -233,7 +236,7 @@ func (pl *PostgresLock) Notify(ctx context.Context) error {
 	return nil
 }
 
-// Unlock is an idempotent method.
+// Unlock is an idempotent method that unlocks the lock if it is still held.
 func (pl *PostgresLock) Unlock(ctx context.Context) error {
 	defer func() {
 		// Even if we fail to unlock via Postgres properly, destroying the lock should close the underlying sql.Conn.
@@ -270,18 +273,23 @@ func (pl *PostgresLock) Lock(ctx context.Context) (<-chan NotificationPayload, e
 		pl.handleEvents(ctx, pl.listener)
 	}()
 
-	go func() {
-		time.Sleep(pl.conf.forceUnlock)
-		pl.Unlock(context.Background())
-	}()
-
 	query := `SELECT pg_advisory_lock($1)`
-	advLockContext, cancel := context.WithTimeout(ctx, pl.conf.lockWait)
+	advLockContext, cancel := context.WithTimeout(ctx, pl.conf.lockTimeout)
 	defer cancel()
 	_, err = pl.conn.ExecContext(advLockContext, query, pl.key)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create pg advisory lock")
 	}
+
+	go func() {
+		time.Sleep(pl.conf.maxLockDuration)
+		np := NotificationPayload{
+			ID:      pl.id,
+			Message: "reached max lock duration",
+			LockKey: pl.key,
+		}
+		pl.handleNotification(np)
+	}()
 
 	return pl.preempted, nil
 }
