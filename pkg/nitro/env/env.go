@@ -238,6 +238,9 @@ func (m *Manager) lockingOperation(ctx context.Context, repo string, pr uint, f 
 			m.MC.Increment(mpfx+"lock_preempt", "triggering_repo:"+repo)
 			m.log(ctx, "operation preempted: %v: %v, %v", repo, pr, np)
 			eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
+			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			lock.Release(releaseCtx)
+			cancel()
 		case <-stop:
 		}
 		cf()

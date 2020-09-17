@@ -157,7 +157,7 @@ func NewPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, mess
 // handleEvents is a blocking function.
 // It checks the multiple different channels to determine how to proceed
 func (pl *PostgresLock) handleEvents(ctx context.Context, listener *pq.Listener) {
-	ctx, cancel := context.WithTimeout(ctx, time.Hour)
+	ctx, cancel := context.WithTimeout(ctx, pl.conf.maxLockDuration)
 	defer cancel()
 	for {
 		select {
@@ -280,16 +280,6 @@ func (pl *PostgresLock) Lock(ctx context.Context) (<-chan NotificationPayload, e
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create pg advisory lock")
 	}
-
-	go func() {
-		time.Sleep(pl.conf.maxLockDuration)
-		np := NotificationPayload{
-			ID:      pl.id,
-			Message: "reached max lock duration",
-			LockKey: pl.key,
-		}
-		pl.handleNotification(np)
-	}()
 
 	return pl.preempted, nil
 }
