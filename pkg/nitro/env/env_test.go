@@ -1550,3 +1550,146 @@ func TestSetGithubCommitStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateEnvStatusUnknown(t *testing.T) {
+	dl := persistence.NewFakeDataLayer()
+	id, _ := uuid.NewRandom()
+	elog := eventlogger.Logger{DL: dl, ID: id, Sink: os.Stderr}
+	ctx := eventlogger.NewEventLoggerContext(context.Background(), &elog)
+	rrd := models.RepoRevisionData{
+		Repo:         "foo/bar",
+		PullRequest:  1,
+		SourceSHA:    "asdf",
+		SourceBranch: "feature-spam",
+		BaseSHA:      "1234",
+		BaseBranch:   "release",
+	}
+	rc := models.RepoConfig{
+		Application: models.RepoConfigAppMetadata{
+			Repo:          "foo/bar",
+			Ref:           "asdf",
+			Branch:        "feature-spam",
+			ChartPath:     ".chart/bar",
+			ChartVarsPath: "./chart/vars.yml",
+			Image:         "foo/bar",
+			ChartTagValue: "image.tag",
+		},
+		Dependencies: models.DependencyDeclaration{
+			Direct: []models.RepoConfigDependency{
+				models.RepoConfigDependency{
+					Name: "foo-qwerty",
+					Repo: "foo/qwerty",
+					AppMetadata: models.RepoConfigAppMetadata{
+						Repo:   "foo/qwerty",
+						Ref:    "aaaa",
+						Branch: "feature-spam",
+					},
+					Requires: []string{"foo/mysql"},
+				},
+				models.RepoConfigDependency{
+					Name: "foo-mysql",
+					Repo: "foo/mysql",
+					AppMetadata: models.RepoConfigAppMetadata{
+						Repo:   "foo/mysql",
+						Ref:    "bbbb",
+						Branch: "master",
+					},
+					DefaultBranch: "master",
+				},
+			},
+		},
+	}
+	cl := meta.ChartLocations{
+		"foo-bar":    meta.ChartLocation{ChartPath: "/tmp/foo/bar", VarFilePath: "/tmp/foo/bar/vars.yml"},
+		"foo-qwerty": meta.ChartLocation{ChartPath: "/tmp/foo/qwerty", VarFilePath: "/tmp/foo/qwerty/vars.yml"},
+		"foo-mysql":  meta.ChartLocation{ChartPath: "/tmp/foo/mysql", VarFilePath: "/tmp/foo/mysql/vars.yml"},
+	}
+	bm := map[string][]ghclient.BranchInfo{
+		"foo/bar":    []ghclient.BranchInfo{ghclient.BranchInfo{Name: "feature-spam"}, ghclient.BranchInfo{Name: "release"}},
+		"foo/qwerty": []ghclient.BranchInfo{ghclient.BranchInfo{Name: "feature-spam"}, ghclient.BranchInfo{Name: "release"}},
+		"foo/mysql":  []ghclient.BranchInfo{ghclient.BranchInfo{Name: "feature-spam"}, ghclient.BranchInfo{Name: "release"}, ghclient.BranchInfo{Name: "master"}},
+	}
+	fg := &meta.FakeGetter{
+		GetFunc: func(ctx context.Context, rd models.RepoRevisionData) (*models.RepoConfig, error) {
+			return &rc, nil
+		},
+		FetchChartsFunc: func(ctx context.Context, rc *models.RepoConfig, basePath string) (meta.ChartLocations, error) {
+			return cl, nil
+		},
+	}
+	frc := &ghclient.FakeRepoClient{
+		GetBranchesFunc: func(ctx context.Context, name string) ([]ghclient.BranchInfo, error) {
+			return bm[name], nil
+		},
+		GetCommitMessageFunc: func(context.Context, string, string) (string, error) { return "", nil },
+		SetStatusFunc:        func(context.Context, string, string, *ghclient.CommitStatus) error { return nil },
+	}
+	ci := &metahelm.FakeInstaller{
+		ChartInstallFunc: func(repo string, location metahelm.ChartLocation) error {
+			return map[string]error{}[repo]
+		},
+		DL: dl,
+		KC: k8sfake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "nitro-1234-some-random-name"}}),
+	}
+	elog.Init([]byte{}, rrd.Repo, rrd.PullRequest)
+	unknown := "<unknown>"
+	elog.SetNewStatus(models.UnknownEventStatusType, unknown, rrd)
+	el2, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("error getting event status: %v", err)
+	}
+	exp := &models.EventStatusSummary{
+		Config: models.EventStatusSummaryConfig{
+			Type:           models.UnknownEventStatusType,
+			Status:         models.PendingStatus,
+			RenderedStatus: models.RenderedEventStatus{},
+			EnvName:        unknown,
+			TriggeringRepo: rrd.Repo,
+			PullRequest:    rrd.PullRequest,
+			GitHubUser:     rrd.User,
+			Branch:         rrd.SourceBranch,
+			Revision:       rrd.SourceSHA,
+			Started:        el2.Config.Started,
+			Completed:      el2.Config.Completed,
+		},
+	}
+	if !cmp.Equal(el2, exp) {
+		t.Fatalf("expected comparison to match:\nRsp: %+v\nExp: %+v", el2, exp)
+	}
+	nt := newNotificationTracker()
+	plf, err := locker.NewPreemptiveLockerFactory(
+		locker.NewFakeLockProvider(),
+		locker.WithLockDelay(time.Second),
+		locker.WithLockWait(2*time.Second),
+	)
+	if err != nil {
+		t.Fatalf("error creating new preemptive locker factory: %v", err)
+	}
+	m := Manager{
+		DL:               dl,
+		PLF:              plf,
+		NF:               nt.sender,
+		MC:               &metrics.FakeCollector{},
+		NG:               &namegen.FakeNameGenerator{},
+		FS:               memfs.New(),
+		MG:               fg,
+		RC:               frc,
+		CI:               ci,
+		GlobalLimit:      0,
+		OperationTimeout: 0,
+	}
+	envName, err := m.create(ctx, &rrd)
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if envName == unknown {
+		t.Fatalf("env name should have updated from %v: %v", unknown, envName)
+	}
+	env, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	if env.Config.Status != models.DoneStatus {
+		t.Fatalf("bad status: %v", env.Config.Status)
+	}
+}

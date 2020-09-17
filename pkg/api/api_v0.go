@@ -184,6 +184,8 @@ func (api *v0api) processWebhook(ctx context.Context, action string, rrd models.
 	// embed the cancel func for later cancellation and overwrite the initial context bc we don't need it any longer
 	ctx = ncontext.NewCancelFuncContext(context.WithCancel(ctx2))
 
+	// enforce an unknown status stub before proceeding with action
+	eventlogger.GetLogger(ctx).SetNewStatus(models.UnknownEventStatusType, "<undefined>", rrd)
 	log := eventlogger.GetLogger(ctx).Printf
 
 	// Events may be received for repos that have the github app installed but do not themselves contain an acyl.yml

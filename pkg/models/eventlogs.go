@@ -183,6 +183,9 @@ func (es EventStatusSummary) Value() (driver.Value, error) {
 
 // Scan implements database/sql Scanner interface.
 func (es *EventStatusSummary) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
 	b, ok := value.([]byte)
 	if !ok {
 		return fmt.Errorf("unexpected type for value: %T (wanted []byte)", value)
