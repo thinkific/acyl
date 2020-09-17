@@ -39,7 +39,9 @@ import (
 func TestLockingOperation(t *testing.T) {
 	el := &eventlogger.Logger{DL: persistence.NewFakeDataLayer()}
 	plf, err := locker.NewFakePreemptiveLockerFactory(
-		[]locker.LockProviderOption{locker.WithLockTimeout(time.Second)},
+		[]locker.LockProviderOption{
+			locker.WithLockTimeout(time.Second),
+		},
 		locker.WithLockDelay(time.Millisecond),
 	)
 	if err != nil {
@@ -57,8 +59,8 @@ func TestLockingOperation(t *testing.T) {
 		pl := m.PLF(repo, pr, "new operation")
 		pl.Lock(ctx)
 		releaseCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
 		defer pl.Release(releaseCtx)
+		defer cancel()
 		select {
 		case <-timer.C:
 			return errors.New("timer expired")

@@ -20,7 +20,11 @@ func TestPostgresLockHandlesSessionError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to open postgres connection: %v", err)
 	}
-	lock, err := NewPostgresLock(context.Background(), db, rand.Int63(), testPostgresURI, "some-event", LockProviderConfig{})
+	lock, err := NewPostgresLock(context.Background(), db, rand.Int63(), testPostgresURI, "some-event", LockProviderConfig{
+		preemptionTimeout: defaultPreemptionTimeout,
+		lockTimeout:       defaultLockTimeout,
+		maxLockDuration:   defaultMaxLockDuration,
+	})
 	if err != nil {
 		t.Fatalf("unable to create postgres lock: %v", err)
 	}
