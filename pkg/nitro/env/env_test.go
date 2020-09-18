@@ -1654,10 +1654,11 @@ func TestCreateEnvStatusUnknown(t *testing.T) {
 		t.Fatalf("expected comparison to match:\nRsp: %+v\nExp: %+v", el2, exp)
 	}
 	nt := newNotificationTracker()
-	plf, err := locker.NewPreemptiveLockerFactory(
-		locker.NewFakeLockProvider(),
+	plf, err := locker.NewFakePreemptiveLockerFactory(
+		[]locker.LockProviderOption{
+			locker.WithLockTimeout(2 * time.Second),
+		},
 		locker.WithLockDelay(time.Second),
-		locker.WithLockWait(2*time.Second),
 	)
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
