@@ -76,8 +76,11 @@ type LockProvider interface {
 type LockProviderKind int
 
 const (
+	// UnknownLockProviderKind is the default kind and is unimplmeneted
+	UnknownLockProviderKind = iota
+
 	// PostgresLockProviderKind represents an implementation of the LockProvider interface that uses Postgres as the underlying store
-	PostgresLockProviderKind LockProviderKind = iota
+	PostgresLockProviderKind
 
 	// FakeLockProviderKind represents an implementation of the LockProvider interfaces that uses an in-memory store, suitable for tests
 	FakeLockProviderKind
@@ -110,6 +113,8 @@ func NewLockProvider(kind LockProviderKind, options ...LockProviderOption) (Lock
 		return newPostgresLockProvider(*config)
 	case FakeLockProviderKind:
 		return newFakeLockProvider(*config), nil
+	case UnknownLockProviderKind:
+		fallthrough
 	default:
 		return nil, fmt.Errorf("lock provider kind not implemented: %v", kind)
 	}
