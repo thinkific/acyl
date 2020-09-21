@@ -286,17 +286,25 @@ func (api *uiapi) render(w http.ResponseWriter, name string, td interface{}) {
 }
 
 type BaseTemplateData struct {
-	APIBaseURL      string
-	Branding        uiBranding
-	RenderEventLink bool
+	APIBaseURL, GitHubUser              string
+	Branding                            uiBranding
+	RenderEventLink, RenderUserSettings bool
 }
 
-func (api *uiapi) defaultBaseTemplateData() BaseTemplateData {
-	return BaseTemplateData{
-		APIBaseURL:      api.apiBaseURL,
-		Branding:        api.branding,
-		RenderEventLink: false,
+func (api *uiapi) defaultBaseTemplateData(session *models.UISession) BaseTemplateData {
+	btd := BaseTemplateData{
+		APIBaseURL:         api.apiBaseURL,
+		Branding:           api.branding,
+		RenderEventLink:    false,
+		RenderUserSettings: false,
 	}
+	if session != nil {
+		if session.GitHubUser != "" {
+			btd.GitHubUser = session.GitHubUser
+			btd.RenderUserSettings = true
+		}
+	}
+	return btd
 }
 
 type StatusTemplateData struct {
@@ -317,6 +325,12 @@ func (api *uiapi) getEventFromIDString(idstr string) (*models.EventLog, error) {
 }
 
 func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
+	uis, err := getSessionFromContext(r.Context())
+	if err != nil {
+		api.rlogger(r).Logf("error getting ui session: %v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	elog, err := api.getEventFromIDString(r.URL.Query().Get("id"))
 	if err != nil {
 		api.logger.Printf("error serving status page: %v", err)
@@ -332,12 +346,13 @@ func (api *uiapi) statusHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	tmpldata := StatusTemplateData{
-		BaseTemplateData: api.defaultBaseTemplateData(),
+	td := StatusTemplateData{
+		BaseTemplateData: api.defaultBaseTemplateData(&uis),
 		LogKey:           elog.LogKey.String(),
 	}
-	tmpldata.RenderEventLink = true
-	api.render(w, "status", tmpldata)
+	td.RenderEventLink = true
+	td.BaseTemplateData.RenderUserSettings = true
+	api.render(w, "status", &td)
 }
 
 /*
@@ -441,7 +456,9 @@ func (ui *uiapi) authenticate(f http.HandlerFunc) http.HandlerFunc {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				f(w, r)
+				uis.Authenticated = true
+				uis.GitHubUser = ui.oauth.DummySessionUser
+				f(w, r.Clone(withSession(r.Context(), uis)))
 				return
 			}
 			aurl := ui.oauth.AuthURL
@@ -641,7 +658,7 @@ func (api *uiapi) cacheRenderedAuthErrorPage() {
 		return
 	}
 	b := bytes.Buffer{}
-	if err := api.views["auth_error"].Execute(&b, api.defaultBaseTemplateData()); err != nil {
+	if err := api.views["auth_error"].Execute(&b, api.defaultBaseTemplateData(nil)); err != nil {
 		api.logger.Printf("error rendering auth_error template: %v", err)
 		return
 	}
@@ -650,7 +667,7 @@ func (api *uiapi) cacheRenderedAuthErrorPage() {
 
 func (api *uiapi) authErrorHandler(w http.ResponseWriter, r *http.Request) {
 	if api.reload || len(api.oauth.errorPage) == 0 {
-		api.render(w, "auth_error", api.defaultBaseTemplateData())
+		api.render(w, "auth_error", api.defaultBaseTemplateData(nil))
 		return
 	}
 	w.Header().Add("Content-Type", "text/html")
@@ -660,7 +677,6 @@ func (api *uiapi) authErrorHandler(w http.ResponseWriter, r *http.Request) {
 
 type homeTmplData struct {
 	BaseTemplateData
-	GitHubUser string
 }
 
 func (api *uiapi) homeHandler(w http.ResponseWriter, r *http.Request) {
@@ -671,8 +687,7 @@ func (api *uiapi) homeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	td := homeTmplData{
-		BaseTemplateData: api.defaultBaseTemplateData(),
-		GitHubUser:       uis.GitHubUser,
+		BaseTemplateData: api.defaultBaseTemplateData(&uis),
 	}
 	api.render(w, "home", &td)
 }
@@ -700,7 +715,7 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	td := envTmplData{
-		BaseTemplateData: api.defaultBaseTemplateData(),
+		BaseTemplateData: api.defaultBaseTemplateData(&uis),
 		EnvName:          mux.Vars(r)["envname"],
 		RenderActions:    false,
 	}
@@ -742,5 +757,5 @@ func (api *uiapi) envHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *uiapi) deniedHandler(w http.ResponseWriter, r *http.Request) {
-	api.render(w, "denied", api.defaultBaseTemplateData())
+	api.render(w, "denied", api.defaultBaseTemplateData(nil))
 }

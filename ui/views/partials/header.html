@@ -75,53 +75,81 @@
     />
 {{ end }}
 
-{{ define "header-nav"}}
+{{ define "header-nav" }}
 
     <!-- This is the navbar at the top of every view -->
     <!-- Only the event status detail view should render the event link here -->
 
     <nav class="acyl-nav navbar navbar-dark bg-dark fixed-top">
-        <div class="container">
-            <div class="col">
-                <a class="navbar-brand" href="{{ .Branding.LogoLink }}">
-                    <img
-                            src="{{ .Branding.LogoURL }}"
-                            {{ if .Branding.LogoHeight }}
-                                height="{{ .Branding.LogoHeight }}"
-                            {{ end }}
-                            {{ if .Branding.LogoWidth }}
-                                width="{{ .Branding.LogoWidth }}"
-                            {{ end }}
-                            {{ if .Branding.LogoStyle }}
-                                class="{{ .Branding.LogoStyle }}"
-                            {{ end }}
-                            alt="{{ .Branding.LogoAlt }}"
-                    />
-                    <strong>{{ .Branding.Title }}</strong>
-                </a>
-                <a class="navbar-brand" href="{{ .APIBaseURL }}/ui/home">
-                    <span class="fas">&#xf015;</span>
-                </a>
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col">
+                    <a class="navbar-brand" href="{{ .Branding.LogoLink }}">
+                        <img
+                                src="{{ .Branding.LogoURL }}"
+                                {{ if .Branding.LogoHeight }}
+                                    height="{{ .Branding.LogoHeight }}"
+                                {{ end }}
+                                {{ if .Branding.LogoWidth }}
+                                    width="{{ .Branding.LogoWidth }}"
+                                {{ end }}
+                                {{ if .Branding.LogoStyle }}
+                                    class="{{ .Branding.LogoStyle }}"
+                                {{ end }}
+                                alt="{{ .Branding.LogoAlt }}"
+                        />
+                        <strong>{{ .Branding.Title }}</strong>
+                    </a>
+                    <a class="navbar-brand" href="{{ .APIBaseURL }}/ui/home">
+                        <span class="fas">&#xf015;</span>
+                    </a>
+                </div>
             </div>
-
-            {{ if .RenderEventLink }}
-            <form class="form-inline mb-0">
-                <small
-                        id="status-link-title"
-                        class="navbar-text mr-3 acyl-status"
-                ></small>
-                <a
-                        target="_blank"
-                        id="status-link-btn"
-                        class="btn btn-sm"
-                        role="button"
-                        id="status-link-btn"
-                >
-                    <small id="status-icon" class="fas status-icon mr-1"></small>
-                    Open DQA
-                </a>
-            </form>
-            {{ end }}
+            <div class="row">
+                {{ if .RenderEventLink }}
+                <div class="col-xs-10 order-first float-right">
+                    <form class="form-inline mb-0">
+                        <small
+                                id="status-link-title"
+                                class="navbar-text mr-3 acyl-status"
+                        ></small>
+                        <a
+                                target="_blank"
+                                id="status-link-btn"
+                                class="btn btn-sm"
+                                role="button"
+                        >
+                            <small id="status-icon" class="fas status-icon mr-1"></small>
+                            Open DQA
+                        </a>
+                    </form>
+                </div>
+                {{ end }}
+                {{ if .RenderUserSettings }}
+                <div class="col-xs-2 order-last float-right pl-2">
+                    <div class="btn-group" id="userSettings">
+                        <button
+                                type="button"
+                                class="fas btn btn-dark dropdown-toggle"
+                                id="userSettingsDropdownBtn"
+                                data-toggle="dropdown"
+                                aria-haspopup="true"
+                                aria-expanded="false"
+                        >
+                            &#xf007;
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right" id="userSettingsMenu">
+                            <h6
+                                    class="dropdown-header"
+                                    id="githubUser"
+                            >
+                                GitHub User: {{ .GitHubUser }}
+                            </h6>
+                        </div>
+                    </div>
+                </div>
+                {{ end }}
+            </div>
         </div>
     </nav>
 {{ end }}
