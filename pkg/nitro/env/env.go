@@ -253,7 +253,7 @@ func (m *Manager) lockingOperation(ctx context.Context, repo string, pr uint, f 
 	case opErr := <-ch:
 		err = opErr
 	case <-ctx.Done():
-		return
+		err = ctx.Err()
 	}
 	if err != nil {
 		eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	mathrand "math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -53,7 +54,7 @@ func TestLockingOperation(t *testing.T) {
 		DL:  persistence.NewFakeDataLayer(),
 	}
 	repo := "foo"
-	pr := uint(1)
+	pr := uint(mathrand.Uint32())
 	preemptedFunc := func(ctx context.Context) error {
 		timer := time.NewTimer(10 * time.Second)
 		pl := m.PLF(repo, pr, "new operation")
@@ -65,7 +66,7 @@ func TestLockingOperation(t *testing.T) {
 		case <-timer.C:
 			return errors.New("timer expired")
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		}
 	}
 
@@ -78,9 +79,16 @@ func TestLockingOperation(t *testing.T) {
 			return nil
 		}
 	}
+
 	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
-	if err := m.lockingOperation(ctx, repo, pr, preemptedFunc); err != nil {
-		t.Fatalf("should have been preempted: %v", err)
+	err = m.lockingOperation(ctx, repo, pr, preemptedFunc)
+	if err == nil {
+		t.Fatalf("expected preemption error")
+	}
+	if err != nil {
+		if !strings.Contains(err.Error(), "context") {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
 
 	// New PR
