@@ -38,10 +38,12 @@ import (
 )
 
 func TestLockingOperation(t *testing.T) {
+	operationTimeout := 5 * time.Second
 	el := &eventlogger.Logger{DL: persistence.NewFakeDataLayer()}
 	plf, err := locker.NewFakePreemptiveLockerFactory(
 		[]locker.LockProviderOption{
 			locker.WithLockTimeout(time.Second),
+			locker.WithMaxLockDuration(operationTimeout),
 		},
 		locker.WithLockDelay(time.Millisecond),
 	)
@@ -80,18 +82,22 @@ func TestLockingOperation(t *testing.T) {
 		}
 	}
 
+	hangingOpFunc := func(ctx context.Context) error {
+		time.Sleep(2 * operationTimeout)
+		return nil
+	}
+
 	ctx := eventlogger.NewEventLoggerContext(context.Background(), el)
 	err = m.lockingOperation(ctx, repo, pr, preemptedFunc)
 	if err == nil {
 		t.Fatalf("expected preemption error")
 	}
 	if err != nil {
-		if !strings.Contains(err.Error(), "context") {
-			t.Fatalf("unexpected error: %v", err)
+		if strings.Contains(err.Error(), "timer expired") {
+			t.Fatalf("expected the context to be canceled before the timer expired")
 		}
 	}
 
-	// New PR
 	pr++
 	ctx2 := eventlogger.NewEventLoggerContext(context.Background(), el)
 	err = m.lockingOperation(ctx2, repo, pr, longOpFunc)
@@ -100,6 +106,13 @@ func TestLockingOperation(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "timer expired") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	pr++
+	ctx3 := eventlogger.NewEventLoggerContext(context.Background(), el)
+	err = m.lockingOperation(ctx3, repo, pr, hangingOpFunc)
+	if err == nil {
+		t.Fatalf("expected error from lockingOperation due to hanging operation function")
 	}
 }
 

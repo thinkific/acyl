@@ -275,7 +275,7 @@ func testMaxLockDuration(t *testing.T, lp LockProvider) {
 		t.Fatalf("error locking lock: %v", err)
 	}
 
-	// Lock holder never unlocked explicitly, but the lock should have been unlocked automatically after the forceUnlock period has passed
+	// Lock holder never unlocked explicitly, but the lock should have been unlocked automatically after the maxLockDuration has passed
 	time.Sleep(2 * time.Second)
 	lock, err = lp.New(context.Background(), key, "some-event")
 	if err != nil {
@@ -304,7 +304,7 @@ func testPreemptionTimeout(t *testing.T, lp LockProvider) {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}
 
-	// After waiting for a forcePreemption period, the lock should automatically be unlocked.
+	// After waiting for a preemptionTimeout, the lock should automatically be unlocked.
 	// So we should be able to lock.
 	lock2.Notify(context.Background())
 	time.Sleep(5 * time.Second)
