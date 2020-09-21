@@ -3,6 +3,7 @@ package locker
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -184,6 +185,7 @@ func (fpl *FakePreemptableLock) handleNotification(np NotificationPayload) {
 	case fpl.preempt <- np:
 		return
 	case <-time.After(fpl.conf.preemptionTimeout):
+		log.Printf("fake preemptable lock: preemption timeout reached (%v), unlocking", fpl.conf.preemptionTimeout)
 		fpl.Unlock(context.Background())
 	}
 }

@@ -62,7 +62,6 @@ type LockProviderConfig struct {
 	maxLockDuration   time.Duration
 	preemptionTimeout time.Duration
 	postgresURI       string
-	enableTracing     bool
 	apmServiceName    string
 }
 
@@ -101,9 +100,6 @@ func NewLockProvider(kind LockProviderKind, options ...LockProviderOption) (Lock
 	}
 	if config.preemptionTimeout == 0 {
 		config.preemptionTimeout = defaultPreemptionTimeout
-	}
-	if config.apmServiceName != "" {
-		config.enableTracing = true
 	}
 	switch kind {
 	case PostgresLockProviderKind:
@@ -193,11 +189,9 @@ type PreemptiveLockerConfig struct {
 	// This is an imperfect, but practical way of ensuring we don't perform operations before other lock holders have realized that their session has ended
 	lockDelay time.Duration
 
-	// apmServiceName is the service name used for APM
+	// apmServiceName is the service name used for APM.
+	// An empty value disables APM.
 	apmServiceName string
-
-	// apmEnabled determines whether the Preemptive Locker should actually report APM
-	apmEnabled bool
 }
 
 type PreemptiveLockerOption func(*PreemptiveLockerConfig)
@@ -230,9 +224,6 @@ func NewPreemptiveLockerFactory(provider LockProvider, opts ...PreemptiveLockerO
 	if config.lockDelay == 0 {
 		config.lockDelay = defaultLockDelay
 	}
-	if config.apmServiceName != "" {
-		config.apmEnabled = true
-	}
 	var plf PreemptiveLockerFactory
 	plf = func(repo string, pr uint, event string) *PreemptiveLocker {
 		return &PreemptiveLocker{
@@ -251,7 +242,7 @@ func (p *PreemptiveLocker) log(ctx context.Context, msg string, args ...interfac
 }
 
 func (p *PreemptiveLocker) startSpanFromContext(ctx context.Context, operationName string) (tracer.Span, context.Context) {
-	if !p.conf.apmEnabled {
+	if p.conf.apmServiceName == "" {
 		// return no-op span if tracing is disabled
 		span, _ := tracer.SpanFromContext(context.Background())
 		return span, ctx

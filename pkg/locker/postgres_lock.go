@@ -211,6 +211,7 @@ func (pl *PostgresLock) handleNotification(np NotificationPayload) {
 	case pl.preempted <- np:
 		return
 	case <-time.After(pl.conf.preemptionTimeout):
+		pl.log(context.Background(), "lock (%v): preemption timeout reached (%v), unlocking", pl.key, pl.conf.preemptionTimeout)
 		pl.Unlock(context.Background())
 	}
 }
@@ -319,7 +320,7 @@ type PostgresLockProvider struct {
 func newPostgresLockProvider(conf LockProviderConfig) (*PostgresLockProvider, error) {
 	var db *sqlx.DB
 	var err error
-	if conf.enableTracing {
+	if conf.apmServiceName != "" {
 		sqltrace.Register("postgres", &pq.Driver{}, sqltrace.WithServiceName(conf.apmServiceName))
 		db, err = sqlxtrace.Open("postgres", conf.postgresURI)
 	} else {
