@@ -70,7 +70,7 @@ func (r *Reaper) Reap() {
 		r.logger.Printf("error trying to acquire lock: %v", err)
 		return
 	}
-	_, err = lock.Lock(ctx, lockWait)
+	_, err = lock.Lock(ctx)
 	if err != nil {
 		r.logger.Printf("error locking: %v", err)
 		return

@@ -16,16 +16,20 @@ func TestPostgresLockHandlesSessionError(t *testing.T) {
 		t.Skip()
 	}
 
-	db, err := sqlx.Open("postgres", testpostgresURI)
+	db, err := sqlx.Open("postgres", testPostgresURI)
 	if err != nil {
 		t.Fatalf("unable to open postgres connection: %v", err)
 	}
-	lock, err := NewPostgresLock(context.Background(), db, rand.Int63(), testpostgresURI, "some-event")
+	lock, err := NewPostgresLock(context.Background(), db, rand.Int63(), testPostgresURI, "some-event", LockProviderConfig{
+		preemptionTimeout: defaultPreemptionTimeout,
+		lockTimeout:       defaultLockTimeout,
+		maxLockDuration:   defaultMaxLockDuration,
+	})
 	if err != nil {
 		t.Fatalf("unable to create postgres lock: %v", err)
 	}
 
-	preempt, err := lock.Lock(context.Background(), time.Second)
+	preempt, err := lock.Lock(context.Background())
 	if err != nil {
 		t.Fatalf("error locking postgres lock: %v", err)
 	}
@@ -46,7 +50,7 @@ func TestPostgresLockProviderFailedInitialConnection(t *testing.T) {
 		t.Skip()
 	}
 
-	db, err := sqlx.Open("postgres", testpostgresURI)
+	db, err := sqlx.Open("postgres", testPostgresURI)
 	if err != nil {
 		t.Fatalf("unable to open postgres connection: %v", err)
 	}
@@ -54,7 +58,7 @@ func TestPostgresLockProviderFailedInitialConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to close db")
 	}
-	_, err = NewPostgresLock(context.Background(), db, rand.Int63(), testpostgresURI, "some-event")
+	_, err = NewPostgresLock(context.Background(), db, rand.Int63(), testPostgresURI, "some-event", LockProviderConfig{})
 	if err == nil {
 		t.Fatalf("expected error when creating postgres lock with close sql.DB")
 	}
@@ -64,19 +68,23 @@ func TestPostgresContextCancelationDetection(t *testing.T) {
 	if os.Getenv("POSTGRES_ALREADY_RUNNING") == "" {
 		t.Skip()
 	}
-
-	db, err := sqlx.Open("postgres", testpostgresURI)
-	if err != nil {
-		t.Fatalf("unable to open postgres connection: %v", err)
+	opts := []LockProviderOption{
+		WithPostgresBackend(testPostgresURI, ""),
+		WithLockTimeout(time.Second),
 	}
+	lp, err := NewLockProvider(PostgresLockProviderKind, opts...)
+	if err != nil {
+		t.Fatalf("unable to create lock provider: %v", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	lock, err := NewPostgresLock(ctx, db, rand.Int63(), testpostgresURI, "some-event")
+	lock, err := lp.New(ctx, rand.Int63(), "some-event")
 	if err != nil {
 		t.Fatalf("unable to create postgres lock: %v", err)
 	}
 
-	preempt, err := lock.Lock(ctx, time.Second)
+	preempt, err := lock.Lock(ctx)
 	if err != nil {
 		t.Fatalf("error locking postgres lock: %v", err)
 	}
@@ -96,7 +104,7 @@ func TestPostgresLockNilDB(t *testing.T) {
 		t.Skip()
 	}
 
-	_, err := NewPostgresLock(context.Background(), nil, rand.Int63(), testpostgresURI, "some-event")
+	_, err := NewPostgresLock(context.Background(), nil, rand.Int63(), testPostgresURI, "some-event", LockProviderConfig{})
 	if err == nil {
 		t.Fatalf("expected error creating a postgres lock with no db")
 	}

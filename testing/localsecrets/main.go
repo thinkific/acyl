@@ -130,8 +130,8 @@ func injectFuranSecrets(kc *kubernetes.Clientset, ns string) {
 		ferr("error unmarshaling configmap json: %v", err)
 	}
 
-	secrets["secret/production/furan/github/token"] = getGitHubToken()
-	secrets["secret/production/furan/dockercfg"] = getFuranDockerCfg()
+	secrets["production/furan/github/token"] = getGitHubToken()
+	secrets["production/furan/dockercfg"] = getFuranDockerCfg()
 
 	jdd, err := json.Marshal(&secrets)
 	if err != nil {

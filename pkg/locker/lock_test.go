@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var testpostgresURI = "postgres://acyl:acyl@localhost:5432/acyl?sslmode=disable"
+var testPostgresURI = "postgres://acyl:acyl@localhost:5432/acyl?sslmode=disable"
 
 type testTableCoordinator struct {
 	db *sql.DB
@@ -36,7 +36,7 @@ func (ttc *testTableCoordinator) destroy() error {
 }
 
 func (ttc *testTableCoordinator) setup() error {
-	db, err := sql.Open("postgres", testpostgresURI)
+	db, err := sql.Open("postgres", testPostgresURI)
 	if err != nil {
 		return errors.Wrap(err, "error creating postgres connection")
 	}
@@ -53,8 +53,8 @@ func (ttc *testTableCoordinator) setup() error {
 }
 
 func TestFakePreemptableLock(t *testing.T) {
-	runPreemptableLockTests(t, func(t *testing.T) LockProvider {
-		return NewFakeLockProvider()
+	runPreemptableLockTests(t, func(t *testing.T, options ...LockProviderOption) (LockProvider, error) {
+		return NewLockProvider(FakeLockProviderKind, options...)
 	})
 }
 
@@ -72,38 +72,50 @@ func TestPostgresPreemptableLock(t *testing.T) {
 			t.Logf("error destroying tables: %v", err)
 		}
 	}()
-	runPreemptableLockTests(t, func(t *testing.T) LockProvider {
-		pl, err := NewPostgresLockProvider(testpostgresURI, "postgres_locker", false)
-		if err != nil {
-			t.Fatalf("unable to create postgres lock provider: %v", err)
-		}
-		return pl
+	runPreemptableLockTests(t, func(t *testing.T, options ...LockProviderOption) (LockProvider, error) {
+		opts := []LockProviderOption{WithPostgresBackend(testPostgresURI, "")}
+		opts = append(opts, options...)
+		return NewLockProvider(PostgresLockProviderKind, opts...)
 	})
 }
 
-// pLFactoryFunc is a function that returns an empty Preemptable Locker
-type pLFactoryFunc func(t *testing.T) LockProvider
+// lockProviderFactoryFunc is a test helper function for creating LockProviders
+type lpFactoryFunc func(t *testing.T, options ...LockProviderOption) (LockProvider, error)
 
 // runPreemptableLockTests runs all tests against the LockProvider implementation returned by plfunc
-func runPreemptableLockTests(t *testing.T, plfunc pLFactoryFunc) {
-	if plfunc == nil {
+func runPreemptableLockTests(t *testing.T, lpFunc lpFactoryFunc) {
+	if lpFunc == nil {
 		t.Fatalf("plfunc cannot be nil")
 	}
 	tests := []struct {
-		name  string
-		tfunc func(*testing.T, LockProvider)
+		name    string
+		tfunc   func(*testing.T, LockProvider)
+		options []LockProviderOption
 	}{
 		{
-			name:  "lock and unlock",
-			tfunc: testLockAndUnlock,
+			name:    "lock and unlock",
+			tfunc:   testLockAndUnlock,
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
-			name:  "preememption",
-			tfunc: testPreemption,
+			name:    "preememption",
+			tfunc:   testPreemption,
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
-			name:  "obtains correct lock key with concurrent goroutines",
-			tfunc: testLockKeyConcurrent,
+			name:    "obtains correct lock key with concurrent goroutines",
+			tfunc:   testLockKeyConcurrent,
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
+		},
+		{
+			name:    "max lock duration is respected",
+			tfunc:   testMaxLockDuration,
+			options: []LockProviderOption{WithMaxLockDuration(1 * time.Second), WithLockTimeout(defaultPostgresLockWaitTime), WithPreemptionTimeout(100 * time.Millisecond)},
+		},
+		{
+			name:    "preemption timeout is respected",
+			tfunc:   testPreemptionTimeout,
+			options: []LockProviderOption{WithPreemptionTimeout(100 * time.Millisecond), WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 	}
 
@@ -112,7 +124,11 @@ func runPreemptableLockTests(t *testing.T, plfunc pLFactoryFunc) {
 			if tt.tfunc == nil {
 				t.Skip("test func is nil")
 			}
-			tt.tfunc(t, plfunc(t))
+			pl, err := lpFunc(t, tt.options...)
+			if err != nil {
+				t.Fatalf("error creating lock provdier")
+			}
+			tt.tfunc(t, pl)
 		})
 	}
 }
@@ -123,16 +139,13 @@ func testLockAndUnlock(t *testing.T, lp LockProvider) {
 	if err != nil {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}
-	preempt, err := lock.Lock(context.Background(), 5*time.Second)
+	preempt, err := lock.Lock(context.Background())
 
 	if err != nil {
 		t.Fatalf("unable to lock: %v", err)
 	}
 	defer func() {
-		err := lock.Unlock(context.Background())
-		if err != nil {
-			t.Fatalf("error unlocking: %v", err)
-		}
+		lock.Unlock(context.Background())
 	}()
 
 	newLock, err := lp.New(context.Background(), key, "new-event")
@@ -141,7 +154,7 @@ func testLockAndUnlock(t *testing.T, lp LockProvider) {
 	}
 
 	// lock is already acquired. new locks should not be able to lock on the same key
-	_, err = newLock.Lock(context.Background(), time.Second)
+	_, err = newLock.Lock(context.Background())
 	if err == nil {
 		t.Fatalf("expected error trying to lock")
 	}
@@ -166,7 +179,7 @@ func testPreemption(t *testing.T, lp LockProvider) {
 		t.Fatalf("unable to acquire lock: %v", err)
 	}
 
-	preempt, err := lock.Lock(context.Background(), time.Second)
+	preempt, err := lock.Lock(context.Background())
 	if err != nil {
 		t.Fatalf("unable to lock: %v", err)
 	}
@@ -179,23 +192,17 @@ func testPreemption(t *testing.T, lp LockProvider) {
 
 	select {
 	case <-preempt:
-		err := lock.Unlock(context.Background())
-		if err != nil {
-			t.Fatalf("error unlocking: %v", err)
-		}
+		lock.Unlock(context.Background())
 	case <-time.After(time.Second):
 		t.Fatalf("lock was never preempted after being notified")
 	}
 
 	// Now, the second lock should be able to lock
-	_, err = lock2.Lock(context.Background(), time.Second)
+	_, err = lock2.Lock(context.Background())
 	if err != nil {
 		t.Fatalf("unable to lock: %v", err)
 	}
-	err = lock2.Unlock(context.Background())
-	if err != nil {
-		t.Fatalf("error unlocking: %v", err)
-	}
+	lock2.Unlock(context.Background())
 }
 
 func testContextCancellation(t *testing.T, lp LockProvider) {
@@ -213,7 +220,7 @@ func testContextCancellation(t *testing.T, lp LockProvider) {
 	}
 
 	cancel()
-	_, err = lock.Lock(ctx, time.Second)
+	_, err = lock.Lock(ctx)
 	if err == nil {
 		t.Fatalf("expected canceled context to prevent the ability to lock the lock")
 	}
@@ -254,5 +261,56 @@ func testLockKeyConcurrent(t *testing.T, lp LockProvider) {
 		if first != key {
 			t.Fatalf("expected all keys to be the same. 2 differ: %d, %d", first, key)
 		}
+	}
+}
+
+func testMaxLockDuration(t *testing.T, lp LockProvider) {
+	key := rand.Int63()
+	lock, err := lp.New(context.Background(), key, "some-event")
+	if err != nil {
+		t.Fatalf("unable to acquire lock: %v", err)
+	}
+	_, err = lock.Lock(context.Background())
+	if err != nil {
+		t.Fatalf("error locking lock: %v", err)
+	}
+
+	// Lock holder never unlocked explicitly, but the lock should have been unlocked automatically after the maxLockDuration has passed
+	time.Sleep(2 * time.Second)
+	lock, err = lp.New(context.Background(), key, "some-event")
+	if err != nil {
+		t.Fatalf("unable to acquire lock: %v", err)
+	}
+
+	_, err = lock.Lock(context.Background())
+	if err != nil {
+		t.Fatalf("error locking lock: %v", err)
+	}
+}
+
+func testPreemptionTimeout(t *testing.T, lp LockProvider) {
+	key := rand.Int63()
+	lock, err := lp.New(context.Background(), key, "some-event")
+	if err != nil {
+		t.Fatalf("unable to acquire lock: %v", err)
+	}
+	_, err = lock.Lock(context.Background())
+	if err != nil {
+		t.Fatalf("error locking lock: %v", err)
+	}
+
+	lock2, err := lp.New(context.Background(), key, "some-event")
+	if err != nil {
+		t.Fatalf("unable to acquire lock: %v", err)
+	}
+
+	// After waiting for a preemptionTimeout, the lock should automatically be unlocked.
+	// So we should be able to lock.
+	lock2.Notify(context.Background())
+	time.Sleep(5 * time.Second)
+
+	_, err = lock2.Lock(context.Background())
+	if err != nil {
+		t.Fatalf("error locking lock: %v", err)
 	}
 }

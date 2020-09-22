@@ -243,7 +243,18 @@ func (m *Manager) lockingOperation(ctx context.Context, repo string, pr uint, f 
 		cf()
 	}()
 	endop := m.MC.Timing(mpfx+"operation", "triggering_repo:"+repo)
-	err = f(ctx)
+	// Since the input function can block indefinitely, it's critical that we protect this goroutine from getting blocked.
+	// We know the context will get canceled after the timeout duration, so let's ensure we move on at that point.
+	ch := make(chan error)
+	go func() {
+		ch <- f(ctx)
+	}()
+	select {
+	case opErr := <-ch:
+		err = opErr
+	case <-ctx.Done():
+		err = ctx.Err()
+	}
 	if err != nil {
 		eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
 		m.log(ctx, "operation error (user: %v, sys: %v): %v: %v: %v", nitroerrors.IsUserError(err), nitroerrors.IsSystemError(err), repo, pr, err)

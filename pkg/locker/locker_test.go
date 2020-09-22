@@ -28,48 +28,51 @@ func TestPostgresPreemptiveLocker(t *testing.T) {
 			t.Logf("error destroying tables: %v", err)
 		}
 	}()
-	runPreemptiveLockerTests(t, func(t *testing.T) LockProvider {
-		pl, err := NewPostgresLockProvider(testpostgresURI, "postgres_locker", false)
-		if err != nil {
-			t.Fatalf("unable to create postgres lock provider: %v", err)
-		}
-		return pl
+	runPreemptiveLockerTests(t, func(t *testing.T, options ...LockProviderOption) (LockProvider, error) {
+		opts := []LockProviderOption{WithPostgresBackend(testPostgresURI, "")}
+		opts = append(opts, options...)
+		return NewLockProvider(PostgresLockProviderKind, opts...)
 	})
 }
 
 func TestFakePreemptiveLocker(t *testing.T) {
-	runPreemptiveLockerTests(t, func(t *testing.T) LockProvider {
-		return NewFakeLockProvider()
+	runPreemptiveLockerTests(t, func(t *testing.T, options ...LockProviderOption) (LockProvider, error) {
+		return NewLockProvider(FakeLockProviderKind, options...)
 	})
 }
 
-func runPreemptiveLockerTests(t *testing.T, plfunc pLFactoryFunc) {
-	if plfunc == nil {
+func runPreemptiveLockerTests(t *testing.T, lpFunc lpFactoryFunc) {
+	if lpFunc == nil {
 		t.Fatalf("plfunc cannot be nil")
 	}
 	tests := []struct {
-		name  string
-		tfunc func(*testing.T, LockProvider)
+		name    string
+		tfunc   func(*testing.T, LockProvider)
+		options []LockProviderOption
 	}{
 		{
 			name:  "release before locking should return an error",
 			tfunc: testPreemptiveLockerReleaseBeforeLock,
 		},
 		{
-			name:  "locking more than once should return an error",
-			tfunc: testPreemptiveLockerLocksOnlyOnce,
+			name:    "locking more than once should return an error",
+			tfunc:   testPreemptiveLockerLocksOnlyOnce,
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
-			name:  "lock and release",
-			tfunc: testPreemptiveLockerLockAndRelease,
+			name:    "lock and release",
+			tfunc:   testPreemptiveLockerLockAndRelease,
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
-			name:  "configurable lock delay",
-			tfunc: testPreemptiveLockerLockDelay,
+			name:    "configurable lock delay",
+			tfunc:   testPreemptiveLockerLockDelay,
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 		{
-			name:  "new preemptive locker should respect canceled context",
-			tfunc: testNewPreemptiveLockerCancelledContext,
+			name:    "new preemptive locker should respect canceled context",
+			tfunc:   testNewPreemptiveLockerCancelledContext,
+			options: []LockProviderOption{WithLockTimeout(defaultPostgresLockWaitTime)},
 		},
 	}
 
@@ -78,7 +81,11 @@ func runPreemptiveLockerTests(t *testing.T, plfunc pLFactoryFunc) {
 			if tt.tfunc == nil {
 				t.Skip("test func is nil")
 			}
-			tt.tfunc(t, plfunc(t))
+			pl, err := lpFunc(t, tt.options...)
+			if err != nil {
+				t.Fatalf("error creating lock provdier")
+			}
+			tt.tfunc(t, pl)
 		})
 	}
 }
@@ -103,7 +110,6 @@ func testPreemptiveLockerLocksOnlyOnce(t *testing.T, lp LockProvider) {
 	plf, err := NewPreemptiveLockerFactory(
 		lp,
 		WithLockDelay(time.Second),
-		WithLockWait(defaultPostgresLockWaitTime),
 	)
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
@@ -128,7 +134,6 @@ func testPreemptiveLockerLockAndRelease(t *testing.T, lp LockProvider) {
 	plf, err := NewPreemptiveLockerFactory(
 		lp,
 		WithLockDelay(time.Second),
-		WithLockWait(defaultPostgresLockWaitTime),
 	)
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
@@ -185,7 +190,6 @@ func testPreemptiveLockerLockDelay(t *testing.T, lp LockProvider) {
 	plf, err := NewPreemptiveLockerFactory(
 		lp,
 		WithLockDelay(lockDelay),
-		WithLockWait(defaultPostgresLockWaitTime),
 	)
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)
@@ -211,7 +215,6 @@ func testNewPreemptiveLockerCancelledContext(t *testing.T, lp LockProvider) {
 	plf, err := NewPreemptiveLockerFactory(
 		lp,
 		WithLockDelay(time.Second),
-		WithLockWait(defaultPostgresLockWaitTime),
 	)
 	if err != nil {
 		t.Fatalf("error creating new preemptive locker factory: %v", err)

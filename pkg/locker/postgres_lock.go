@@ -113,9 +113,11 @@ type PostgresLock struct {
 
 	// message represents a descriptive reason to communicate to other lock holders why their operation was preempted, optional
 	message string
+
+	conf LockProviderConfig
 }
 
-func NewPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, message string) (pl *PostgresLock, err error) {
+func NewPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, message string, conf LockProviderConfig) (pl *PostgresLock, err error) {
 	id, err := uuid.NewUUID()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create new UUID")
@@ -145,8 +147,9 @@ func NewPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, mess
 		key:         key,
 		conn:        conn,
 		postgresURI: connInfo,
-		preempted:   make(chan NotificationPayload, 1),
+		preempted:   make(chan NotificationPayload),
 		message:     message,
+		conf:        conf,
 	}
 	return pl, nil
 }
@@ -154,29 +157,29 @@ func NewPostgresLock(ctx context.Context, db *sqlx.DB, key int64, connInfo, mess
 // handleEvents is a blocking function.
 // It checks the multiple different channels to determine how to proceed
 func (pl *PostgresLock) handleEvents(ctx context.Context, listener *pq.Listener) {
-	ctx, cancel := context.WithTimeout(ctx, time.Hour)
+	ctx, cancel := context.WithTimeout(ctx, pl.conf.maxLockDuration)
 	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
-			pl.preempted <- NotificationPayload{
+			pl.handleNotification(NotificationPayload{
 				ID:      pl.id,
 				Message: ctx.Err().Error(),
 				LockKey: pl.key,
-			}
+			})
 			return
 		case err := <-pl.psc.sessionErr:
 			if err != nil {
-				pl.preempted <- NotificationPayload{
+				pl.handleNotification(NotificationPayload{
 					ID:      pl.id,
 					Message: err.Error(),
 					LockKey: pl.key,
-				}
+				})
 			}
 			return
 		case notification := <-listener.Notify:
 			if notification == nil {
-				pl.log(ctx, "received nil notiifcation")
+				pl.log(ctx, "received nil notification")
 				return
 			}
 			payload := notification.Extra
@@ -186,20 +189,30 @@ func (pl *PostgresLock) handleEvents(ctx context.Context, listener *pq.Listener)
 				// In the event that we receive an unknown notification payload, we will give up the lock.
 				// This could help for debugging since we can execute a Notify query to force the app to release the lock.
 				// It could also help if we accidentally make a breaking change to the Notification payload.
-				pl.preempted <- NotificationPayload{
+				pl.handleNotification(NotificationPayload{
 					ID:      pl.id,
 					Message: "received unknown notification payload",
 					LockKey: pl.key,
-				}
+				})
 				return
 			}
 
 			// If we have received a notification that is not our own, send it over the channel and return
 			if np.ID != pl.id {
-				pl.preempted <- np
+				pl.handleNotification(np)
 				return
 			}
 		}
+	}
+}
+
+func (pl *PostgresLock) handleNotification(np NotificationPayload) {
+	select {
+	case pl.preempted <- np:
+		return
+	case <-time.After(pl.conf.preemptionTimeout):
+		pl.log(context.Background(), "lock (%v): preemption timeout reached (%v), unlocking", pl.key, pl.conf.preemptionTimeout)
+		pl.Unlock(context.Background())
 	}
 }
 
@@ -224,6 +237,7 @@ func (pl *PostgresLock) Notify(ctx context.Context) error {
 	return nil
 }
 
+// Unlock is an idempotent method that unlocks the lock if it is still held.
 func (pl *PostgresLock) Unlock(ctx context.Context) error {
 	defer func() {
 		// Even if we fail to unlock via Postgres properly, destroying the lock should close the underlying sql.Conn.
@@ -243,24 +257,15 @@ func (pl *PostgresLock) Unlock(ctx context.Context) error {
 	return nil
 }
 
-func (pl *PostgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-chan NotificationPayload, error) {
-	query := `SELECT pg_advisory_lock($1)`
-	advLockContext, cancel := context.WithTimeout(ctx, lockWait)
-	defer cancel()
-	_, err := pl.conn.ExecContext(advLockContext, query, pl.key)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create pg advisory lock")
-	}
-
+func (pl *PostgresLock) Lock(ctx context.Context) (<-chan NotificationPayload, error) {
 	handleEvents := func(event pq.ListenerEventType, err error) {
-		// TODO (mk): Reconsider how we want to handle these events after we have enough usage
 		if err != nil {
 			pl.log(ctx, "received error when handling postgres listener event: %v", err)
 		}
 	}
 
 	listener := pq.NewListener(pl.postgresURI, 10*time.Second, time.Minute, handleEvents)
-	err = listener.Listen(notificationChannel(pl.key))
+	err := listener.Listen(notificationChannel(pl.key))
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to establish listener")
 	}
@@ -268,6 +273,14 @@ func (pl *PostgresLock) Lock(ctx context.Context, lockWait time.Duration) (<-cha
 	go func() {
 		pl.handleEvents(ctx, pl.listener)
 	}()
+
+	query := `SELECT pg_advisory_lock($1)`
+	advLockContext, cancel := context.WithTimeout(ctx, pl.conf.lockTimeout)
+	defer cancel()
+	_, err = pl.conn.ExecContext(advLockContext, query, pl.key)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create pg advisory lock")
+	}
 
 	return pl.preempted, nil
 }
@@ -299,27 +312,28 @@ func (pl *PostgresLock) log(ctx context.Context, msg string, args ...interface{}
 type PostgresLockProvider struct {
 	db       *sqlx.DB
 	connInfo string
+	conf     LockProviderConfig
 }
 
-// NewPostgresLockProvider returns a PostgresLockProvider, which implements the LockProvider interface
+// newPostgresLock returns a PostgresLockProvider, which implements the LockProvider interface
 // It utilizes advisory locks and Notify / Listen in order to provide PreemptableLocks
-func NewPostgresLockProvider(postgresURI, datadogServiceName string, enableTracing bool) (*PostgresLockProvider, error) {
+func newPostgresLockProvider(conf LockProviderConfig) (*PostgresLockProvider, error) {
 	var db *sqlx.DB
 	var err error
-	if enableTracing {
-		sqltrace.Register("postgres", &pq.Driver{}, sqltrace.WithServiceName(datadogServiceName))
-		db, err = sqlxtrace.Open("postgres", postgresURI)
+	if conf.apmServiceName != "" {
+		sqltrace.Register("postgres", &pq.Driver{}, sqltrace.WithServiceName(conf.apmServiceName))
+		db, err = sqlxtrace.Open("postgres", conf.postgresURI)
 	} else {
-		db, err = sqlx.Open("postgres", postgresURI)
+		db, err = sqlx.Open("postgres", conf.postgresURI)
 	}
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening db")
 	}
-	return &PostgresLockProvider{db: db, connInfo: postgresURI}, nil
+	return &PostgresLockProvider{db: db, connInfo: conf.postgresURI, conf: conf}, nil
 }
 
 func (plp *PostgresLockProvider) New(ctx context.Context, key int64, event string) (PreemptableLock, error) {
-	return NewPostgresLock(ctx, plp.db, key, plp.connInfo, event)
+	return NewPostgresLock(ctx, plp.db, key, plp.connInfo, event, plp.conf)
 }
 
 // PostgresEnvLock models a distributed lock associated with a unique repo/PR combination
