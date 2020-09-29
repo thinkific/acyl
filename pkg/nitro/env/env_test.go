@@ -3,11 +3,8 @@ package env
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	mathrand "math/rand"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -15,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/locker"
@@ -27,10 +23,8 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/nitro/metrics"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/notifier"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
-	"github.com/dollarshaveclub/acyl/pkg/s3"
 	metahelmlib "github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/google/go-cmp/cmp"
-	"github.com/nlopes/slack"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -496,6 +490,7 @@ func TestCreate(t *testing.T) {
 			nt := newNotificationTracker()
 			plf, err := locker.NewFakePreemptiveLockerFactory(
 				[]locker.LockProviderOption{locker.WithLockTimeout(2 * time.Second)},
+				locker.WithLockDelay(10*time.Millisecond),
 			)
 			if err != nil {
 				t.Fatalf("error creating new preemptive locker factory: %v", err)
@@ -955,138 +950,6 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-func TestRenderHTML(t *testing.T) {
-	fd, err := ioutil.ReadFile("../../../assets/html/failedenv.html.tmpl")
-	if err != nil {
-		t.Fatalf("file read failed: %v", err)
-	}
-	m := Manager{}
-	if err := m.InitFailureTemplate(fd); err != nil {
-		t.Fatalf("load template failed: %v", err)
-	}
-	td := failureTemplateData{
-		EnvName:        "clever-name",
-		PullRequestURL: "https://github.com/dollarshaveclub/something/pull/99",
-		StartedTime:    time.Now().UTC(),
-		FailedTime:     time.Now().UTC(),
-		CError: metahelmlib.ChartError{
-			FailedDeployments: map[string][]metahelmlib.FailedPod{
-				"webserver": []metahelmlib.FailedPod{
-					metahelmlib.FailedPod{
-						Name:    "webserver-21341234",
-						Phase:   "Pending",
-						Reason:  "CrashLoopBackoff",
-						Message: "container exited with status 128",
-						Conditions: []corev1.PodCondition{
-							corev1.PodCondition{
-								Type:               "PodScheduled",
-								LastProbeTime:      metav1.Now(),
-								LastTransitionTime: metav1.Now(),
-							},
-						},
-						ContainerStatuses: []corev1.ContainerStatus{
-							corev1.ContainerStatus{
-								Name: "apache",
-								State: corev1.ContainerState{
-									Terminated: &corev1.ContainerStateTerminated{
-										ExitCode: 128,
-										Message:  "foo",
-										Reason:   "some reason",
-									},
-								},
-							},
-						},
-						Logs: map[string][]byte{
-							"apache": []byte("started up\nsomething happened\nomg error, bail out\n"),
-						},
-					},
-				},
-			},
-			FailedJobs: map[string][]metahelmlib.FailedPod{
-				"migrations": []metahelmlib.FailedPod{
-					metahelmlib.FailedPod{
-						Name:    "migrations-21341234",
-						Phase:   "Pending",
-						Reason:  "CrashLoopBackoff",
-						Message: "container exited with status 1",
-						Conditions: []corev1.PodCondition{
-							corev1.PodCondition{
-								Type:               "PodScheduled",
-								LastProbeTime:      metav1.Now(),
-								LastTransitionTime: metav1.Now(),
-							},
-						},
-						ContainerStatuses: []corev1.ContainerStatus{
-							corev1.ContainerStatus{
-								Name: "migrations",
-								State: corev1.ContainerState{
-									Terminated: &corev1.ContainerStateTerminated{
-										ExitCode: 1,
-										Message:  "foo",
-										Reason:   "some reason",
-									},
-								},
-							},
-						},
-						Logs: map[string][]byte{
-							"migrations": []byte("started up\nsomething happened\nomg error, bail out\n"),
-						},
-					},
-				},
-			},
-			FailedDaemonSets: map[string][]metahelmlib.FailedPod{
-				"something": []metahelmlib.FailedPod{
-					metahelmlib.FailedPod{
-						Name:    "something-21341234",
-						Phase:   "Pending",
-						Reason:  "CrashLoopBackoff",
-						Message: "container exited with status 128",
-						Conditions: []corev1.PodCondition{
-							corev1.PodCondition{
-								Type:               "PodScheduled",
-								LastProbeTime:      metav1.Now(),
-								LastTransitionTime: metav1.Now(),
-							},
-						},
-						ContainerStatuses: []corev1.ContainerStatus{
-							corev1.ContainerStatus{
-								Name: "something",
-								State: corev1.ContainerState{
-									Terminated: &corev1.ContainerStateTerminated{
-										ExitCode: 128,
-										Message:  "foo",
-										Reason:   "some reason",
-									},
-								},
-							},
-						},
-						Logs: map[string][]byte{
-							"something": []byte("started up\nsomething happened\nomg error, bail out\n"),
-						},
-					},
-				},
-			},
-		},
-	}
-	html, err := m.chartErrorRenderHTML(td)
-	if err != nil {
-		t.Fatalf("rendering failed: %v", err)
-	}
-	f, err := ioutil.TempFile("", "*.html")
-	if err != nil {
-		t.Fatalf("error creating temp file: %v", err)
-	}
-	defer os.Remove(f.Name())
-	if n, err := f.Write(html); err != nil || n != len(html) {
-		t.Fatalf("error writing or short write (%v/%v): %v", n, len(html), err)
-	}
-	if os.Getenv("ACYL_FAILED_HTML") != "" {
-		if err := exec.Command("open", f.Name()).Run(); err != nil {
-			t.Fatalf("error opening: %v", err)
-		}
-	}
-}
-
 var testChartError = metahelmlib.ChartError{
 	HelmError: errors.New("some helm error"),
 	Level:     1,
@@ -1186,77 +1049,6 @@ var testChartError = metahelmlib.ChartError{
 			},
 		},
 	},
-}
-
-type fakeS3Pusher struct {
-	t *testing.T
-}
-
-func (f *fakeS3Pusher) Push(contentType string, in io.Reader, opts s3.Options) (string, error) {
-	f.t.Logf("pushing data (%v); opts: %+v", contentType, opts)
-	return "https://s3.amazonaws.com/somepath", nil
-}
-
-func TestFailedEnvSlackNotification(t *testing.T) {
-	dl := persistence.NewFakeDataLayer()
-	m := Manager{
-		DL: dl,
-		MC: &metrics.FakeCollector{},
-		AWSCreds: config.AWSCreds{
-			AccessKeyID:     "asdf",
-			SecretAccessKey: "asdf",
-		},
-		S3Config: config.S3Config{
-			Region: "us-west-2",
-			Bucket: "mybucket",
-		},
-		RC: &ghclient.FakeRepoClient{
-			GetBranchesFunc: func(ctx context.Context, name string) ([]ghclient.BranchInfo, error) {
-				return []ghclient.BranchInfo{ghclient.BranchInfo{Name: "branch", SHA: "abcd"}}, nil
-			},
-			GetCommitMessageFunc: func(ctx context.Context, repo string, ref string) (string, error) { return "commit msg", nil },
-		},
-		NF: func(lf func(string, ...interface{}), notifications models.Notifications, user string) notifier.Router {
-			sb := &notifier.SlackBackend{
-				Username: "john.doe",
-				API: &notifier.FakeSlackAPIClient{
-					PostFunc: func(channel, text string, params slack.PostMessageParameters) (string, string, error) {
-						t.Logf("slack post: channel: %v; text: %v; params: %+v\n", channel, text, params)
-						return "", "", nil
-					},
-				},
-			}
-			return &notifier.MultiRouter{Backends: []notifier.Backend{sb}}
-		},
-	}
-	b, err := ioutil.ReadFile("../../../assets/html/failedenv.html.tmpl")
-	if err != nil {
-		t.Fatalf("file read failed: %v", err)
-	}
-	if err := m.InitFailureTemplate(b); err != nil {
-		t.Fatalf("init template failed: %v", err)
-	}
-	m.s3p = &fakeS3Pusher{t: t}
-	ne := &newEnv{
-		env: &models.QAEnvironment{Name: "foo-bar", Repo: "foo/bar"},
-		rc: &models.RepoConfig{
-			Notifications: models.Notifications{
-				Slack: models.SlackNotifications{
-					Channels: &[]string{"engineering"},
-				},
-				Templates: models.DefaultNotificationTemplates,
-			},
-		},
-	}
-	dl.CreateQAEnvironment(context.Background(), ne.env)
-	dl.CreateK8sEnv(context.Background(), &models.KubernetesEnvironment{
-		EnvName:   ne.env.Name,
-		Namespace: "nitro-1234-" + ne.env.Name,
-	})
-	err = m.handleMetahelmError(context.Background(), ne, testChartError, "chart installation failure")
-	if err == nil {
-		t.Fatalf("should have returned an error")
-	}
 }
 
 func TestProcessEnvConfig(t *testing.T) {

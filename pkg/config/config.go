@@ -141,20 +141,6 @@ type SlackConfig struct {
 	MapperUpdateIntervalSeconds uint
 }
 
-type AWSCreds struct {
-	AccessKeyID     string
-	SecretAccessKey string
-}
-
-type AWSConfig struct {
-	Region     string
-	MaxRetries uint
-}
-
-type S3Config struct {
-	Region, Bucket, KeyPrefix string
-}
-
 type VaultConfig struct {
 	Addr        string
 	Token       string

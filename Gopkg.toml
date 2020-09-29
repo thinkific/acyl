@@ -27,10 +27,6 @@
 
 [[constraint]]
   branch = "master"
-  name = "github.com/aws/aws-sdk-go"
-
-[[constraint]]
-  branch = "master"
   name = "github.com/dollarshaveclub/furan"
 
 [[constraint]]

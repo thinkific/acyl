@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
+	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/google/uuid"
 )
 
@@ -87,6 +88,7 @@ type EventLoggerDataLayer interface {
 	GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, error)
 	SetEventStatusRenderedStatus(id uuid.UUID, rstatus models.RenderedEventStatus) error
 	GetEventLogsWithStatusByEnvName(name string) ([]models.EventLog, error)
+	SetEventStatusFailed(id uuid.UUID, ce metahelm.ChartError) error
 }
 
 type UISessionsDataLayer interface {
