@@ -10,10 +10,11 @@ jobs:
       # - run: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
       # - run: dep status
       # - run: go get -v
+      - run: go vet
       - run: go build
   test:
     docker:
-      - image: circleci/golang:1.13
+      - image: circleci/golang:1.14
       - image: postgres:9.5.9-alpine
         environment:
         - POSTGRES_USER=acyl
@@ -32,7 +33,11 @@ jobs:
       - run:
           name: Running tests
           working_directory: /go/src/github.com/dollarshaveclub/acyl
-          command: go test -cover $(go list ./... |grep -v pkg/persistence |grep -v pkg/api|grep -v pkg/locker)
+          command: go test -cover $(go list ./... |grep -v pkg/persistence |grep -v pkg/api|grep -v pkg/locker|grep -v pkg/nitro |grep -v /testing/localsecrets)
+      - run:
+          name: Running Nitro tests
+          working_directory: /go/src/github.com/dollarshaveclub/acyl/pkg/nitro
+          command: go test ./... -cover
       - run:
           name: Running DB tests
           working_directory: /go/src/github.com/dollarshaveclub/acyl/pkg/persistence
