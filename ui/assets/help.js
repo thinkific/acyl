@@ -48,7 +48,7 @@ function getExternalDocumentURLs(env_name) {
         }
     };
     req.onerror = function (e) {
-        console.error(`error getting namespace pod endpoint for ${env_name}: ${req.statusText}`);
+console.error(`error getting help documents: ${req.statusText}`);
     };
 
     req.send();
