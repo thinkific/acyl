@@ -1,4 +1,4 @@
-ALTER TABLE qa_environments ADD COLUMN IF NOT EXISTS event_ids uuid[] DEFAULT '{}';
+ALTER TABLE qa_environments ADD COLUMN event_ids uuid[] DEFAULT '{}';
 
 UPDATE qa_environments
 SET event_ids = array(
