@@ -82,6 +82,7 @@ type uiapi struct {
 	branding    uiBranding
 	oauth       OAuthConfig
 	stop        chan struct{}
+	docUrls     []string
 }
 
 var partials = map[string]string{
@@ -109,7 +110,7 @@ func newSessionsCookieStore(oauthCfg OAuthConfig) sessions.Store {
 	return cstore
 }
 
-func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding config.UIBrandingConfig, dl persistence.DataLayer, oauthCfg OAuthConfig, logger *log.Logger) (*uiapi, error) {
+func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding config.UIBrandingConfig, dl persistence.DataLayer, oauthCfg OAuthConfig, logger *log.Logger, docUrls []string) (*uiapi, error) {
 	if assetsPath == "" || routePrefix == "" ||
 		dl == nil {
 		return nil, errors.New("all dependencies required")
@@ -127,6 +128,7 @@ func newUIAPI(baseURL, assetsPath, routePrefix string, reload bool, branding con
 		reload:      reload,
 		views:       make(map[string]*template.Template, len(viewPaths)),
 		stop:        make(chan struct{}),
+		docUrls:     docUrls,
 	}
 	for k := range viewPaths {
 		if err := api.loadTemplate(k); err != nil {
@@ -293,6 +295,7 @@ type BaseTemplateData struct {
 	APIBaseURL, GitHubUser              string
 	Branding                            uiBranding
 	RenderEventLink, RenderUserSettings bool
+	DocUrls                             []string
 }
 
 func (api *uiapi) defaultBaseTemplateData(session *models.UISession) BaseTemplateData {
@@ -301,6 +304,7 @@ func (api *uiapi) defaultBaseTemplateData(session *models.UISession) BaseTemplat
 		Branding:           api.branding,
 		RenderEventLink:    false,
 		RenderUserSettings: false,
+		DocUrls:            api.docUrls,
 	}
 	if session != nil {
 		if session.GitHubUser != "" {

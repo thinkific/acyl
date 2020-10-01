@@ -306,7 +306,6 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/userenvs/{name}/namespace/pods", middlewareChain(api.userEnvNamePodsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}/namespace/pod/{pod}/containers", middlewareChain(api.userEnvPodContainersHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/userenvs/{name}/namespace/pod/{pod}/logs", middlewareChain(api.userEnvPodLogsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
-	r.HandleFunc("/v2/help/document/urls", middlewareChain(api.externalDocumentURLsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 
 	// unauthenticated
 	r.HandleFunc("/v2/health-check", middlewareChain(api.healthCheck)).Methods("GET")
@@ -1083,27 +1082,6 @@ func (api *v2api) userEnvPodLogsHandler(w http.ResponseWriter, r *http.Request) 
 	_, err = io.Copy(w, pl)
 	if err != nil {
 		api.rlogger(r).Logf("error copying pod logs output")
-		w.WriteHeader(http.StatusInternalServerError)
-	}
-}
-
-type V2ExternalDocumentURLs struct {
-	DocumentURLs []string `json:"document_urls"`
-}
-
-// externalDocumentURLsHandler returns list of external document urls from server configuration
-func (api *v2api) externalDocumentURLsHandler(w http.ResponseWriter, r *http.Request) {
-	v2docUrls := V2ExternalDocumentURLs{}
-	w.Header().Set("Content-Type", "application/json")
-	_, err := getSessionFromContext(r.Context())
-	if err != nil {
-		api.rlogger(r).Logf("session missing from context")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	v2docUrls.DocumentURLs = api.sc.UIExternalDocumentURLs
-	if err := json.NewEncoder(w).Encode(&v2docUrls); err != nil {
-		api.rlogger(r).Logf("error marshaling external document url list: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
