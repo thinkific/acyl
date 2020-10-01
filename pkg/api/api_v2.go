@@ -295,8 +295,6 @@ func (api *v2api) register(r *muxtrace.Router) error {
 	r.HandleFunc("/v2/envs/{name}", middlewareChain(api.envDetailHandler, authMiddleware.authRequest)).Methods("GET")
 	r.HandleFunc("/v2/eventlog/{id}", middlewareChain(api.eventLogHandler, authMiddleware.authRequest)).Methods("GET")
 
-
-
 	// Session auth
 	r.HandleFunc("/v2/event/{id}/status", middlewareChain(api.eventStatusHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
 	r.HandleFunc("/v2/event/{id}/logs", middlewareChain(api.logsHandler, sessionAuthMiddleware.sessionAuth)).Methods("GET")
