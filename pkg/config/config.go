@@ -33,6 +33,7 @@ type ServerConfig struct {
 	UIPath                     string
 	UIBaseRoute                string
 	UIBrandingJSON             string
+	UIExternalDocumentURLs     []string
 }
 
 type PGConfig struct {
