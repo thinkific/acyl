@@ -35,7 +35,7 @@ function getExternalDocumentURLs(env_name) {
     req.open('GET', `${apiBaseURL}/v2/help/document/urls`, true);
     req.onload = function (e) {
         if (req.status !== 200) {
-            console.log(`namespace pods request failed: ${req.status}: ${req.responseText}`);
+ console.log(`help document request failed: ${req.status}: ${req.responseTest}`);
             return;
         }
 
