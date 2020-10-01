@@ -1,42 +1,52 @@
 <html>
+
 <head>
     {{ template "header-head" . }}
     <script type="text/javascript">
         const apiBaseURL = "{{ .APIBaseURL }}";
     </script>
 </head>
+
 <body class="acyl-ui">
-{{ template "header-nav" . }}
-<div class="container-fluid">
-    <div class="row flex-nowrap p-3 mb-2 bg-light text-dark">
-        <div class="col">
-            <strong>
-                <h3>
-                    Help & Documentation
-                </h3>
-                <ul id="ulHelpDocumentation">
-                    <li>
-                        <a target="_blank" href="{{ .APIBaseURL }}/ui/swagger/index.html">API Documentation</a>
-                    </li>
-                    <li>
-                        <a target="_blank" href="https://github.com/dollarshaveclub/acyl/wiki/User-Guide">User Guide</a>
-                    </li>
-                    <li>
-                        <a target="_blank" href="https://github.com/dollarshaveclub/acyl/wiki/Acyl.yml-V2-Specification">Nitro v2 Specification</a>
-                    </li>
-                </ul>
-                <h5 class="hidden sr-only" id="hAdditionalResources">
-                    Additional Resources
-                </h5>
-                <ul id="ulAdditionalResources"></ul>
-            </strong>
+    {{ template "header-nav" . }}
+    <div class="container-fluid">
+        <div class="row flex-nowrap p-3 mb-2 bg-light text-dark">
+            <div class="col">
+                <strong>
+                    <h3>
+                        Help & Documentation
+                    </h3>
+                    <ul id="ulHelpDocumentation">
+                        <li>
+                            <a target="_blank" href="{{ .APIBaseURL }}/ui/swagger/index.html">API Documentation</a>
+                        </li>
+                        <li>
+                            <a target="_blank" href="https://github.com/dollarshaveclub/acyl/wiki/User-Guide">User
+                                Guide</a>
+                        </li>
+                        <li>
+                            <a target="_blank"
+                                href="https://github.com/dollarshaveclub/acyl/wiki/Acyl.yml-V2-Specification">Nitro v2
+                                Specification</a>
+                        </li>
+
+                        {{ range .DocURLs }}
+                        <li>
+                            <a target="_blank" href="{{.}}"></a>
+                        </li>
+
+                        {{ end }}
+                    </ul>
+                    <h5 class="hidden sr-only" id="hAdditionalResources">
+                        Additional Resources
+                    </h5>
+                    <ul id="ulAdditionalResources"></ul>
+                </strong>
+            </div>
         </div>
     </div>
-</div>
-{{ template "footer-scripts" . }}
-<script
-        type="text/javascript"
-        src="{{ .APIBaseURL }}/ui/static/help.js"
-></script>
+    {{ template "footer-scripts" . }}
+    <script type="text/javascript" src="{{ .APIBaseURL }}/ui/static/help.js"></script>
 </body>
+
 </html>

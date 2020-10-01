@@ -289,7 +289,8 @@ func (d *Dispatcher) RegisterVersions(deps *Dependencies, ro ...RegisterOption) 
 		ropts.uiOptions.branding,
 		deps.DataLayer,
 		oauthcfg,
-		deps.Logger)
+		deps.Logger,
+		deps.ServerConfig.UIExternalDocumentURLs)
 	if err != nil {
 		return fmt.Errorf("error creating UI api: %v", err)
 	}
