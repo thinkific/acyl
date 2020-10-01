@@ -39,7 +39,10 @@ func (pg *PGLayer) GetEventLogByDeliveryID(deliveryID uuid.UUID) (*models.EventL
 
 // GetEventLogsByEnvName gets all EventLogs associated with an environment
 func (pg *PGLayer) GetEventLogsByEnvName(name string) ([]models.EventLog, error) {
-	q := `SELECT ` + models.EventLog{}.Columns() + ` FROM event_logs WHERE env_name = $1;`
+	q := `SELECT qa_environment_event_ids.event_id, ` + models.EventLog{}.ColumnsWithoutID() + ` FROM (
+		SELECT unnest(event_ids) AS event_id FROM qa_environments WHERE name = $1
+	) AS qa_environment_event_ids
+	JOIN event_logs ON qa_environment_event_ids.event_id = event_logs.id`
 	return collectEventLogRows(pg.db.Query(q, name))
 }
 
@@ -72,9 +75,23 @@ func (pg *PGLayer) AppendToEventLog(id uuid.UUID, msg string) error {
 
 // SetEventLogEnvName sets the env name for an EventLog
 func (pg *PGLayer) SetEventLogEnvName(id uuid.UUID, name string) error {
+	tx, err := pg.db.Begin()
+	if err != nil {
+		return errors.Wrap(err, "error beginning transaction")
+	}
+	defer tx.Rollback()
 	q := `UPDATE event_logs SET env_name = $1 WHERE id = $2;`
-	_, err := pg.db.Exec(q, name, id)
-	return errors.Wrap(err, "error setting eventlog env name")
+	if _, err := pg.db.Exec(q, name, id); err != nil {
+		return errors.Wrap(err, "error setting eventlog env name")
+	}
+	q = `UPDATE qa_environments SET event_ids = event_ids || $1::uuid WHERE name = $2;`
+	if _, err := pg.db.Exec(q, id, name); err != nil {
+		return errors.Wrap(err, "error setting environment event IDs")
+	}
+	if err := tx.Commit(); err != nil {
+		return errors.Wrap(err, "error committing transaction")
+	}
+	return nil
 }
 
 // DeleteEventLog deletes an EventLog

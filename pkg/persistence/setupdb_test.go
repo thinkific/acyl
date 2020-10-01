@@ -184,6 +184,10 @@ func (tdl *TestDataLayer) insertEventLog(el models.EventLog) error {
 	if _, err := tdl.pgdb.Exec(q, el.Status, el.ID); err != nil {
 		return errors.Wrap(err, "error setting event log status")
 	}
+	q = `UPDATE qa_environments SET event_ids = event_ids || $1::uuid WHERE name = $2`
+	if _, err := tdl.pgdb.Exec(q, el.ID, el.EnvName); err != nil {
+		return errors.Wrap(err, "error setting environment event IDs")
+	}
 	return nil
 }
 
