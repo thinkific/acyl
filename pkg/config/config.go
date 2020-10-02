@@ -213,7 +213,7 @@ type UIBrandingConfig struct {
 	LogoAlt           string            `json:"logo_alt"`
 	Title             string            `json:"title"`
 	TitleStyle        string            `json:"title_style"`
-	AdditionalDocUrls map[string]string `json:"additional_doc_urls"`
+	AdditionalDocURLs map[string]string `json:"additional_doc_urls"`
 }
 
 var DefaultUIBranding = UIBrandingConfig{

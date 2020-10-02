@@ -25,12 +25,12 @@
                                 <a target="_blank" href="https://github.com/dollarshaveclub/acyl/wiki/Acyl.yml-V2-Specification">Nitro v2 Specification</a>
                             </li>
                         </ul>
-                        {{ if ne (len .Branding.AdditionalDocUrls) 0 }}
+                        {{ if ne (len .Branding.AdditionalDocURLs) 0 }}
                         <h5 id="hAdditionalResources">
                             Additional Resources
                         </h5>
                         <ul id="ulAdditionalResources">
-                            {{ range $name, $url := .Branding.AdditionalDocUrls }}
+                            {{ range $name, $url := .Branding.AdditionalDocURLs }}
                             <li>
                                 <a target="_blank" href="{{ $url }}">{{ $name }}</a>
                             </li>
