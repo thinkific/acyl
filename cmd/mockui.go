@@ -55,7 +55,7 @@ func addUIFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&serverConfig.UIPath, "ui-path", "/opt/ui", "Local filesystem path to UI assets")
 	cmd.PersistentFlags().StringVar(&serverConfig.UIBaseRoute, "ui-base-route", "/ui", "Base prefix for UI HTTP routes")
 	cmd.PersistentFlags().StringVar(&serverConfig.UIBrandingJSON, "ui-branding", string(brj), "Branding JSON configuration (see doc)")
-	cmd.PersistentFlags().StringSliceVar(&serverConfig.UIExternalDocumentURLs, "ui-doc-urls", []string{}, "External documentation URLs")
+	cmd.PersistentFlags().StringVar(&serverConfig.UIDocumentURLJSON, "ui-doc-urls", "", "Documentation URLs JSON configuration, ([{\"name\": \"foo\", \"url\": \"foo.com\"},{\"name\": \"bar\", \"url\": \"bar.com\"}])")
 	cmd.PersistentFlags().BoolVar(&githubConfig.OAuth.Enforce, "ui-enforce-oauth", false, "Enforce GitHub App OAuth authn/authz for UI routes")
 	cmd.PersistentFlags().StringVar(&mockDataFile, "mock-data", "testdata/data.json", "Path to mock data file")
 	cmd.PersistentFlags().StringVar(&mockUser, "mock-user", "bobsmith", "Mock username (for sessions)")
@@ -172,6 +172,16 @@ func mockui(cmd *cobra.Command, args []string) {
 	if err := json.Unmarshal([]byte(serverConfig.UIBrandingJSON), &branding); err != nil {
 		log.Fatalf("error unmarshaling branding config: %v", err)
 	}
+
+	docUrl := config.DocURL{}
+	if len(serverConfig.UIDocumentURLJSON) > 0 {
+		data ,_ := json.Marshal(serverConfig.UIDocumentURLJSON)
+		log.Println(serverConfig.UIDocumentURLJSON)
+		if err := json.Unmarshal(data, &docUrl); err != nil {
+			log.Fatalf("error unmarshaling branding config: %v", err)
+		}
+	}
+	branding.DocUrls = append(branding.DocUrls, docUrl)
 
 	setDummyGHConfig()
 

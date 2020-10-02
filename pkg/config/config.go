@@ -33,7 +33,7 @@ type ServerConfig struct {
 	UIPath                     string
 	UIBaseRoute                string
 	UIBrandingJSON             string
-	UIExternalDocumentURLs     []string
+	UIDocumentURLJSON          string
 }
 
 type PGConfig struct {
@@ -203,17 +203,23 @@ type SecretsConfig struct {
 	Mapping string
 }
 
+type DocURL struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
 // UIBrandingConfig defines optional non-default branding for UI pages
 type UIBrandingConfig struct {
-	FaviconURL string `json:"favicon_url"`
-	LogoURL    string `json:"logo_url"`
-	LogoHeight string `json:"logo_height"`
-	LogoWidth  string `json:"logo_width"`
-	LogoStyle  string `json:"logo_style"`
-	LogoLink   string `json:"logo_link"`
-	LogoAlt    string `json:"logo_alt"`
-	Title      string `json:"title"`
-	TitleStyle string `json:"title_style"`
+	FaviconURL string   `json:"favicon_url"`
+	LogoURL    string   `json:"logo_url"`
+	LogoHeight string   `json:"logo_height"`
+	LogoWidth  string   `json:"logo_width"`
+	LogoStyle  string   `json:"logo_style"`
+	LogoLink   string   `json:"logo_link"`
+	LogoAlt    string   `json:"logo_alt"`
+	Title      string   `json:"title"`
+	TitleStyle string   `json:"title_style"`
+	DocUrls    []DocURL `json:"doc_urls"`
 }
 
 var DefaultUIBranding = UIBrandingConfig{

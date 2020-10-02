@@ -272,8 +272,7 @@ func TestUI_Authenticate(t *testing.T) {
 				config.DefaultUIBranding,
 				dl,
 				oauthcfg,
-				log.New(os.Stderr, "", log.LstdFlags),
-				[]string{"http://foo.com"})
+				log.New(os.Stderr, "", log.LstdFlags))
 			if err != nil {
 				t.Fatalf("error creating ui API: %v", err)
 			}
@@ -678,8 +677,7 @@ func TestUI_AuthCallbackHandler(t *testing.T) {
 				config.DefaultUIBranding,
 				dl,
 				oauthcfg,
-				log.New(os.Stderr, "", log.LstdFlags),
-				[]string{"http://foo.com"})
+				log.New(os.Stderr, "", log.LstdFlags))
 			if err != nil {
 				t.Fatalf("error creating ui API: %v", err)
 			}

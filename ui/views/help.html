@@ -25,14 +25,14 @@
                                 <a target="_blank" href="https://github.com/dollarshaveclub/acyl/wiki/Acyl.yml-V2-Specification">Nitro v2 Specification</a>
                             </li>
                         </ul>
-                        {{ if ne (len .DocUrls) 0 }}
+                        {{ if ne (len .Branding.DocumentURLs) 0 }}
                         <h5 id="hAdditionalResources">
                             Additional Resources
                         </h5>
                         <ul id="ulAdditionalResources">
-                            {{ range .DocUrls }}
+                            {{ range .Branding.DocumentURLs }}
                                 <li>
-                                    <a target="_blank" href="{{.}}">{{.}}</a>
+                                    <a target="_blank" href="{{ .URL }}">{{ .Name }}</a>
                                 </li>
                             {{ end }}
                         </ul>
@@ -42,9 +42,5 @@
             </div>
         </div>
         {{ template "footer-scripts" . }}
-        <script
-                type="text/javascript"
-                src="{{ .APIBaseURL }}/ui/static/help.js"
-        ></script>
     </body>
 </html>
