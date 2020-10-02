@@ -81,11 +81,11 @@ func (pg *PGLayer) SetEventLogEnvName(id uuid.UUID, name string) error {
 	}
 	defer tx.Rollback()
 	q := `UPDATE event_logs SET env_name = $1 WHERE id = $2;`
-	if _, err := pg.db.Exec(q, name, id); err != nil {
+	if _, err := tx.Exec(q, name, id); err != nil {
 		return errors.Wrap(err, "error setting eventlog env name")
 	}
 	q = `UPDATE qa_environments SET event_ids = event_ids || $1::uuid WHERE name = $2;`
-	if _, err := pg.db.Exec(q, id, name); err != nil {
+	if _, err := tx.Exec(q, id, name); err != nil {
 		return errors.Wrap(err, "error setting environment event IDs")
 	}
 	if err := tx.Commit(); err != nil {
