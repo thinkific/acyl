@@ -30,11 +30,9 @@
                             Additional Resources
                         </h5>
                         <ul id="ulAdditionalResources">
-                            {{ range $adu := .Branding.AdditionalDocUrls }}
-                            {{ range $name, $url := $adu }}
-                            {{ end }}
+                            {{ range $name, $url := .Branding.AdditionalDocUrls }}
                             <li>
-                                <a target="_blank" href="{{ .url }}">{{ .name }}</a>
+                                <a target="_blank" href="{{ $url }}">{{ $name }}</a>
                             </li>
                             {{ end }}
                         </ul>
