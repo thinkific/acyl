@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
+	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
 )
 
 type lockingDataMap struct {
@@ -976,6 +977,20 @@ func (fdl *FakeDataLayer) SetEventStatusCompleted(id uuid.UUID, status models.Ev
 	}
 	elog.Status.Config.Status = status
 	elog.Status.Config.Completed = time.Now().UTC()
+	return nil
+}
+
+func (fdl *FakeDataLayer) SetEventStatusFailed(id uuid.UUID, ce metahelm.ChartError) error {
+	fdl.doDelay()
+	fdl.data.Lock()
+	defer fdl.data.Unlock()
+	elog := fdl.data.elogs[id]
+	if elog == nil {
+		return errors.New("eventlog not found")
+	}
+	elog.Status.Config.Status = models.FailedStatus
+	elog.Status.Config.Completed = time.Now().UTC()
+	elog.Status.Config.FailedResources = ce
 	return nil
 }
 

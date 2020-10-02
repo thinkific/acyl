@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
 	"github.com/dollarshaveclub/acyl/pkg/models"
+	"github.com/dollarshaveclub/metahelm/pkg/metahelm"
 )
 
 func TestDataLayerCreateQAEnvironment(t *testing.T) {
@@ -1504,6 +1506,41 @@ func TestDataLayerSetEventStatusCompleted(t *testing.T) {
 	}
 	if s.Config.Completed.IsZero() {
 		t.Fatalf("completed should have been set")
+	}
+}
+
+func TestDataLayerSetEventStatusFailed(t *testing.T) {
+	dl, tdl := NewTestDataLayer(t)
+	if err := tdl.Setup(testDataPath); err != nil {
+		t.Fatalf("error setting up test database: %v", err)
+	}
+	defer tdl.TearDown()
+	ce := metahelm.ChartError{
+		FailedDeployments: map[string][]metahelm.FailedPod{
+			"foo": {
+				{
+					Name:   "foo",
+					Reason: "readiness probe failed",
+				},
+			},
+		},
+	}
+	id := uuid.Must(uuid.Parse("c1e1e229-86d8-4d99-a3d5-62b2f6390bbe"))
+	if err := dl.SetEventStatusFailed(id, ce); err != nil {
+		t.Fatalf("should have succeeded: %v", err)
+	}
+	s, err := dl.GetEventStatus(id)
+	if err != nil {
+		t.Fatalf("get should have succeeded: %v", err)
+	}
+	if status := s.Config.Status; status != models.FailedStatus {
+		t.Fatalf("unexpected status: %v", status)
+	}
+	if s.Config.Completed.IsZero() {
+		t.Fatalf("completed should have been set")
+	}
+	if diff := cmp.Diff(s.Config.FailedResources, ce); diff != "" {
+		t.Fatalf("SetEventStatusFailed() (-expected +got):\n%s\n", diff)
 	}
 }
 

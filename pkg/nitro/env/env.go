@@ -1,17 +1,15 @@
 package env
 
 import (
-	"bytes"
 	"context"
+	stdliberrors "errors"
 	"fmt"
 	"html/template"
-	"io"
 	"sort"
 	"time"
 
 	"github.com/dollarshaveclub/acyl/pkg/ghapp"
 
-	"github.com/dollarshaveclub/acyl/pkg/config"
 	"github.com/dollarshaveclub/acyl/pkg/eventlogger"
 	"github.com/dollarshaveclub/acyl/pkg/ghclient"
 	"github.com/dollarshaveclub/acyl/pkg/locker"
@@ -24,7 +22,6 @@ import (
 	"github.com/dollarshaveclub/acyl/pkg/nitro/metrics"
 	"github.com/dollarshaveclub/acyl/pkg/nitro/notifier"
 	"github.com/dollarshaveclub/acyl/pkg/persistence"
-	"github.com/dollarshaveclub/acyl/pkg/s3"
 	metahelmlib "github.com/dollarshaveclub/metahelm/pkg/metahelm"
 	"github.com/google/uuid"
 	"github.com/imdario/mergo"
@@ -36,10 +33,6 @@ import (
 
 // LogFunc is a function that logs a formatted string somewhere
 type LogFunc func(string, ...interface{})
-
-type s3Pusher interface {
-	Push(contentType string, in io.Reader, opts s3.Options) (string, error)
-}
 
 // metrics name prefix
 var mpfx = "env."
@@ -59,11 +52,8 @@ type Manager struct {
 	MG                   meta.Getter
 	CI                   metahelm.Installer
 	PLF                  locker.PreemptiveLockerFactory
-	AWSCreds             config.AWSCreds
-	S3Config             config.S3Config
 	GlobalLimit          uint
 	failureTemplate      *template.Template
-	s3p                  s3Pusher
 	OperationTimeout     time.Duration
 	UIBaseURL            string
 }
@@ -256,7 +246,11 @@ func (m *Manager) lockingOperation(ctx context.Context, repo string, pr uint, f 
 		err = ctx.Err()
 	}
 	if err != nil {
-		eventlogger.GetLogger(ctx).SetCompletedStatus(models.FailedStatus)
+		var ce metahelmlib.ChartError
+		if stdliberrors.As(err, &ce) {
+			m.log(ctx, "error returned was a ChartError")
+		}
+		eventlogger.GetLogger(ctx).SetFailedStatus(ce)
 		m.log(ctx, "operation error (user: %v, sys: %v): %v: %v: %v", nitroerrors.IsUserError(err), nitroerrors.IsSystemError(err), repo, pr, err)
 	}
 	endop(fmt.Sprintf("success:%v", err == nil), fmt.Sprintf("user_error:%v", nitroerrors.IsUserError(err)), fmt.Sprintf("system_error:%v", nitroerrors.IsSystemError(err)))
@@ -547,7 +541,7 @@ func (m *Manager) create(ctx context.Context, rd *models.RepoRevisionData) (envn
 	chartSpan, ctx := tracer.StartSpanFromContext(ctx, "build_and_install_charts")
 	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: newenv.env, RC: newenv.rc}, mcloc); err != nil {
 		chartSpan.Finish(tracer.WithError(err))
-		return "", m.handleMetahelmError(ctx, newenv, err, "error installing charts")
+		return "", errors.Wrap(nitroerrors.UserError(err), "error installing charts")
 	}
 	chartSpan.Finish()
 	return newenv.env.Name, nil
@@ -780,7 +774,7 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 		}
 		envinfo.Releases = rsls
 		if err := m.CI.BuildAndUpgradeCharts(ctx, envinfo, k8senv, mcloc); err != nil {
-			return envinfo.Env.Name, m.handleMetahelmError(ctx, ne, err, "error upgrading charts")
+			return envinfo.Env.Name, errors.Wrap(nitroerrors.UserError(err), "error upgrading charts")
 		}
 		return envinfo.Env.Name, nil
 	}
@@ -792,92 +786,9 @@ func (m *Manager) update(ctx context.Context, rd *models.RepoRevisionData) (envn
 	chartSpan, ctx := tracer.StartSpanFromContext(ctx, "build_and_install_charts")
 	if err = m.CI.BuildAndInstallCharts(ctx, &metahelm.EnvInfo{Env: ne.env, RC: ne.rc}, mcloc); err != nil {
 		chartSpan.Finish(tracer.WithError(err))
-		return "", m.handleMetahelmError(ctx, ne, err, "error installing charts")
+		return "", errors.Wrap(nitroerrors.UserError(err), "error installing charts")
 	}
 	chartSpan.Finish()
 
 	return envinfo.Env.Name, nil
-}
-
-// handleMetahelmError detects if the error returned by metahelm is a ChartError and, if so, generates a failure report and writes it to S3
-func (m *Manager) handleMetahelmError(ctx context.Context, env *newEnv, err error, msg string) error {
-	ce, ok := err.(metahelmlib.ChartError)
-	if !ok {
-		m.log(ctx, "metahelm returned an error but it's not a ChartError (type: %T): not producing a failure report", err)
-		return errors.Wrap(nitroerrors.UserError(err), msg)
-	}
-	if len(ce.FailedDeployments) == 0 && len(ce.FailedJobs) == 0 && len(ce.FailedDaemonSets) == 0 {
-		// if there's no failed resources, just return the inner helm error
-		m.log(ctx, "metahelm returned an error with no failed resources: not producing a failure report")
-		return nitroerrors.UserError(ce.HelmError)
-	}
-	m.MC.Increment(mpfx+"failure_reports", "triggering_repo:"+env.env.Repo)
-	// only push to S3 if bucket and region are defined
-	if m.S3Config.Bucket != "" && m.S3Config.Region != "" {
-		ftd := failureTemplateData{
-			EnvName:        env.env.Name,
-			PullRequestURL: fmt.Sprintf("https://github.com/%v/pull/%v", env.env.Repo, env.env.PullRequest),
-			StartedTime:    env.env.Created,
-			FailedTime:     time.Now().UTC(),
-			CError:         ce,
-		}
-		html, err2 := m.chartErrorRenderHTML(ftd)
-		if err2 != nil {
-			m.log(ctx, "error rendering failure template HTML: %v", err2)
-			return errors.Wrap(nitroerrors.SystemError(err), msg)
-		}
-		sm := &s3.StorageManager{
-			LogFunc: eventlogger.GetLogger(ctx).Printf,
-		}
-		sm.SetCredentials(m.AWSCreds.AccessKeyID, m.AWSCreds.SecretAccessKey)
-		m.log(ctx, "pushing environment failure report to S3")
-		end := m.MC.Timing(mpfx+"s3_failure_report_push", "triggering_repo:"+env.env.Repo)
-		link, err3 := sm.Push("text/html", bytes.NewBuffer(html), s3.Options{
-			Region:            m.S3Config.Region,
-			Bucket:            m.S3Config.Bucket,
-			Key:               m.S3Config.KeyPrefix + "envfailures/" + time.Now().UTC().Round(time.Minute).Format(time.RFC3339) + "/" + env.env.Name + ".html",
-			Concurrency:       10,
-			MaxRetries:        3,
-			PresignTTLMinutes: 60 * 24,
-		})
-		end()
-		if err3 != nil {
-			m.log(ctx, "error writing failure HTML to S3: %v", err3)
-			return errors.Wrap(nitroerrors.SystemError(err), msg)
-		}
-		m.pushNotification(context.Background(), env, notifier.Failure, "Environment Failure Log: "+link)
-	} else {
-		m.log(ctx, "not pushing failure report because S3 bucket (%v) and/or region (%v) not set", m.S3Config.Bucket, m.S3Config.Region)
-	}
-	return errors.Wrap(nitroerrors.UserError(err), msg)
-}
-
-// InitFailureTemplate parses the raw temlate data from tmpldata and initializes the S3 client for later use
-func (m *Manager) InitFailureTemplate(tmpldata []byte) error {
-	if len(tmpldata) == 0 {
-		return errors.New("template data is empty or nil")
-	}
-	t, err := template.New("failure").Parse(string(tmpldata))
-	if err != nil {
-		return errors.Wrap(err, "error parsing template")
-	}
-	m.failureTemplate = t
-	return nil
-}
-
-type failureTemplateData struct {
-	EnvName, PullRequestURL string
-	StartedTime, FailedTime time.Time
-	CError                  metahelmlib.ChartError
-}
-
-func (m *Manager) chartErrorRenderHTML(data failureTemplateData) ([]byte, error) {
-	if m.failureTemplate == nil {
-		return nil, errors.New("failure template is uninitialized")
-	}
-	b := bytes.NewBuffer(nil)
-	if err := m.failureTemplate.Execute(b, data); err != nil {
-		return nil, errors.Wrap(err, "error executing template")
-	}
-	return b.Bytes(), nil
 }

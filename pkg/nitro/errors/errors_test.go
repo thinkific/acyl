@@ -81,3 +81,30 @@ func TestSystemError(t *testing.T) {
 		t.Fatalf("nil should not be a system error")
 	}
 }
+
+type customError struct {
+	message string
+}
+
+func (ce customError) Error() string { return ce.message }
+
+func TestSystemErrorUnwrapped(t *testing.T) {
+
+	ce := customError{message: "custom error"}
+	se := SystemError(ce)
+
+	res := customError{}
+	if ok := stdliberrors.As(se, &res); !ok {
+		t.Fatalf("expected error to be unwrapped properly and found by errors.As")
+	}
+}
+
+func TestUserErrorUnwrapped(t *testing.T) {
+	ce := customError{message: "custom error"}
+	ue := UserError(ce)
+
+	res := customError{}
+	if ok := stdliberrors.As(ue, &res); !ok {
+		t.Fatalf("expected error to be unwrapped properly and found by errors.As")
+	}
+}
