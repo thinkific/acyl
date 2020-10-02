@@ -168,11 +168,9 @@ func mockui(cmd *cobra.Command, args []string) {
 	serverConfig.UIBaseURL = "http://" + listenAddr
 
 	var branding config.UIBrandingConfig
-	log.Println(serverConfig.UIBrandingJSON)
 	if err := json.Unmarshal([]byte(serverConfig.UIBrandingJSON), &branding); err != nil {
 		log.Fatalf("error unmarshaling branding config: %v", err)
 	}
-	log.Println(&branding.AdditionalDocUrls)
 
 	setDummyGHConfig()
 
