@@ -44,6 +44,7 @@ app:
       favicon_url: ''
       title: ''
       title_style: ''
+      additional_doc_urls: {}
   failure_reports:
     s3:
       region: ''
