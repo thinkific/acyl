@@ -902,8 +902,10 @@ func TestDataLayerGetMostRecentOrdering(t *testing.T) {
 	}
 	now := time.Now().UTC()
 	for i := 0; i < 5; i++ {
-		if !strings.HasPrefix(qas[i].Created.String(), now.AddDate(0, 0, -i).Format("2006-01-02")) {
-			t.Fatalf("bad ordering: %v\n", qas)
+		got := qas[i].Created.String()
+		expectedPrefix := now.AddDate(0, 0, -i).Format("2006-01-02")
+		if !strings.HasPrefix(got, expectedPrefix) {
+			t.Fatalf("bad ordering: got %s, expected prefix %s: %v\n", got, expectedPrefix, qas)
 		}
 	}
 }
