@@ -34,7 +34,6 @@ import (
 type uiBranding struct {
 	config.UIBrandingConfig
 	FaviconType  string
-	DocumentURLs []config.DocURL
 }
 
 // OAuthConfig models the configuration needed to support a GitHub OAuth authn/authz flow
