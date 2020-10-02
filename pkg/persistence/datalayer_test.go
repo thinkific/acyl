@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"testing"
@@ -902,9 +901,6 @@ func TestDataLayerGetMostRecentOrdering(t *testing.T) {
 		t.Fatalf("should have returned all envs: %v", qas)
 	}
 	now := time.Now().UTC()
-	for _, qa := range qas {
-		log.Println(qa.Created.String())
-	}
 	for i := 0; i < 5; i++ {
 		got := qas[i].Created.String()
 		expectedPrefix := now.AddDate(0, 0, -i).Format("2006-01-02")
