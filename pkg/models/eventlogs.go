@@ -41,6 +41,10 @@ func (el EventLog) ColumnsWithStatus() string {
 	return strings.Join([]string{"id", "created", "updated", "env_name", "repo", "pull_request", "webhook_payload", "github_delivery_id", "log", "log_key", "status"}, ",")
 }
 
+func (el EventLog) ColumnsWithoutIDWithStatus() string {
+	return strings.Join([]string{"created", "updated", "env_name", "repo", "pull_request", "webhook_payload", "github_delivery_id", "log", "log_key", "status"}, ",")
+}
+
 func (el EventLog) InsertColumns() string {
 	return strings.Join([]string{"id", "env_name", "repo", "pull_request", "webhook_payload", "github_delivery_id", "log", "log_key"}, ",")
 }

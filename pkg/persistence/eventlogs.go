@@ -274,7 +274,10 @@ func (pg *PGLayer) GetEventStatus(id uuid.UUID) (*models.EventStatusSummary, err
 // GetEventLogsWithStatusByEnvName gets all event logs for an environment including Status
 func (pg *PGLayer) GetEventLogsWithStatusByEnvName(name string) ([]models.EventLog, error) {
 	var logs []models.EventLog
-	q := `SELECT ` + models.EventLog{}.ColumnsWithStatus() + ` FROM event_logs WHERE env_name = $1;`
+	q := `SELECT qa_environment_event_ids.event_id, ` + models.EventLog{}.ColumnsWithoutIDWithStatus() + ` FROM (
+		SELECT unnest(event_ids) AS event_id FROM qa_environments WHERE name = $1
+	) AS qa_environment_event_ids
+	JOIN event_logs ON qa_environment_event_ids.event_id = event_logs.id`
 	rows, err := pg.db.Query(q, name)
 	if err != nil {
 		if err == sql.ErrNoRows {
