@@ -104,12 +104,6 @@ spec:
           {{ if .Values.app.ui.enforce_oauth }}
           - "--ui-enforce-oauth"
           {{ end }}
-          {{ if .Values.app.ui.document_urls }}
-          {{- range .Values.app.ui.document_urls }}
-          - "--ui-doc-urls"
-          - {{ . }}
-          {{- end }}
-          {{ end }}
         ports:
         - containerPort: {{ .Values.service.internalPort }}
         livenessProbe:
