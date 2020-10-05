@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-pg/pg/orm"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/lib/pq/hstore"
 	"github.com/pkg/errors"
@@ -105,6 +106,7 @@ type QAEnvironment struct {
 	AminoServiceToPortRaw    map[string]string    `json:"-"`
 	AminoKubernetesNamespace string               `json:"amino_kubernetes_namespace"`
 	AminoEnvironmentID       int                  `json:"amino_environment_id"`
+	EventIDs                 []uuid.UUID          `json:"event_ids"`
 
 	rmapHS  hstore.Hstore
 	csmapHS hstore.Hstore

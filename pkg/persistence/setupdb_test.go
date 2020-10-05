@@ -107,8 +107,8 @@ func (tdl *TestDataLayer) insertFake(qae *models.QAEnvironment) error {
 
 func (tdl *TestDataLayer) insertPG(qae *models.QAEnvironment) error {
 	q := `INSERT INTO qa_environments
-	(name, created, raw_events, hostname, qa_type, username, repo, pull_request, source_sha, base_sha, source_branch, base_branch, source_ref, status, ref_map, commit_sha_map, amino_service_to_port, amino_kubernetes_namespace, amino_environment_id)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19);`
+	(name, created, raw_events, hostname, qa_type, username, repo, pull_request, source_sha, base_sha, source_branch, base_branch, source_ref, status, ref_map, commit_sha_map, amino_service_to_port, amino_kubernetes_namespace, amino_environment_id, event_ids)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20);`
 
 	crm2hstore := func(m models.RefMap) hstore.Hstore {
 		out := hstore.Hstore{Map: make(map[string]sql.NullString)}
@@ -126,7 +126,7 @@ func (tdl *TestDataLayer) insertPG(qae *models.QAEnvironment) error {
 		return out
 	}
 
-	args := []interface{}{qae.Name, qae.Created, pq.StringArray(qae.RawEvents), qae.Hostname, qae.QAType, qae.User, qae.Repo, qae.PullRequest, qae.SourceSHA, qae.BaseSHA, qae.SourceBranch, qae.BaseBranch, qae.SourceRef, qae.Status, crm2hstore(qae.RefMap), crm2hstore(qae.CommitSHAMap), casp2hstore(qae.AminoServiceToPort), qae.AminoKubernetesNamespace, qae.AminoEnvironmentID}
+	args := []interface{}{qae.Name, qae.Created, pq.StringArray(qae.RawEvents), qae.Hostname, qae.QAType, qae.User, qae.Repo, qae.PullRequest, qae.SourceSHA, qae.BaseSHA, qae.SourceBranch, qae.BaseBranch, qae.SourceRef, qae.Status, crm2hstore(qae.RefMap), crm2hstore(qae.CommitSHAMap), casp2hstore(qae.AminoServiceToPort), qae.AminoKubernetesNamespace, qae.AminoEnvironmentID, pq.Array(qae.EventIDs)}
 	if _, err := tdl.pgdb.Exec(q, args...); err != nil {
 		return errors.Wrapf(err, "error inserting QAEnvironment into database: %v", qae.Name)
 	}
@@ -183,10 +183,6 @@ func (tdl *TestDataLayer) insertEventLog(el models.EventLog) error {
 	q = `UPDATE event_logs SET status = $1 WHERE id = $2;`
 	if _, err := tdl.pgdb.Exec(q, el.Status, el.ID); err != nil {
 		return errors.Wrap(err, "error setting event log status")
-	}
-	q = `UPDATE qa_environments SET event_ids = event_ids || $1::uuid WHERE name = $2`
-	if _, err := tdl.pgdb.Exec(q, el.ID, el.EnvName); err != nil {
-		return errors.Wrap(err, "error setting environment event IDs")
 	}
 	return nil
 }

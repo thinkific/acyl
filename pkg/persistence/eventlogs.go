@@ -85,7 +85,7 @@ func (pg *PGLayer) SetEventLogEnvName(id uuid.UUID, name string) error {
 	if _, err := tx.Exec(q, name, id); err != nil {
 		return errors.Wrap(err, "error setting eventlog env name")
 	}
-	q = `UPDATE qa_environments SET event_ids = event_ids || $1::uuid WHERE name = $2;`
+	q = `UPDATE qa_environments SET event_ids = event_ids || $1::uuid WHERE name = $2 AND NOT $1::uuid = ANY(event_ids);`
 	if _, err := tx.Exec(q, id, name); err != nil {
 		return errors.Wrap(err, "error setting environment event IDs")
 	}
