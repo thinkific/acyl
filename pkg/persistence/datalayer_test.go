@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"testing"
@@ -1214,11 +1213,6 @@ func TestDataLayerGetEventLogsByEnvName(t *testing.T) {
 		t.Fatalf("should have succeeded: %v", err)
 	}
 	if i := len(logs); i != 2 {
-		for _, l := range logs {
-			log.Println(l.ID)
-			log.Println(l.Created)
-		}
-		t.Errorf("%v", logs) // DELETEME
 		t.Fatalf("expected length of 2: %v", i)
 	}
 }
