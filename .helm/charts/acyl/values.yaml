@@ -19,8 +19,8 @@ app:
   secrets_mapping: "ACYL_{{ .ID }}"
   secrets_from_env: true
   debug_endpoints: true
-  metrics_tags: ''
-  furan_addr: "furan"
+  metrics_tags: 'latest'
+  furan_addr: "furan:4000"
   k8s_group_bindings: ""
   k8s_secret_injections: "image-pull-secret=k8s/image_pull_secret"
   k8s_client_disable_http2: true # work around bug in using HTTP2 for k8s client calls
@@ -70,3 +70,11 @@ resources:
   requests:
     cpu: 1
     memory: 256Mi
+
+furan:
+  db:
+    nodes: "acyl-scylladb"
+  kafka:
+    zookeeper:
+      service:
+        name: acyl-zookeeper
