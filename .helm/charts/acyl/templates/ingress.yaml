@@ -1,13 +1,13 @@
-{{- if .Values.ingress.argo }}
+{{- if .Values.ingress.enabled }}
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: fastly-dqa
+  name: {{ template "fullname" . }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
   namespace: {{ .Values.namespace }}
   annotations:
-      kubernetes.io/ingress.class: 
+      kubernetes.io/ingress.class:
 spec:
   rules:
     {{- if .Values.is_dqa }}

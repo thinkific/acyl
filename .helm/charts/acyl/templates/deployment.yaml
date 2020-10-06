@@ -36,42 +36,16 @@ spec:
         {{ if .Values.app.disable_tls }}
           - "--disable-tls"
         {{ end }}
-        {{ if .Values.app.datadog_service_name }}
-          - "--datadog-service-name"
-        {{ if .Values.is_dqa }}
-          - "{{ .Values.app.datadog_service_name }}-{{ .Values.env_name }}"
-        {{ else }}
-          - "{{ .Values.app.datadog_service_name }}"
-        {{ end }}
-        {{ end }}
           - "--global-environment-limit"
           - "{{ .Values.app.env_limit }}"
-          - "--dogstatsd-addr"
-          - "{{ .Values.app.dogstatsd_addr }}"
-          - "--datadog-tracing-agent-addr"
-          - "{{ .Values.app.datadog_tracing_agent_addr }}"
           - "--cleanup-interval"
           - "{{ .Values.app.cleanup.legacy_reaper_interval_secs }}"
-        {{ if .Values.is_dqa }}
-          - "--dogstatsd-tags"
-          - "env:dqa,env_name:{{ .Values.env_name }}"
-        {{ else }}
-          - "--dogstatsd-tags"
-          - "{{ .Values.app.metrics_tags }}"
-        {{ end }}
           - "--furan-addrs"
           - "{{ .Values.app.furan_addr }}"
           - "--secrets-backend"
           - "{{ .Values.app.secrets_backend }}"
           - "--secrets-mapping"
           - "{{ .Values.app.secrets_mapping }}"
-        {{ if .Values.vault.use_k8s_auth }}
-          - "--vault-k8s-auth"
-          - "--vault-k8s-role"
-          - "{{ .Values.vault.role }}"
-          - "--vault-k8s-auth-path"
-          - "{{ .Values.vault.auth_path }}"
-        {{ end }}
     {{ if eq .Values.app.debug_endpoints true }}
           - "--debug-endpoints"
     {{ end }}
@@ -84,15 +58,7 @@ spec:
           - "{{ .Values.app.operation_timeout_override }}"
           {{ end }}
           - "--ui-base-url"
-          {{ if .Values.is_dqa }}
-            {{ if .Values.ingress.traefik.enabled }}
-          - "https://{{ .Values.env_name }}-{{ .Values.ingress.traefik.host }}"
-            {{ else }}
-          - "{{ .Values.app.ui.base_url }}"  # local DQA hostname
-            {{ end }}
-          {{ else }}
           - "{{ .Values.app.ui.base_url }}"
-          {{ end }}
           - "--ui-branding"
           - '{{ .Values.app.ui.branding | toJson }}'
           {{ if .Values.app.ui.enforce_oauth }}
@@ -120,7 +86,6 @@ spec:
             {{ end }}
         volumeMounts:
         env:
-          {{ if .Values.app.secrets_from_env }}
           - name: ACYL_GITHUB_HOOK_SECRET
             valueFrom:
               secretKeyRef:
@@ -207,10 +172,6 @@ spec:
               secretKeyRef:
                 name: dummy-acyl-secrets
                 key: github_app_oauth_user_token_encryption_key
-      {{ else }}
-          - name: VAULT_ADDR
-            value: {{ .Values.vault.addr }}
-          {{ end }}
           {{ if .Values.app.k8s_client_disable_http2 }}
           - name: DISABLE_HTTP2
             value: 'true'

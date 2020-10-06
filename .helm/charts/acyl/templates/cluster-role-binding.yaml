@@ -1,4 +1,4 @@
-{{ if and (not .Values.is_dqa) (.Values.create_cluster_role_binding) }}
+{{ if .Values.create_cluster_role_binding }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

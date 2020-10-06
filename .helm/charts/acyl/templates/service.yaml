@@ -1,4 +1,3 @@
-{{ if eq .Values.create_svc true }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -9,10 +8,9 @@ metadata:
 spec:
   type: {{ .Values.service.type }}
   ports:
-  - port: {{ .Values.service.internalPort }}
-    targetPort: {{ .Values.service.internalPort }}
-    protocol: TCP
-    name: {{ .Values.service.name }}
+    - port: {{ .Values.service.internalPort }}
+      targetPort: {{ .Values.service.internalPort }}
+      protocol: TCP
+      name: {{ .Values.service.name }}
   selector:
     appsel: acyl
-{{ end }}
