@@ -8,8 +8,8 @@ create_cluster_role_binding: false
 run_migrations: false
 enable_cronjob: false
 image:
-  repository: quay.io/dollarshaveclub/acyl
-  tag: master
+  repository: saviogl/acyl
+  tag: latest
   pullPolicy: Always
   pullSecret: pull-secret
 app:

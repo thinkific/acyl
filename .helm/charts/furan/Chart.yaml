@@ -1,6 +1,6 @@
 apiVersion: v2
-description: Thinkific's ACYL Helm chart
-name: acyl
+name: furan
+description: Thinkific's Furan Helm chart
 
 # A chart can be either an 'application' or a 'library' chart.
 #
@@ -12,17 +12,12 @@ name: acyl
 # pipeline. Library charts do not define any templates and therefore cannot be deployed.
 type: application
 
-# This is the version number of the application being deployed. This version number should be
-# incremented each time you make changes to the application. Versions are not expected to
-# follow Semantic Versioning. They should reflect the version the application is using.
-appVersion: 1.16.0
-
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
 version: 0.1.0
 
-dependencies:
-  - name: postgresql
-    version: "9.8.1"
-    repository: "https://charts.bitnami.com/bitnami"
+# This is the version number of the application being deployed. This version number should be
+# incremented each time you make changes to the application. Versions are not expected to
+# follow Semantic Versioning. They should reflect the version the application is using.
+appVersion: 1.16.0
