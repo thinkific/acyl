@@ -98,3 +98,10 @@ type UISessionsDataLayer interface {
 	GetUISession(id int) (*models.UISession, error)
 	DeleteExpiredUISessions() (uint, error)
 }
+
+type APIKeyDataLayer interface {
+	CreateAPIKey(id uuid.UUID, permissionsLevel uint, name, description, githubUser string) error
+	UpdateAPIKey(id uuid.UUID, githubUser string) error
+	DeleteAPIKey(id uuid.UUID, githubUser string) error
+	GetAPIKeys(githubUser string) (*[]models.APIKey, error)
+}
