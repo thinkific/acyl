@@ -1,7 +1,8 @@
 apiVersion: v2
 name: furan
 description: Thinkific's Furan Helm chart
-
+Release:
+- Name: furan
 # A chart can be either an 'application' or a 'library' chart.
 #
 # Application charts are a collection of templates that can be packaged into versioned archives
@@ -21,3 +22,16 @@ version: 0.1.0
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 appVersion: 1.16.0
+
+dependencies:
+- name: kafka
+  version: "0.1.0"
+  repository: "file://../charts/kafka"
+
+- name: scylladb
+  version: "0.1.0"
+  repository: "file://../charts/scylladb"
+
+- name: vault
+  version: "0.1.0"
+  repository: "file://../charts/vault"
